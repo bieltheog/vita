@@ -718,7 +718,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8">
+    <div className="min-h-screen bg-black text-white px-3 py-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -748,7 +748,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex gap-2 overflow-x-auto pb-2 md:flex-wrap md:gap-3">
           <TabButton active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")}>
             Dashboard
           </TabButton>
