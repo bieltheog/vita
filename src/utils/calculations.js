@@ -87,7 +87,7 @@ export function normalizeDateString(dateString) {
 }
 
 export function makePaymentId(recordId, dateString, index = 0) {
-  return `${recordId}-${dateString}-${index}`;
+  return `${recordId || "record"}-${dateString}-${index}`;
 }
 
 export function getDailyPaymentDays(startDateString, endDateString) {
@@ -103,7 +103,11 @@ export function getDailyPaymentDays(startDateString, endDateString) {
 
   if (end < start) return days;
 
-  for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+  for (
+    let date = new Date(start);
+    date <= end;
+    date.setDate(date.getDate() + 1)
+  ) {
     if (date.getDay() !== 0) {
       days.push(new Date(date));
     }
@@ -145,7 +149,9 @@ export function getFixedDatePaymentDays(startDateString, endDateString, fixedDay
     ? getDateOnly(new Date(`${endDateString}T00:00:00`))
     : new Date(start.getFullYear(), start.getMonth() + 1, 0);
 
-  const cleanDays = (fixedDays || [])
+  const safeFixedDays = Array.isArray(fixedDays) ? fixedDays : [];
+
+  const cleanDays = safeFixedDays
     .map((day) => Math.floor(toNumber(day)))
     .filter((day) => day >= 1 && day <= 31)
     .sort((a, b) => a - b);
@@ -175,24 +181,31 @@ export function getFixedDatePaymentDays(startDateString, endDateString, fixedDay
   return days.sort((a, b) => a - b);
 }
 
-export function getCustomInstallments(record) {
-  return (record.parcelasPersonalizadas || [])
+export function getCustomInstallments(record = {}) {
+  const parcelas = Array.isArray(record.parcelasPersonalizadas)
+    ? record.parcelasPersonalizadas
+    : [];
+
+  return parcelas
     .map((item, index) => {
-      const date = normalizeDateString(item.date || item.data || item.dataPagamento);
-      const value = toNumber(item.value || item.valor || item.valorParcela);
+      const date = normalizeDateString(
+        item?.date || item?.data || item?.dataPagamento
+      );
+
+      const value = toNumber(item?.value || item?.valor || item?.valorParcela);
 
       return {
-        id: item.id || `${record.id || "custom"}-${date}-${index}`,
+        id: item?.id || `${record.id || "custom"}-${date}-${index}`,
         date,
         value,
-        descricao: item.descricao || item.observacao || "",
+        descricao: item?.descricao || item?.observacao || "",
       };
     })
     .filter((item) => item.date && item.value > 0)
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function getRecordPaymentDates(record) {
+export function getRecordPaymentDates(record = {}) {
   if (!record.abrirConta || toNumber(record.valorReceber) <= 0) return [];
 
   if (record.frequencia === paymentTypes.DAILY) {
@@ -200,7 +213,11 @@ export function getRecordPaymentDates(record) {
   }
 
   if (record.frequencia === paymentTypes.WEEKLY) {
-    return getWeeklyPaymentDays(record.dataInicio, record.semanas, record.diaPagamento);
+    return getWeeklyPaymentDays(
+      record.dataInicio,
+      record.semanas,
+      record.diaPagamento
+    );
   }
 
   if (record.frequencia === paymentTypes.FIXED_DATES) {
@@ -212,13 +229,15 @@ export function getRecordPaymentDates(record) {
   }
 
   if (record.frequencia === paymentTypes.CUSTOM) {
-    return getCustomInstallments(record).map((item) => new Date(`${item.date}T00:00:00`));
+    return getCustomInstallments(record).map(
+      (item) => new Date(`${item.date}T00:00:00`)
+    );
   }
 
   return [];
 }
 
-export function calculateInstallment(record) {
+export function calculateInstallment(record = {}) {
   if (!record.abrirConta && !record.valorReceber) return 0;
 
   const valorReceber = toNumber(record.valorReceber);
@@ -232,11 +251,11 @@ export function calculateInstallment(record) {
   return days.length ? valorReceber / days.length : valorReceber;
 }
 
-export function getPaymentData(record, eventKey) {
+export function getPaymentData(record = {}, eventKey) {
   return record.pagamentos?.[eventKey] || {};
 }
 
-export function getPaymentStatus(record, eventKey, dateString) {
+export function getPaymentStatus(record = {}, eventKey, dateString) {
   const savedPayment = getPaymentData(record, eventKey);
 
   if (savedPayment?.status) {
@@ -253,7 +272,7 @@ export function getPaymentStatus(record, eventKey, dateString) {
   return paymentStatuses.PENDING;
 }
 
-export function getPaymentFine(record, eventKey) {
+export function getPaymentFine(record = {}, eventKey) {
   const savedPayment = getPaymentData(record, eventKey);
 
   if (savedPayment?.multaPercentual !== undefined) {
@@ -263,13 +282,13 @@ export function getPaymentFine(record, eventKey) {
   return toNumber(record.multaPercentual);
 }
 
-export function getPaidAmount(record, eventKey) {
+export function getPaidAmount(record = {}, eventKey) {
   const savedPayment = getPaymentData(record, eventKey);
 
   return toNumber(savedPayment.valorPago);
 }
 
-export function getPaymentNote(record, eventKey) {
+export function getPaymentNote(record = {}, eventKey) {
   const savedPayment = getPaymentData(record, eventKey);
 
   return savedPayment.observacao || "";
@@ -283,11 +302,12 @@ export function buildEventFromPayment({
   customId,
   descricao = "",
 }) {
-  const eventKey = customId || makePaymentId(record.id, dateString, index);
+  const eventKey = customId || makePaymentId(record?.id, dateString, index);
   const statusPagamento = getPaymentStatus(record, eventKey, dateString);
   const multaPercentual = getPaymentFine(record, eventKey);
 
   const valorOriginal = toNumber(baseAmount);
+
   const valorComMulta =
     statusPagamento === paymentStatuses.LATE
       ? calculateLateAmount(valorOriginal, multaPercentual)
@@ -296,14 +316,15 @@ export function buildEventFromPayment({
   const valorPago = getPaidAmount(record, eventKey);
 
   const valorEmAberto =
-    statusPagamento === paymentStatuses.PAID || statusPagamento === paymentStatuses.CANCELED
+    statusPagamento === paymentStatuses.PAID ||
+    statusPagamento === paymentStatuses.CANCELED
       ? 0
       : Math.max(0, valorComMulta - valorPago);
 
   return {
-    recordId: record.id,
+    recordId: record?.id,
     date: dateString,
-    nome: record.nome,
+    nome: record?.nome || "Cliente",
 
     eventKey,
     paymentKey: eventKey,
@@ -314,7 +335,7 @@ export function buildEventFromPayment({
     valorPago,
     saldo: valorEmAberto,
 
-    tipo: record.frequencia,
+    tipo: record?.frequencia || "",
     statusPagamento,
 
     atrasado: statusPagamento === paymentStatuses.LATE,
@@ -331,12 +352,15 @@ export function buildEventFromPayment({
   };
 }
 
-export function buildCalendarEvents(records) {
+export function buildCalendarEvents(records = []) {
   const events = [];
+
+  if (!Array.isArray(records)) return events;
 
   records
     .filter(
       (record) =>
+        record &&
         record.abrirConta !== false &&
         record.status !== "Quitado" &&
         toNumber(record.valorReceber) > 0
@@ -386,18 +410,24 @@ export function isPaymentSettled(event) {
   );
 }
 
-export function calculateTotals(records) {
-  const currentLoans = records.filter(
+export function calculateTotals(records = []) {
+  const safeRecords = Array.isArray(records) ? records : [];
+
+  const currentLoans = safeRecords.filter(
     (item) => item.abrirConta !== false && toNumber(item.valorReceber) > 0
   );
 
-  const previousLoans = records.flatMap((item) =>
-    (item.historicoEmprestimos || []).map((loan) => ({
+  const previousLoans = safeRecords.flatMap((item) => {
+    const history = Array.isArray(item.historicoEmprestimos)
+      ? item.historicoEmprestimos
+      : [];
+
+    return history.map((loan) => ({
       valorEnviado: toNumber(loan.valorEnviado),
       valorReceber: toNumber(loan.valorReceber),
       lucro: toNumber(loan.lucro),
-    }))
-  );
+    }));
+  });
 
   const currentOpenLoans = currentLoans.filter((item) => item.status !== "Quitado");
   const currentClosedLoans = currentLoans.filter((item) => item.status === "Quitado");
@@ -423,7 +453,7 @@ export function calculateTotals(records) {
   const lucroHistorico = recebidoHistorico - enviadoHistorico;
 
   return {
-    clientes: records.length,
+    clientes: safeRecords.length,
     contas: currentLoans.length,
 
     enviado: enviadoAtual,
