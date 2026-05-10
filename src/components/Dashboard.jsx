@@ -258,7 +258,7 @@ function RecentClientCard({ event }) {
   );
 }
 
-export default function Dashboard({ totals, calendarEvents }) {
+export default function Dashboard({ totals, calendarEvents, onGoToTab }) {
   const stats = useMemo(() => {
     const paid = calendarEvents.filter(
       (event) => event.statusPagamento === paymentStatuses.PAID
@@ -341,6 +341,12 @@ export default function Dashboard({ totals, calendarEvents }) {
 
   const recentEvents = calendarEvents.slice(0, 4);
 
+  function go(tab) {
+    if (typeof onGoToTab === "function") {
+      onGoToTab(tab);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
@@ -401,9 +407,19 @@ export default function Dashboard({ totals, calendarEvents }) {
         </PremiumCard>
 
         <PremiumCard>
-          <div className="mb-4">
-            <h3 className="text-base font-bold text-white">Resumo Financeiro</h3>
-            <p className="text-xs text-slate-500">Distribuição das parcelas</p>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-white">Resumo Financeiro</h3>
+              <p className="text-xs text-slate-500">Distribuição das parcelas</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => go("calendario")}
+              className="rounded-lg bg-white/[0.04] px-3 py-2 text-xs font-bold text-purple-300 hover:bg-white/[0.08]"
+            >
+              Ver relatório
+            </button>
           </div>
 
           <DonutChart
@@ -419,7 +435,14 @@ export default function Dashboard({ totals, calendarEvents }) {
         <PremiumCard>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-base font-bold text-white">Clientes</h3>
-            <span className="text-xs font-semibold text-purple-300">Semana</span>
+
+            <button
+              type="button"
+              onClick={() => go("clientes")}
+              className="text-xs font-semibold text-purple-300 hover:text-purple-200"
+            >
+              Ver todos
+            </button>
           </div>
 
           <BarChart data={weekBars} />
@@ -428,7 +451,14 @@ export default function Dashboard({ totals, calendarEvents }) {
         <PremiumCard>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-base font-bold text-white">Distribuição de Parcelas</h3>
-            <span className="text-xs font-semibold text-purple-300">Ver relatório</span>
+
+            <button
+              type="button"
+              onClick={() => go("calendario")}
+              className="text-xs font-semibold text-purple-300 hover:text-purple-200"
+            >
+              Ver relatório
+            </button>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -489,7 +519,14 @@ export default function Dashboard({ totals, calendarEvents }) {
         <PremiumCard>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-bold text-white">Atividade Recente</h3>
-            <span className="text-xs font-semibold text-purple-300">Ver todas</span>
+
+            <button
+              type="button"
+              onClick={() => go("calendario")}
+              className="text-xs font-semibold text-purple-300 hover:text-purple-200"
+            >
+              Ver todas
+            </button>
           </div>
 
           <div>
@@ -537,7 +574,14 @@ export default function Dashboard({ totals, calendarEvents }) {
       <PremiumCard>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-bold text-white">Clientes Recentes</h3>
-          <span className="text-xs font-semibold text-purple-300">Ver todos</span>
+
+          <button
+            type="button"
+            onClick={() => go("clientes")}
+            className="text-xs font-semibold text-purple-300 hover:text-purple-200"
+          >
+            Ver todos
+          </button>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">

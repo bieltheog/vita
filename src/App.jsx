@@ -255,10 +255,7 @@ export default function App() {
 
   const totals = useMemo(() => calculateTotals(records), [records]);
 
-  const calendarEvents = useMemo(
-    () => buildCalendarEvents(records),
-    [records]
-  );
+  const calendarEvents = useMemo(() => buildCalendarEvents(records), [records]);
 
   const delayedEvents = useMemo(
     () =>
@@ -273,7 +270,12 @@ export default function App() {
     { id: "clientes", label: "Clientes", icon: "◌" },
     { id: "calendario", label: "Calendário", icon: "□" },
     { id: "novo", label: "Novo Cliente", icon: "+" },
-    { id: "atrasados", label: "Atrasados", icon: "!" , badge: delayedEvents.length },
+    {
+      id: "atrasados",
+      label: "Atrasados",
+      icon: "!",
+      badge: delayedEvents.length,
+    },
     { id: "historico", label: "Histórico", icon: "↺" },
   ];
 
@@ -810,7 +812,9 @@ export default function App() {
     setEditingId(id);
     setSelectedClientId(null);
     setActiveTab("novo");
-    setSuccess("Empréstimo anterior salvo no histórico. Cadastre os novos valores.");
+    setSuccess(
+      "Empréstimo anterior salvo no histórico. Cadastre os novos valores."
+    );
   }
 
   async function removeRecord(id) {
@@ -965,7 +969,8 @@ export default function App() {
                 <h2 className="text-3xl font-bold text-white">
                   {activeTab === "dashboard" && "Dashboard"}
                   {activeTab === "calendario" && "Calendário"}
-                  {activeTab === "novo" && (editingId ? "Editar cliente" : "Novo cliente")}
+                  {activeTab === "novo" &&
+                    (editingId ? "Editar cliente" : "Novo cliente")}
                   {activeTab === "clientes" && "Clientes"}
                   {activeTab === "ficha" && "Ficha do cliente"}
                   {activeTab === "atrasados" && "Atrasados"}
@@ -1005,7 +1010,11 @@ export default function App() {
             )}
 
             {activeTab === "dashboard" && (
-              <Dashboard totals={totals} calendarEvents={calendarEvents} />
+              <Dashboard
+                totals={totals}
+                calendarEvents={calendarEvents}
+                onGoToTab={goToTab}
+              />
             )}
 
             {activeTab === "calendario" && (
