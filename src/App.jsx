@@ -205,20 +205,20 @@ function NavItem({ active, icon, label, badge, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`group flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition ${
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
         active
-          ? "border-purple-400/30 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-purple-950/40"
-          : "border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/[0.05] hover:text-white"
+          ? "bg-purple-600 text-white"
+          : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
       }`}
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.05] text-lg">
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg text-sm">
         {icon}
       </span>
 
       <span className="flex-1">{label}</span>
 
       {badge !== undefined && Number(badge) > 0 && (
-        <span className="rounded-full bg-rose-500/20 px-2 py-1 text-xs text-rose-200">
+        <span className="rounded-full border border-rose-500/30 bg-rose-500/15 px-2 py-0.5 text-xs text-rose-300">
           {badge}
         </span>
       )}
@@ -261,16 +261,19 @@ export default function App() {
   );
 
   const delayedEvents = useMemo(
-    () => calendarEvents.filter((event) => event.statusPagamento === "Atrasado"),
+    () =>
+      calendarEvents.filter(
+        (event) => event.statusPagamento === paymentStatuses.LATE
+      ),
     [calendarEvents]
   );
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: "▦" },
-    { id: "calendario", label: "Calendário", icon: "📅" },
+    { id: "clientes", label: "Clientes", icon: "◌" },
+    { id: "calendario", label: "Calendário", icon: "□" },
     { id: "novo", label: "Novo Cliente", icon: "+" },
-    { id: "clientes", label: "Clientes", icon: "👥" },
-    { id: "atrasados", label: "Atrasados", icon: "⚠", badge: delayedEvents.length },
+    { id: "atrasados", label: "Atrasados", icon: "!" , badge: delayedEvents.length },
     { id: "historico", label: "Histórico", icon: "↺" },
   ];
 
@@ -849,8 +852,8 @@ export default function App() {
 
   if (checkingSession) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#070a17] text-white">
-        <div className="text-zinc-400">Carregando acesso...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#070b16] text-white">
+        <div className="text-slate-400">Carregando acesso...</div>
       </div>
     );
   }
@@ -860,26 +863,24 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070a17] text-white">
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.22),transparent_32%),radial-gradient(circle_at_top_right,rgba(34,211,238,0.14),transparent_28%),linear-gradient(135deg,#070a17,#0c1024_45%,#12051f)]" />
-
+    <div className="app-bg min-h-screen text-white">
       <div className="flex min-h-screen">
-        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/10 bg-[#080c1d]/85 p-4 backdrop-blur-xl lg:block">
+        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/[0.08] bg-[#080d1a]/95 p-4 lg:block">
           <div className="flex h-full flex-col">
             <div className="mb-8 flex items-center gap-3 px-2">
-              <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-gradient-to-br from-purple-600 to-cyan-400 text-2xl font-black shadow-lg shadow-purple-950/40">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-700 to-purple-400 text-xl font-bold">
                 C
               </div>
 
               <div>
-                <h1 className="text-xl font-black">
-                  Client<span className="text-purple-300">Control</span>
+                <h1 className="text-xl font-bold">
+                  Client<span className="text-purple-400">Control</span>
                 </h1>
-                <p className="text-xs text-zinc-500">Painel Administrativo</p>
+                <p className="text-xs text-slate-500">Painel Administrativo</p>
               </div>
             </div>
 
-            <nav className="space-y-2">
+            <nav className="space-y-1">
               {navItems.map((item) => (
                 <NavItem
                   key={item.id}
@@ -895,15 +896,25 @@ export default function App() {
               ))}
             </nav>
 
-            <div className="mt-auto rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-sm font-bold text-white">
-                {session.user.email}
-              </p>
-              <p className="mt-1 text-xs text-zinc-500">Administrador</p>
+            <div className="mt-auto rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-sm font-bold">
+                  A
+                </div>
+
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">
+                    Admin
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {session.user.email}
+                  </p>
+                </div>
+              </div>
 
               <button
                 onClick={logout}
-                className="mt-4 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+                className="mt-4 w-full rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
               >
                 Sair
               </button>
@@ -911,20 +922,20 @@ export default function App() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 p-3 md:p-6">
-          <div className="mx-auto max-w-[1500px] space-y-5">
-            <header className="rounded-[2rem] border border-white/10 bg-[#11162a]/75 p-4 shadow-xl backdrop-blur-xl md:p-5 lg:hidden">
+        <main className="min-w-0 flex-1 p-3 md:p-5">
+          <div className="mx-auto max-w-[1500px] space-y-4">
+            <header className="panel rounded-2xl p-4 lg:hidden">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <h1 className="text-xl font-black">
-                    Client<span className="text-purple-300">Control</span>
+                  <h1 className="text-xl font-bold">
+                    Client<span className="text-purple-400">Control</span>
                   </h1>
-                  <p className="text-xs text-zinc-500">{session.user.email}</p>
+                  <p className="text-xs text-slate-500">{session.user.email}</p>
                 </div>
 
                 <button
                   onClick={logout}
-                  className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold"
+                  className="rounded-xl bg-white/[0.04] px-4 py-2 text-sm font-semibold"
                 >
                   Sair
                 </button>
@@ -935,11 +946,11 @@ export default function App() {
                   <button
                     key={item.id}
                     onClick={() => goToTab(item.id)}
-                    className={`flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold ${
+                    className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold ${
                       activeTab === item.id ||
                       (item.id === "clientes" && activeTab === "ficha")
-                        ? "border-purple-400/40 bg-purple-600 text-white"
-                        : "border-white/10 bg-white/[0.04] text-zinc-300"
+                        ? "bg-purple-600 text-white"
+                        : "bg-white/[0.04] text-slate-300"
                     }`}
                   >
                     <span>{item.icon}</span>
@@ -949,9 +960,9 @@ export default function App() {
               </div>
             </header>
 
-            <div className="hidden items-center justify-between rounded-[2rem] border border-white/10 bg-[#11162a]/75 p-5 shadow-xl backdrop-blur-xl lg:flex">
+            <div className="panel hidden items-center justify-between rounded-2xl p-5 lg:flex">
               <div>
-                <h2 className="text-3xl font-black">
+                <h2 className="text-3xl font-bold text-white">
                   {activeTab === "dashboard" && "Dashboard"}
                   {activeTab === "calendario" && "Calendário"}
                   {activeTab === "novo" && (editingId ? "Editar cliente" : "Novo cliente")}
@@ -961,34 +972,34 @@ export default function App() {
                   {activeTab === "historico" && "Histórico"}
                 </h2>
 
-                <p className="mt-1 text-sm text-zinc-400">
-                  Gerencie clientes, empréstimos, parcelas e recebimentos.
+                <p className="mt-1 text-sm text-slate-400">
+                  Bem-vindo de volta. Aqui está o resumo do seu negócio.
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-300">
+                <div className="hidden rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-slate-400 xl:block">
+                  Buscar...
+                </div>
+
+                <div className="rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-slate-300">
                   {new Date().toLocaleDateString("pt-BR", {
                     day: "2-digit",
                     month: "long",
                     year: "numeric",
                   })}
                 </div>
-
-                <div className="rounded-2xl border border-purple-400/20 bg-purple-500/10 px-4 py-3 text-sm text-purple-100">
-                  {session.user.email}
-                </div>
               </div>
             </div>
 
             {error && (
-              <div className="rounded-2xl border border-rose-500/30 bg-rose-600/10 p-4 text-sm text-rose-200">
+              <div className="rounded-xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-200">
                 {error}
               </div>
             )}
 
             {success && (
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-600/10 p-4 text-sm text-emerald-200">
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200">
                 {success}
               </div>
             )}
