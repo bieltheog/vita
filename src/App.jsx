@@ -9,7 +9,6 @@ import ClientsTable from "./components/ClientsTable";
 import LatePayments from "./components/LatePayments";
 import ClientProfile from "./components/ClientProfile";
 import HistoryView from "./components/HistoryView";
-import { TabButton } from "./components/ui";
 
 import { todayISO } from "./utils/helpers";
 import {
@@ -62,8 +61,13 @@ function mapDbRecord(row) {
     semanas: row.semanas || 4,
     diaPagamento: row.dia_pagamento ?? 5,
 
-    diasPagamentoFixos: row.dias_pagamento_fixos || [],
-    parcelasPersonalizadas: row.parcelas_personalizadas || [],
+    diasPagamentoFixos: Array.isArray(row.dias_pagamento_fixos)
+      ? row.dias_pagamento_fixos
+      : [],
+
+    parcelasPersonalizadas: Array.isArray(row.parcelas_personalizadas)
+      ? row.parcelas_personalizadas
+      : [],
 
     multaPercentual: toNumber(row.multa_percentual),
 
@@ -72,7 +76,9 @@ function mapDbRecord(row) {
 
     anexos: row.anexos || {},
     pagamentos: row.pagamentos || {},
-    historicoEmprestimos: row.historico_emprestimos || [],
+    historicoEmprestimos: Array.isArray(row.historico_emprestimos)
+      ? row.historico_emprestimos
+      : [],
 
     createdAt: row.created_at || "",
   };
@@ -195,6 +201,31 @@ function mapFormToDb(form) {
   };
 }
 
+function NavItem({ active, icon, label, badge, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`group flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition ${
+        active
+          ? "border-purple-400/30 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-purple-950/40"
+          : "border-transparent text-zinc-400 hover:border-white/10 hover:bg-white/[0.05] hover:text-white"
+      }`}
+    >
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.05] text-lg">
+        {icon}
+      </span>
+
+      <span className="flex-1">{label}</span>
+
+      {badge !== undefined && Number(badge) > 0 && (
+        <span className="rounded-full bg-rose-500/20 px-2 py-1 text-xs text-rose-200">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -233,6 +264,15 @@ export default function App() {
     () => calendarEvents.filter((event) => event.statusPagamento === "Atrasado"),
     [calendarEvents]
   );
+
+  const navItems = [
+    { id: "dashboard", label: "Dashboard", icon: "▦" },
+    { id: "calendario", label: "Calendário", icon: "📅" },
+    { id: "novo", label: "Novo Cliente", icon: "+" },
+    { id: "clientes", label: "Clientes", icon: "👥" },
+    { id: "atrasados", label: "Atrasados", icon: "⚠", badge: delayedEvents.length },
+    { id: "historico", label: "Histórico", icon: "↺" },
+  ];
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -361,18 +401,12 @@ export default function App() {
         return;
       }
 
-      if (
-        form.frequencia === paymentTypes.DAILY &&
-        !form.dataTermino
-      ) {
+      if (form.frequencia === paymentTypes.DAILY && !form.dataTermino) {
         setError("Preencha a data de término da diária.");
         return;
       }
 
-      if (
-        form.frequencia === paymentTypes.FIXED_DATES &&
-        !form.dataTermino
-      ) {
+      if (form.frequencia === paymentTypes.FIXED_DATES && !form.dataTermino) {
         setError("Preencha a data de término das datas fixas.");
         return;
       }
@@ -803,9 +837,19 @@ export default function App() {
     await supabase.auth.signOut();
   }
 
+  function goToTab(tab) {
+    setSelectedClientId(null);
+
+    if (tab === "novo") {
+      resetForm();
+    }
+
+    setActiveTab(tab);
+  }
+
   if (checkingSession) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#070a17] text-white">
         <div className="text-zinc-400">Carregando acesso...</div>
       </div>
     );
@@ -816,140 +860,194 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white px-3 py-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <p className="text-purple-300 font-medium">Controle privado</p>
+    <div className="min-h-screen bg-[#070a17] text-white">
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.22),transparent_32%),radial-gradient(circle_at_top_right,rgba(34,211,238,0.14),transparent_28%),linear-gradient(135deg,#070a17,#0c1024_45%,#12051f)]" />
 
-            <h1 className="text-3xl md:text-5xl font-bold tracking-tight">
-              Painel de Clientes e Contas
-            </h1>
+      <div className="flex min-h-screen">
+        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/10 bg-[#080c1d]/85 p-4 backdrop-blur-xl lg:block">
+          <div className="flex h-full flex-col">
+            <div className="mb-8 flex items-center gap-3 px-2">
+              <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-gradient-to-br from-purple-600 to-cyan-400 text-2xl font-black shadow-lg shadow-purple-950/40">
+                C
+              </div>
 
-            <p className="text-zinc-400 mt-2 max-w-2xl">
-              Cadastro completo, contas editáveis, anexos, multas e calendário
-              de recebimentos.
-            </p>
-          </div>
-
-          <div className="flex flex-col md:items-end gap-2">
-            <div className="px-4 py-2 rounded-full bg-purple-600/20 text-purple-200 border border-purple-500/30 text-sm w-fit">
-              Logado: {session.user.email}
+              <div>
+                <h1 className="text-xl font-black">
+                  Client<span className="text-purple-300">Control</span>
+                </h1>
+                <p className="text-xs text-zinc-500">Painel Administrativo</p>
+              </div>
             </div>
 
-            <button
-              onClick={logout}
-              className="text-sm text-zinc-400 hover:text-white transition w-fit"
-            >
-              Sair
-            </button>
+            <nav className="space-y-2">
+              {navItems.map((item) => (
+                <NavItem
+                  key={item.id}
+                  active={
+                    activeTab === item.id ||
+                    (item.id === "clientes" && activeTab === "ficha")
+                  }
+                  icon={item.icon}
+                  label={item.label}
+                  badge={item.badge}
+                  onClick={() => goToTab(item.id)}
+                />
+              ))}
+            </nav>
+
+            <div className="mt-auto rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
+              <p className="text-sm font-bold text-white">
+                {session.user.email}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">Administrador</p>
+
+              <button
+                onClick={logout}
+                className="mt-4 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                Sair
+              </button>
+            </div>
           </div>
-        </div>
+        </aside>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 md:flex-wrap md:gap-3">
-          <TabButton active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")}>
-            Dashboard
-          </TabButton>
+        <main className="min-w-0 flex-1 p-3 md:p-6">
+          <div className="mx-auto max-w-[1500px] space-y-5">
+            <header className="rounded-[2rem] border border-white/10 bg-[#11162a]/75 p-4 shadow-xl backdrop-blur-xl md:p-5 lg:hidden">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-xl font-black">
+                    Client<span className="text-purple-300">Control</span>
+                  </h1>
+                  <p className="text-xs text-zinc-500">{session.user.email}</p>
+                </div>
 
-          <TabButton active={activeTab === "calendario"} onClick={() => setActiveTab("calendario")}>
-            Calendário
-          </TabButton>
+                <button
+                  onClick={logout}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold"
+                >
+                  Sair
+                </button>
+              </div>
 
-          <TabButton
-            active={activeTab === "novo"}
-            onClick={() => {
-              resetForm();
-              setSelectedClientId(null);
-              setActiveTab("novo");
-            }}
-          >
-            Novo cliente
-          </TabButton>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {navItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => goToTab(item.id)}
+                    className={`flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold ${
+                      activeTab === item.id ||
+                      (item.id === "clientes" && activeTab === "ficha")
+                        ? "border-purple-400/40 bg-purple-600 text-white"
+                        : "border-white/10 bg-white/[0.04] text-zinc-300"
+                    }`}
+                  >
+                    <span>{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </header>
 
-          <TabButton
-            active={activeTab === "clientes" || activeTab === "ficha"}
-            onClick={() => {
-              setSelectedClientId(null);
-              setActiveTab("clientes");
-            }}
-          >
-            Clientes
-          </TabButton>
+            <div className="hidden items-center justify-between rounded-[2rem] border border-white/10 bg-[#11162a]/75 p-5 shadow-xl backdrop-blur-xl lg:flex">
+              <div>
+                <h2 className="text-3xl font-black">
+                  {activeTab === "dashboard" && "Dashboard"}
+                  {activeTab === "calendario" && "Calendário"}
+                  {activeTab === "novo" && (editingId ? "Editar cliente" : "Novo cliente")}
+                  {activeTab === "clientes" && "Clientes"}
+                  {activeTab === "ficha" && "Ficha do cliente"}
+                  {activeTab === "atrasados" && "Atrasados"}
+                  {activeTab === "historico" && "Histórico"}
+                </h2>
 
-          <TabButton active={activeTab === "atrasados"} onClick={() => setActiveTab("atrasados")}>
-            Atrasados
-          </TabButton>
+                <p className="mt-1 text-sm text-zinc-400">
+                  Gerencie clientes, empréstimos, parcelas e recebimentos.
+                </p>
+              </div>
 
-          <TabButton active={activeTab === "historico"} onClick={() => setActiveTab("historico")}>
-            Histórico
-          </TabButton>
-        </div>
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-300">
+                  {new Date().toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </div>
 
-        {error && (
-          <div className="rounded-2xl border border-red-500/30 bg-red-600/10 p-4 text-sm text-red-200">
-            {error}
+                <div className="rounded-2xl border border-purple-400/20 bg-purple-500/10 px-4 py-3 text-sm text-purple-100">
+                  {session.user.email}
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <div className="rounded-2xl border border-rose-500/30 bg-rose-600/10 p-4 text-sm text-rose-200">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-600/10 p-4 text-sm text-emerald-200">
+                {success}
+              </div>
+            )}
+
+            {activeTab === "dashboard" && (
+              <Dashboard totals={totals} calendarEvents={calendarEvents} />
+            )}
+
+            {activeTab === "calendario" && (
+              <CalendarView
+                calendarEvents={calendarEvents}
+                onMarkPaymentPaid={markPaymentPaid}
+                onMarkPaymentLate={markPaymentLate}
+                onMarkPaymentPartial={markPaymentPartial}
+                onMarkPaymentCanceled={markPaymentCanceled}
+              />
+            )}
+
+            {activeTab === "novo" && (
+              <ClientForm
+                form={form}
+                setForm={setForm}
+                editingId={editingId}
+                saving={saving}
+                onSubmit={saveRecord}
+                onCancelEdit={resetForm}
+              />
+            )}
+
+            {activeTab === "clientes" && (
+              <ClientsTable
+                filtered={filtered}
+                search={search}
+                setSearch={setSearch}
+                loading={loading}
+                onOpenProfile={openProfile}
+              />
+            )}
+
+            {activeTab === "ficha" && (
+              <ClientProfile
+                client={selectedClient}
+                onBack={closeProfile}
+                onEdit={startEdit}
+                onMarkRecordAsPaid={markRecordAsPaid}
+                onNewLoan={startNewLoan}
+                onRemove={removeRecord}
+              />
+            )}
+
+            {activeTab === "atrasados" && (
+              <LatePayments delayedEvents={delayedEvents} />
+            )}
+
+            {activeTab === "historico" && (
+              <HistoryView records={records} onOpenProfile={openProfile} />
+            )}
           </div>
-        )}
-
-        {success && (
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-600/10 p-4 text-sm text-emerald-200">
-            {success}
-          </div>
-        )}
-
-        {activeTab === "dashboard" && (
-          <Dashboard totals={totals} calendarEvents={calendarEvents} />
-        )}
-
-        {activeTab === "calendario" && (
-          <CalendarView
-            calendarEvents={calendarEvents}
-            onMarkPaymentPaid={markPaymentPaid}
-            onMarkPaymentLate={markPaymentLate}
-            onMarkPaymentPartial={markPaymentPartial}
-            onMarkPaymentCanceled={markPaymentCanceled}
-          />
-        )}
-
-        {activeTab === "novo" && (
-          <ClientForm
-            form={form}
-            setForm={setForm}
-            editingId={editingId}
-            saving={saving}
-            onSubmit={saveRecord}
-            onCancelEdit={resetForm}
-          />
-        )}
-
-        {activeTab === "clientes" && (
-          <ClientsTable
-            filtered={filtered}
-            search={search}
-            setSearch={setSearch}
-            loading={loading}
-            onOpenProfile={openProfile}
-          />
-        )}
-
-        {activeTab === "ficha" && (
-          <ClientProfile
-            client={selectedClient}
-            onBack={closeProfile}
-            onEdit={startEdit}
-            onMarkRecordAsPaid={markRecordAsPaid}
-            onNewLoan={startNewLoan}
-            onRemove={removeRecord}
-          />
-        )}
-
-        {activeTab === "atrasados" && (
-          <LatePayments delayedEvents={delayedEvents} />
-        )}
-
-        {activeTab === "historico" && (
-          <HistoryView records={records} onOpenProfile={openProfile} />
-        )}
+        </main>
       </div>
     </div>
   );

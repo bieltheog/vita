@@ -1,388 +1,575 @@
 import { useMemo } from "react";
-import { StatCard } from "./ui";
-import { money } from "../utils/helpers";
+import { StatCard, PremiumCard } from "./ui";
+import { money, formatDateBR } from "../utils/helpers";
 import { paymentStatuses } from "../utils/calculations";
 
-function PremiumPieChart({ pago, pendente, atrasado, parcial, cancelado }) {
-  const total = pago + pendente + atrasado + parcial + cancelado;
+function isoToday() {
+  return new Date().toISOString().slice(0, 10);
+}
 
-  const paidPercent = total > 0 ? (pago / total) * 100 : 0;
-  const pendingPercent = total > 0 ? (pendente / total) * 100 : 0;
-  const latePercent = total > 0 ? (atrasado / total) * 100 : 0;
-  const partialPercent = total > 0 ? (parcial / total) * 100 : 0;
-  const canceledPercent = total > 0 ? (cancelado / total) * 100 : 0;
+function addDays(date, amount) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + amount);
+  return copy;
+}
 
-  const pieStyle = {
+function getLastSevenDays() {
+  const today = new Date();
+  return Array.from({ length: 7 }).map((_, index) => {
+    const date = addDays(today, index - 6);
+    return date.toISOString().slice(0, 10);
+  });
+}
+
+function MiniLineChart({ data }) {
+  const width = 720;
+  const height = 250;
+  const padding = 28;
+
+  const maxValue = Math.max(...data.map((item) => item.value), 1);
+
+  const points = data.map((item, index) => {
+    const x =
+      padding + (index * (width - padding * 2)) / Math.max(data.length - 1, 1);
+
+    const y =
+      height -
+      padding -
+      (item.value / maxValue) * (height - padding * 2);
+
+    return { x, y };
+  });
+
+  const path = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+
+  const areaPath = `${path} L ${width - padding} ${height - padding} L ${padding} ${
+    height - padding
+  } Z`;
+
+  return (
+    <div className="h-64 w-full overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#070b1b]/60 p-3">
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full">
+        <defs>
+          <linearGradient id="lineGradient" x1="0" x2="1">
+            <stop offset="0%" stopColor="#8b5cf6" />
+            <stop offset="55%" stopColor="#ec4899" />
+            <stop offset="100%" stopColor="#22d3ee" />
+          </linearGradient>
+
+          <linearGradient id="areaGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {[0, 1, 2, 3].map((line) => {
+          const y = padding + line * ((height - padding * 2) / 3);
+          return (
+            <line
+              key={line}
+              x1={padding}
+              x2={width - padding}
+              y1={y}
+              y2={y}
+              stroke="rgba(255,255,255,0.08)"
+            />
+          );
+        })}
+
+        <path d={areaPath} fill="url(#areaGradient)" />
+        <path
+          d={path}
+          fill="none"
+          stroke="url(#lineGradient)"
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {points.map((point, index) => (
+          <circle
+            key={index}
+            cx={point.x}
+            cy={point.y}
+            r="5"
+            fill="#0f172a"
+            stroke="#22d3ee"
+            strokeWidth="3"
+          />
+        ))}
+
+        {data.map((item, index) => {
+          const x =
+            padding +
+            (index * (width - padding * 2)) / Math.max(data.length - 1, 1);
+
+          return (
+            <text
+              key={item.date}
+              x={x}
+              y={height - 5}
+              textAnchor="middle"
+              fill="rgba(255,255,255,0.45)"
+              fontSize="13"
+            >
+              {item.label}
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function DonutChart({ paid, pending, late, partial }) {
+  const total = paid + pending + late + partial;
+  const paidPercent = total > 0 ? (paid / total) * 100 : 0;
+  const partialPercent = total > 0 ? (partial / total) * 100 : 0;
+  const pendingPercent = total > 0 ? (pending / total) * 100 : 0;
+  const latePercent = total > 0 ? (late / total) * 100 : 0;
+
+  const style = {
     background:
       total > 0
         ? `conic-gradient(
-            #22c55e 0% ${paidPercent}%,
-            #06b6d4 ${paidPercent}% ${paidPercent + partialPercent}%,
-            #facc15 ${paidPercent + partialPercent}% ${
+          #22c55e 0% ${paidPercent}%,
+          #22d3ee ${paidPercent}% ${paidPercent + partialPercent}%,
+          #f59e0b ${paidPercent + partialPercent}% ${
             paidPercent + partialPercent + pendingPercent
           }%,
-            #f43f5e ${paidPercent + partialPercent + pendingPercent}% ${
-            paidPercent + partialPercent + pendingPercent + latePercent
-          }%,
-            #71717a ${
-              paidPercent + partialPercent + pendingPercent + latePercent
-            }% 100%
-          )`
+          #f43f5e ${paidPercent + partialPercent + pendingPercent}% 100%
+        )`
         : "#27272a",
   };
 
-  const items = [
-    {
-      label: "Pagas",
-      value: pago,
-      percent: paidPercent,
-      dot: "bg-emerald-400",
-      card: "border-emerald-400/20 bg-emerald-400/10",
-      text: "text-emerald-200",
-    },
-    {
-      label: "Parciais",
-      value: parcial,
-      percent: partialPercent,
-      dot: "bg-cyan-400",
-      card: "border-cyan-400/20 bg-cyan-400/10",
-      text: "text-cyan-200",
-    },
-    {
-      label: "Pendentes",
-      value: pendente,
-      percent: pendingPercent,
-      dot: "bg-yellow-300",
-      card: "border-yellow-300/20 bg-yellow-300/10",
-      text: "text-yellow-100",
-    },
-    {
-      label: "Atrasadas",
-      value: atrasado,
-      percent: latePercent,
-      dot: "bg-rose-400",
-      card: "border-rose-400/20 bg-rose-400/10",
-      text: "text-rose-200",
-    },
-    {
-      label: "Canceladas",
-      value: cancelado,
-      percent: canceledPercent,
-      dot: "bg-zinc-400",
-      card: "border-zinc-500/20 bg-zinc-500/10",
-      text: "text-zinc-300",
-    },
-  ];
-
   return (
-    <div className="premium-glass neon-border rounded-[2rem] p-5 md:p-6 premium-glow">
-      <div className="flex flex-col xl:flex-row items-center gap-8">
-        <div className="relative shrink-0">
-          <div className="absolute -inset-4 rounded-full bg-cyan-400/10 blur-2xl soft-pulse" />
-          <div className="absolute -inset-8 rounded-full bg-purple-500/10 blur-3xl" />
+    <div className="flex flex-col items-center gap-5 md:flex-row">
+      <div className="relative h-44 w-44 shrink-0 rounded-full shadow-2xl" style={style}>
+        <div className="absolute inset-7 flex flex-col items-center justify-center rounded-full border border-white/10 bg-[#0b1024]">
+          <span className="text-xs text-zinc-500">Parcelas</span>
+          <strong className="text-3xl font-black text-white">{total}</strong>
+        </div>
+      </div>
 
-          <div
-            className="relative w-56 h-56 md:w-72 md:h-72 rounded-full border border-white/10 shadow-2xl"
-            style={pieStyle}
-          />
-
-          <div className="absolute inset-8 md:inset-10 rounded-full bg-[#071025]/95 border border-white/10 flex flex-col items-center justify-center text-center shadow-inner">
-            <p className="text-xs text-cyan-100/60 uppercase tracking-[0.22em]">
-              Parcelas
-            </p>
-            <p className="text-5xl md:text-6xl font-black gradient-text">
-              {total}
-            </p>
-            <p className="text-xs text-zinc-500 mt-1">no total</p>
-          </div>
+      <div className="grid w-full grid-cols-2 gap-3 text-sm">
+        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-3">
+          <p className="text-zinc-400">Pagas</p>
+          <strong className="text-emerald-200">{paid}</strong>
         </div>
 
-        <div className="w-full">
-          <div className="mb-5">
-            <p className="text-cyan-300 font-bold text-sm uppercase tracking-[0.18em]">
-              Visão financeira
-            </p>
+        <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-3">
+          <p className="text-zinc-400">Parciais</p>
+          <strong className="text-cyan-200">{partial}</strong>
+        </div>
 
-            <h2 className="text-2xl md:text-4xl font-black mt-1">
-              Situação geral dos pagamentos
-            </h2>
+        <div className="rounded-2xl border border-orange-400/20 bg-orange-400/10 p-3">
+          <p className="text-zinc-400">Pendentes</p>
+          <strong className="text-orange-200">{pending}</strong>
+        </div>
 
-            <p className="text-sm text-zinc-400 mt-2 max-w-2xl">
-              Acompanhe parcelas pagas, pendentes, atrasadas e pagamentos
-              parciais em uma visão premium.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-            {items.map((item) => (
-              <div
-                key={item.label}
-                className={`rounded-2xl border p-4 ${item.card}`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`w-3 h-3 rounded-full ${item.dot}`} />
-                  <p className="text-sm text-zinc-300">{item.label}</p>
-                </div>
-
-                <p className={`text-3xl font-black ${item.text}`}>
-                  {item.value}
-                </p>
-
-                <p className="text-xs text-zinc-500 mt-1">
-                  {total > 0 ? `${item.percent.toFixed(1)}%` : "0%"}
-                </p>
-              </div>
-            ))}
-          </div>
+        <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-3">
+          <p className="text-zinc-400">Atrasadas</p>
+          <strong className="text-rose-200">{late}</strong>
         </div>
       </div>
     </div>
   );
 }
 
-function MiniFinanceCard({ title, value, subtitle, icon }) {
+function BarChart({ data }) {
+  const max = Math.max(...data.map((item) => item.value), 1);
+
   return (
-    <div className="premium-glass premium-card-hover rounded-[1.6rem] p-5 relative overflow-hidden">
-      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-cyan-400/10 blur-2xl" />
-
-      <div className="relative">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-cyan-100/65">{title}</p>
-
-          {icon && (
-            <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-              {icon}
-            </div>
-          )}
+    <div className="flex h-48 items-end gap-3 rounded-[1.4rem] border border-white/10 bg-[#070b1b]/60 p-4">
+      {data.map((item) => (
+        <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
+          <div className="flex h-36 w-full items-end rounded-full bg-white/5">
+            <div
+              className="w-full rounded-full bg-gradient-to-t from-purple-600 to-cyan-400 shadow-lg shadow-purple-950/40"
+              style={{ height: `${Math.max(8, (item.value / max) * 100)}%` }}
+            />
+          </div>
+          <span className="text-xs text-zinc-500">{item.label}</span>
         </div>
-
-        <p className="text-2xl md:text-3xl font-black mt-2">{value}</p>
-
-        {subtitle && <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>}
-      </div>
+      ))}
     </div>
   );
 }
 
-function ProgressLine({ label, value, max, amount, tone }) {
-  const width = max > 0 ? Math.max(4, Math.min(100, (value / max) * 100)) : 0;
-
+function ActivityItem({ icon, title, subtitle, tone = "purple" }) {
   const tones = {
-    cyan: "from-cyan-400 to-blue-500",
-    purple: "from-purple-400 to-fuchsia-500",
-    green: "from-emerald-400 to-green-500",
-    red: "from-rose-400 to-red-500",
+    purple: "bg-purple-500/20 text-purple-200",
+    green: "bg-emerald-500/20 text-emerald-200",
+    red: "bg-rose-500/20 text-rose-200",
+    orange: "bg-orange-500/20 text-orange-200",
+    cyan: "bg-cyan-500/20 text-cyan-200",
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between text-sm mb-2">
-        <span className="text-zinc-400">{label}</span>
-        <span className="font-bold">{amount}</span>
+    <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.03] p-3">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+          tones[tone] || tones.purple
+        }`}
+      >
+        {icon}
       </div>
 
-      <div className="h-3 rounded-full bg-white/5 overflow-hidden border border-white/5">
-        <div
-          className={`h-full rounded-full bg-gradient-to-r ${
-            tones[tone] || tones.cyan
-          }`}
-          style={{ width: `${width}%` }}
-        />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-bold text-white">{title}</p>
+        <p className="truncate text-xs text-zinc-500">{subtitle}</p>
       </div>
     </div>
   );
 }
 
 export default function Dashboard({ totals, calendarEvents }) {
-  const paymentStats = useMemo(() => {
+  const stats = useMemo(() => {
+    const paid = calendarEvents.filter(
+      (event) => event.statusPagamento === paymentStatuses.PAID
+    );
+
+    const pending = calendarEvents.filter(
+      (event) => event.statusPagamento === paymentStatuses.PENDING
+    );
+
+    const late = calendarEvents.filter(
+      (event) => event.statusPagamento === paymentStatuses.LATE
+    );
+
+    const partial = calendarEvents.filter(
+      (event) => event.statusPagamento === paymentStatuses.PARTIAL
+    );
+
+    const today = isoToday();
+
+    const todayEvents = calendarEvents.filter((event) => event.date === today);
+
+    const totalAberto = calendarEvents.reduce(
+      (sum, event) => sum + Number(event.saldo || event.valor || 0),
+      0
+    );
+
+    const totalAtrasado = late.reduce(
+      (sum, event) => sum + Number(event.saldo || event.valor || 0),
+      0
+    );
+
+    const totalHoje = todayEvents.reduce(
+      (sum, event) => sum + Number(event.saldo || event.valor || 0),
+      0
+    );
+
     return {
-      pago: calendarEvents.filter(
-        (event) => event.statusPagamento === paymentStatuses.PAID
-      ).length,
-      pendente: calendarEvents.filter(
-        (event) => event.statusPagamento === paymentStatuses.PENDING
-      ).length,
-      atrasado: calendarEvents.filter(
-        (event) => event.statusPagamento === paymentStatuses.LATE
-      ).length,
-      parcial: calendarEvents.filter(
-        (event) => event.statusPagamento === paymentStatuses.PARTIAL
-      ).length,
-      cancelado: calendarEvents.filter(
-        (event) => event.statusPagamento === paymentStatuses.CANCELED
-      ).length,
+      paid,
+      pending,
+      late,
+      partial,
+      todayEvents,
+      totalAberto,
+      totalAtrasado,
+      totalHoje,
     };
   }, [calendarEvents]);
 
-  const totalAberto = calendarEvents.reduce(
-    (sum, event) => sum + Number(event.saldo || event.valor || 0),
-    0
-  );
+  const lineData = useMemo(() => {
+    const days = getLastSevenDays();
 
-  const totalParcialPago = calendarEvents.reduce(
-    (sum, event) => sum + Number(event.valorPago || 0),
-    0
-  );
+    return days.map((date) => {
+      const total = calendarEvents
+        .filter((event) => event.date === date)
+        .reduce((sum, event) => sum + Number(event.valorOriginal || event.valor || 0), 0);
 
-  const totalAtrasado = calendarEvents
-    .filter((event) => event.statusPagamento === paymentStatuses.LATE)
-    .reduce((sum, event) => sum + Number(event.valor || 0), 0);
+      const label = new Date(`${date}T00:00:00`).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+      });
 
-  const maxFinance = Math.max(
-    totals.enviadoGeral || 0,
-    totals.receberGeral || 0,
-    totals.lucroGeral || 0,
-    totalAberto || 0,
-    1
-  );
+      return {
+        date,
+        label,
+        value: total,
+      };
+    });
+  }, [calendarEvents]);
+
+  const weekBars = useMemo(() => {
+    const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+    return labels.map((label, index) => {
+      const count = calendarEvents.filter((event) => {
+        const day = new Date(`${event.date}T00:00:00`).getDay();
+        return day === index;
+      }).length;
+
+      return { label, value: count };
+    });
+  }, [calendarEvents]);
+
+  const recentEvents = calendarEvents.slice(0, 5);
 
   return (
-    <div className="space-y-6">
-      <div className="premium-glass neon-border premium-glow rounded-[2rem] p-5 md:p-7 overflow-hidden relative">
-        <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-purple-600/20 blur-3xl" />
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_0.8fr]">
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#151a35] via-[#10152d] to-[#090d1f] p-5 shadow-2xl md:p-7">
+          <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-purple-600/20 blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
 
-        <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-          <div>
-            <p className="text-cyan-300 font-black uppercase tracking-[0.22em] text-xs">
-              Dashboard premium
+          <div className="relative">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-purple-300">
+              Dashboard
             </p>
 
-            <h2 className="text-4xl md:text-6xl font-black mt-2 leading-tight">
-              Controle <span className="gradient-text">financeiro</span>
+            <h2 className="mt-2 text-3xl font-black text-white md:text-5xl">
+              Controle <span className="text-purple-300">financeiro</span>
             </h2>
 
-            <p className="text-zinc-300 mt-3 max-w-2xl">
-              Visão geral dos clientes, empréstimos, lucros, parcelas em aberto,
-              atrasos e pagamentos parciais.
+            <p className="mt-3 max-w-2xl text-sm text-zinc-400 md:text-base">
+              Visão rápida dos empréstimos, parcelas, atrasos e recebimentos do sistema.
             </p>
-          </div>
 
-          <div className="rounded-[1.5rem] border border-cyan-400/20 bg-cyan-400/10 px-6 py-5 min-w-[260px]">
-            <p className="text-xs text-cyan-100/70 uppercase tracking-widest">
-              Total emprestado
-            </p>
-            <p className="text-3xl md:text-4xl font-black text-cyan-100 mt-1">
-              {money.format(totals.enviadoGeral || totals.enviado || 0)}
-            </p>
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-xs text-zinc-500">Total emprestado</p>
+                <strong className="mt-1 block text-xl text-white">
+                  {money.format(totals.enviadoGeral || totals.enviado || 0)}
+                </strong>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-xs text-zinc-500">Receber hoje</p>
+                <strong className="mt-1 block text-xl text-cyan-200">
+                  {money.format(stats.totalHoje)}
+                </strong>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-xs text-zinc-500">Em aberto</p>
+                <strong className="mt-1 block text-xl text-orange-200">
+                  {money.format(stats.totalAberto)}
+                </strong>
+              </div>
+            </div>
           </div>
         </div>
+
+        <PremiumCard className="flex flex-col justify-between">
+          <div>
+            <p className="text-sm font-bold text-zinc-400">Receber hoje</p>
+            <h3 className="mt-2 text-3xl font-black text-white">
+              {money.format(stats.totalHoje)}
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              {stats.todayEvents.length} parcela(s) previstas para hoje.
+            </p>
+          </div>
+
+          <div className="mt-5 space-y-2">
+            {stats.todayEvents.slice(0, 3).map((event) => (
+              <div
+                key={event.id}
+                className="flex items-center justify-between rounded-2xl bg-white/[0.04] px-3 py-2 text-sm"
+              >
+                <span className="truncate text-zinc-300">{event.nome}</span>
+                <strong className="text-purple-200">{money.format(event.valor)}</strong>
+              </div>
+            ))}
+
+            {stats.todayEvents.length === 0 && (
+              <p className="rounded-2xl bg-white/[0.04] p-3 text-sm text-zinc-500">
+                Nenhum recebimento previsto para hoje.
+              </p>
+            )}
+          </div>
+        </PremiumCard>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="Clientes" value={totals.clientes} icon="👥" />
-        <StatCard title="Contas abertas" value={totals.contas} icon="🧾" />
-
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <StatCard
-          title="Total emprestado"
-          value={money.format(totals.enviadoGeral || totals.enviado || 0)}
-          icon="🏦"
-        />
-
-        <StatCard title="Em aberto" value={money.format(totalAberto)} icon="⏳" />
-
-        <StatCard
-          title="Enviado atual"
-          value={money.format(totals.enviado || 0)}
-          icon="💸"
+          title="Clientes"
+          value={totals.clientes}
+          icon="👥"
+          tone="cyan"
         />
 
         <StatCard
-          title="A receber atual"
-          value={money.format(totals.receber || 0)}
-          icon="📈"
-        />
-
-        <StatCard
-          title="Lucro atual"
-          value={money.format(totals.lucro || 0)}
-          icon="📅"
+          title="Contas abertas"
+          value={totals.contas}
+          icon="🧾"
+          tone="purple"
         />
 
         <StatCard
           title="Lucro geral"
           value={money.format(totals.lucroGeral || totals.lucro || 0)}
           icon="💰"
-        />
-      </div>
-
-      <PremiumPieChart
-        pago={paymentStats.pago}
-        pendente={paymentStats.pendente}
-        atrasado={paymentStats.atrasado}
-        parcial={paymentStats.parcial}
-        cancelado={paymentStats.cancelado}
-      />
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <MiniFinanceCard
-          title="Pagamentos parciais recebidos"
-          value={money.format(totalParcialPago)}
-          subtitle="Soma do valor já pago parcialmente."
-          icon="💠"
+          tone="green"
         />
 
-        <MiniFinanceCard
-          title="Atrasado em aberto"
-          value={money.format(totalAtrasado)}
-          subtitle="Valor atual das parcelas atrasadas."
+        <StatCard
+          title="Atrasados"
+          value={money.format(stats.totalAtrasado)}
           icon="⚠️"
-        />
-
-        <MiniFinanceCard
-          title="Lucro histórico"
-          value={money.format(totals.lucroHistorico || 0)}
-          subtitle="Lucro de empréstimos anteriores e quitados."
-          icon="📚"
+          tone="red"
         />
       </div>
 
-      <div className="premium-glass rounded-[2rem] p-5 md:p-6">
-        <div className="mb-5">
-          <p className="text-cyan-300 text-sm font-bold uppercase tracking-[0.18em]">
-            Comparativo
-          </p>
-          <h2 className="text-2xl md:text-3xl font-black mt-1">
-            Resumo financeiro
-          </h2>
-          <p className="text-zinc-400 mt-1 text-sm">
-            Uma leitura rápida dos principais valores do sistema.
-          </p>
-        </div>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.45fr_0.85fr]">
+        <PremiumCard>
+          <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h3 className="text-xl font-black text-white">Recebimentos</h3>
+              <p className="text-sm text-zinc-500">Movimentação dos últimos 7 dias.</p>
+            </div>
 
-        <div className="space-y-5">
-          <ProgressLine
-            label="Total emprestado"
-            value={totals.enviadoGeral || totals.enviado || 0}
-            max={maxFinance}
-            amount={money.format(totals.enviadoGeral || totals.enviado || 0)}
-            tone="cyan"
-          />
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-300">
+              Últimos 7 dias
+            </span>
+          </div>
 
-          <ProgressLine
-            label="Total a receber geral"
-            value={totals.receberGeral || totals.receber || 0}
-            max={maxFinance}
-            amount={money.format(totals.receberGeral || totals.receber || 0)}
-            tone="purple"
-          />
+          <MiniLineChart data={lineData} />
+        </PremiumCard>
 
-          <ProgressLine
-            label="Lucro geral"
-            value={totals.lucroGeral || totals.lucro || 0}
-            max={maxFinance}
-            amount={money.format(totals.lucroGeral || totals.lucro || 0)}
-            tone="green"
-          />
+        <PremiumCard>
+          <div className="mb-4">
+            <h3 className="text-xl font-black text-white">Resumo financeiro</h3>
+            <p className="text-sm text-zinc-500">Distribuição das parcelas.</p>
+          </div>
 
-          <ProgressLine
-            label="Em aberto"
-            value={totalAberto}
-            max={maxFinance}
-            amount={money.format(totalAberto)}
-            tone="red"
+          <DonutChart
+            paid={stats.paid.length}
+            pending={stats.pending.length}
+            late={stats.late.length}
+            partial={stats.partial.length}
           />
-        </div>
+        </PremiumCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr_0.8fr]">
+        <PremiumCard>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-xl font-black text-white">Clientes</h3>
+            <span className="text-xs font-semibold text-purple-300">Semana</span>
+          </div>
+
+          <BarChart data={weekBars} />
+        </PremiumCard>
+
+        <PremiumCard>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-black text-white">Distribuição de parcelas</h3>
+              <p className="text-sm text-zinc-500">Status geral do sistema.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+              <p className="text-sm text-zinc-400">Pagas</p>
+              <strong className="text-3xl text-emerald-200">
+                {stats.paid.length}
+              </strong>
+            </div>
+
+            <div className="rounded-2xl border border-orange-400/20 bg-orange-400/10 p-4">
+              <p className="text-sm text-zinc-400">Pendentes</p>
+              <strong className="text-3xl text-orange-200">
+                {stats.pending.length}
+              </strong>
+            </div>
+
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4">
+              <p className="text-sm text-zinc-400">Atrasadas</p>
+              <strong className="text-3xl text-rose-200">
+                {stats.late.length}
+              </strong>
+            </div>
+          </div>
+
+          <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/5">
+            <div className="flex h-full">
+              <div
+                className="bg-emerald-400"
+                style={{
+                  width: `${
+                    calendarEvents.length
+                      ? (stats.paid.length / calendarEvents.length) * 100
+                      : 0
+                  }%`,
+                }}
+              />
+              <div
+                className="bg-orange-400"
+                style={{
+                  width: `${
+                    calendarEvents.length
+                      ? (stats.pending.length / calendarEvents.length) * 100
+                      : 0
+                  }%`,
+                }}
+              />
+              <div
+                className="bg-rose-400"
+                style={{
+                  width: `${
+                    calendarEvents.length
+                      ? (stats.late.length / calendarEvents.length) * 100
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+          </div>
+        </PremiumCard>
+
+        <PremiumCard>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-xl font-black text-white">Atividade recente</h3>
+            <span className="text-xs font-semibold text-purple-300">Ver todas</span>
+          </div>
+
+          <div className="space-y-3">
+            {recentEvents.map((event) => {
+              const status = event.statusPagamento;
+
+              const tone =
+                status === paymentStatuses.PAID
+                  ? "green"
+                  : status === paymentStatuses.LATE
+                  ? "red"
+                  : status === paymentStatuses.PARTIAL
+                  ? "cyan"
+                  : "orange";
+
+              const icon =
+                status === paymentStatuses.PAID
+                  ? "✓"
+                  : status === paymentStatuses.LATE
+                  ? "!"
+                  : status === paymentStatuses.PARTIAL
+                  ? "%"
+                  : "•";
+
+              return (
+                <ActivityItem
+                  key={event.id}
+                  icon={icon}
+                  title={event.nome}
+                  subtitle={`${formatDateBR(event.date)} · ${money.format(event.valor)}`}
+                  tone={tone}
+                />
+              );
+            })}
+
+            {recentEvents.length === 0 && (
+              <p className="rounded-2xl bg-white/[0.04] p-3 text-sm text-zinc-500">
+                Nenhuma atividade ainda.
+              </p>
+            )}
+          </div>
+        </PremiumCard>
       </div>
     </div>
   );
