@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { money, formatDateBR } from "../utils/helpers";
+import { paymentStatuses } from "../utils/calculations";
 
 function getMonthDays(baseDate) {
   const year = baseDate.getFullYear();
@@ -37,14 +38,67 @@ function groupEventsByDate(events) {
   }, {});
 }
 
+function statusStyle(status) {
+  if (status === paymentStatuses.PAID) {
+    return "border-emerald-500/30 bg-emerald-950/20";
+  }
+
+  if (status === paymentStatuses.LATE) {
+    return "border-red-500/30 bg-red-950/20";
+  }
+
+  if (status === paymentStatuses.PARTIAL) {
+    return "border-blue-500/30 bg-blue-950/20";
+  }
+
+  if (status === paymentStatuses.RENEGOTIATED) {
+    return "border-purple-500/30 bg-purple-950/20";
+  }
+
+  if (status === paymentStatuses.CANCELED) {
+    return "border-zinc-700 bg-zinc-900/40 opacity-70";
+  }
+
+  return "border-zinc-800 bg-zinc-900";
+}
+
+function statusBadge(status) {
+  if (status === paymentStatuses.PAID) {
+    return "bg-emerald-500/20 text-emerald-200";
+  }
+
+  if (status === paymentStatuses.LATE) {
+    return "bg-red-500/20 text-red-200";
+  }
+
+  if (status === paymentStatuses.PARTIAL) {
+    return "bg-blue-500/20 text-blue-200";
+  }
+
+  if (status === paymentStatuses.RENEGOTIATED) {
+    return "bg-purple-500/20 text-purple-200";
+  }
+
+  if (status === paymentStatuses.CANCELED) {
+    return "bg-zinc-500/20 text-zinc-300";
+  }
+
+  return "bg-yellow-500/20 text-yellow-200";
+}
+
 export default function CalendarView({
   calendarEvents,
   onMarkPaymentPaid,
   onMarkPaymentLate,
+  onMarkPaymentPartial,
+  onMarkPaymentCanceled,
 }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(toISODate(new Date()));
   const [fineInput, setFineInput] = useState({});
+  const [partialInput, setPartialInput] = useState({});
+  const [noteInput, setNoteInput] = useState({});
+  const [openAdvanced, setOpenAdvanced] = useState({});
 
   const monthDays = useMemo(() => getMonthDays(currentMonth), [currentMonth]);
   const groupedEvents = useMemo(
@@ -68,9 +122,18 @@ export default function CalendarView({
         date,
         events,
         total: events.reduce((sum, event) => sum + Number(event.valor || 0), 0),
-        pending: events.filter((event) => event.statusPagamento === "Pendente").length,
-        paid: events.filter((event) => event.statusPagamento === "Pago").length,
-        late: events.filter((event) => event.statusPagamento === "Atrasado").length,
+        pending: events.filter(
+          (event) => event.statusPagamento === paymentStatuses.PENDING
+        ).length,
+        paid: events.filter(
+          (event) => event.statusPagamento === paymentStatuses.PAID
+        ).length,
+        late: events.filter(
+          (event) => event.statusPagamento === paymentStatuses.LATE
+        ).length,
+        partial: events.filter(
+          (event) => event.statusPagamento === paymentStatuses.PARTIAL
+        ).length,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [groupedEvents, currentMonth]);
@@ -91,9 +154,22 @@ export default function CalendarView({
     const events = groupedEvents[dateString] || [];
 
     const total = events.reduce((sum, event) => sum + Number(event.valor || 0), 0);
-    const paid = events.filter((event) => event.statusPagamento === "Pago").length;
-    const late = events.filter((event) => event.statusPagamento === "Atrasado").length;
-    const pending = events.filter((event) => event.statusPagamento === "Pendente").length;
+
+    const paid = events.filter(
+      (event) => event.statusPagamento === paymentStatuses.PAID
+    ).length;
+
+    const late = events.filter(
+      (event) => event.statusPagamento === paymentStatuses.LATE
+    ).length;
+
+    const pending = events.filter(
+      (event) => event.statusPagamento === paymentStatuses.PENDING
+    ).length;
+
+    const partial = events.filter(
+      (event) => event.statusPagamento === paymentStatuses.PARTIAL
+    ).length;
 
     return {
       count: events.length,
@@ -101,29 +177,69 @@ export default function CalendarView({
       paid,
       late,
       pending,
+      partial,
     };
   }
 
+  function getEventKey(event) {
+    return event.paymentKey || event.eventKey || event.id || event.date;
+  }
+
+  function toggleAdvanced(eventId) {
+    setOpenAdvanced((prev) => ({
+      ...prev,
+      [eventId]: !prev[eventId],
+    }));
+  }
+
   function renderPaymentCard(event) {
-    const fineValue = fineInput[event.id] ?? event.multaPercentual ?? 0;
+    const eventKey = getEventKey(event);
+
+    const fineValue =
+      fineInput[event.id] ?? event.multaPercentual ?? 0;
+
+    const partialValue =
+      partialInput[event.id] ?? event.valorPago ?? "";
+
+    const noteValue =
+      noteInput[event.id] ?? event.observacao ?? "";
+
+    const isAdvancedOpen = openAdvanced[event.id];
 
     return (
       <div
         key={event.id}
-        className={`rounded-2xl border p-4 ${
-          event.statusPagamento === "Pago"
-            ? "border-emerald-500/30 bg-emerald-950/20"
-            : event.statusPagamento === "Atrasado"
-            ? "border-red-500/30 bg-red-950/20"
-            : "border-zinc-800 bg-zinc-900"
-        }`}
+        className={`rounded-2xl border p-4 ${statusStyle(event.statusPagamento)}`}
       >
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="font-bold">{event.nome}</p>
-            <p className="text-sm text-zinc-400">
-              {event.tipo} · {event.statusPagamento}
-            </p>
+          <div className="min-w-0">
+            <p className="font-bold break-words">{event.nome}</p>
+
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span
+                className={`rounded-full px-2 py-1 text-xs ${statusBadge(
+                  event.statusPagamento
+                )}`}
+              >
+                {event.statusPagamento}
+              </span>
+
+              <span className="text-xs text-zinc-500">
+                {event.tipo}
+              </span>
+            </div>
+
+            {event.descricao && (
+              <p className="text-xs text-zinc-400 mt-2">
+                {event.descricao}
+              </p>
+            )}
+
+            {event.observacao && (
+              <p className="text-xs text-zinc-400 mt-2">
+                Obs: {event.observacao}
+              </p>
+            )}
           </div>
 
           <div className="text-right shrink-0">
@@ -131,7 +247,13 @@ export default function CalendarView({
               {money.format(event.valor)}
             </p>
 
-            {event.statusPagamento === "Atrasado" && (
+            {event.valorPago > 0 && (
+              <p className="text-xs text-blue-200">
+                Pago: {money.format(event.valorPago)}
+              </p>
+            )}
+
+            {event.statusPagamento === paymentStatuses.LATE && (
               <p className="text-xs text-red-200">
                 Multa {event.multaPercentual || 0}%
               </p>
@@ -142,7 +264,7 @@ export default function CalendarView({
         <div className="mt-4 grid grid-cols-1 gap-2">
           <button
             type="button"
-            onClick={() => onMarkPaymentPaid(event.recordId, event.date)}
+            onClick={() => onMarkPaymentPaid(event.recordId, eventKey)}
             className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-3 md:py-2 text-sm font-semibold transition"
           >
             Marcar como pago
@@ -167,13 +289,79 @@ export default function CalendarView({
             <button
               type="button"
               onClick={() =>
-                onMarkPaymentLate(event.recordId, event.date, fineValue)
+                onMarkPaymentLate(event.recordId, eventKey, fineValue)
               }
               className="rounded-xl bg-red-600 hover:bg-red-700 px-4 py-3 md:py-2 text-sm font-semibold transition"
             >
               Marcar atraso
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => toggleAdvanced(event.id)}
+            className="rounded-xl border border-zinc-700 bg-black/30 px-4 py-3 md:py-2 text-sm font-semibold text-zinc-300 hover:text-white hover:border-purple-500 transition"
+          >
+            {isAdvancedOpen ? "Fechar opções" : "Opções avançadas"}
+          </button>
+
+          {isAdvancedOpen && (
+            <div className="rounded-2xl border border-zinc-800 bg-black/30 p-3 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={partialValue}
+                  onChange={(e) =>
+                    setPartialInput((prev) => ({
+                      ...prev,
+                      [event.id]: e.target.value,
+                    }))
+                  }
+                  placeholder="Valor pago parcial"
+                  className="rounded-xl bg-black border border-zinc-800 px-3 py-3 md:py-2 text-sm outline-none focus:border-blue-500"
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onMarkPaymentPartial(
+                      event.recordId,
+                      eventKey,
+                      partialValue,
+                      noteValue
+                    )
+                  }
+                  className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 text-sm font-semibold transition"
+                >
+                  Marcar parcial
+                </button>
+              </div>
+
+              <textarea
+                value={noteValue}
+                onChange={(e) =>
+                  setNoteInput((prev) => ({
+                    ...prev,
+                    [event.id]: e.target.value,
+                  }))
+                }
+                placeholder="Observação da parcela"
+                className="w-full min-h-[80px] rounded-xl bg-black border border-zinc-800 px-3 py-3 text-sm outline-none focus:border-purple-500"
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  onMarkPaymentCanceled(event.recordId, eventKey, noteValue)
+                }
+                className="w-full rounded-xl bg-zinc-700 hover:bg-zinc-600 px-4 py-3 md:py-2 text-sm font-semibold transition"
+              >
+                Cancelar parcela
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -213,7 +401,6 @@ export default function CalendarView({
           </div>
         </div>
 
-        {/* Mobile: lista de dias */}
         <div className="md:hidden space-y-3">
           {mobileMonthEvents.map((group) => {
             const isSelected = selectedDate === group.date;
@@ -252,6 +439,12 @@ export default function CalendarView({
                     </span>
                   )}
 
+                  {group.partial > 0 && (
+                    <span className="rounded-full bg-blue-500/20 text-blue-200 px-2 py-1 text-xs">
+                      {group.partial} parcial
+                    </span>
+                  )}
+
                   {group.paid > 0 && (
                     <span className="rounded-full bg-emerald-500/20 text-emerald-200 px-2 py-1 text-xs">
                       {group.paid} pago
@@ -275,7 +468,6 @@ export default function CalendarView({
           )}
         </div>
 
-        {/* Desktop/tablet: calendário em grade */}
         <div className="hidden md:block">
           <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold text-zinc-500">
             <div>Dom</div>
@@ -342,6 +534,12 @@ export default function CalendarView({
                         {summary.pending > 0 && (
                           <span className="rounded-full bg-yellow-500/20 text-yellow-200 px-2 py-0.5 text-[10px]">
                             {summary.pending} pend.
+                          </span>
+                        )}
+
+                        {summary.partial > 0 && (
+                          <span className="rounded-full bg-blue-500/20 text-blue-200 px-2 py-0.5 text-[10px]">
+                            {summary.partial} parcial
                           </span>
                         )}
 

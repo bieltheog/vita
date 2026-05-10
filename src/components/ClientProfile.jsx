@@ -1,300 +1,201 @@
+import { useMemo, useState } from "react";
 import { StatusBadge } from "./ui";
 import { money, formatDateBR } from "../utils/helpers";
 import {
   calculateInstallment,
   calculateLateAmount,
-  buildCalendarEvents,
+  paymentTypes,
 } from "../utils/calculations";
 
-export default function ClientProfile({
-  client,
-  onBack,
-  onEdit,
-  onMarkRecordAsPaid,
-  onNewLoan,
-  onRemove,
+export default function ClientsTable({
+  filtered,
+  search,
+  setSearch,
+  loading,
+  onOpenProfile,
 }) {
-  if (!client) {
-    return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 text-white">
-        <p className="text-zinc-400">Cliente não encontrado.</p>
-        <button onClick={onBack} className="mt-4 rounded-xl bg-purple-600 px-4 py-2">
-          Voltar
-        </button>
-      </div>
-    );
+  const [statusFilter, setStatusFilter] = useState("Todos");
+  const [frequencyFilter, setFrequencyFilter] = useState("Todos");
+
+  const visibleClients = useMemo(() => {
+    return filtered.filter((item) => {
+      const statusMatch = statusFilter === "Todos" || item.status === statusFilter;
+      const frequencyMatch =
+        frequencyFilter === "Todos" || item.frequencia === frequencyFilter;
+
+      return statusMatch && frequencyMatch;
+    });
+  }, [filtered, statusFilter, frequencyFilter]);
+
+  function getFrequencyLabel(item) {
+    if (item.frequencia === paymentTypes.FIXED_DATES) {
+      return `Datas fixas: ${(item.diasPagamentoFixos || []).join(", ")}`;
+    }
+
+    if (item.frequencia === paymentTypes.CUSTOM) {
+      return `${item.parcelasPersonalizadas?.length || 0} parcela(s) personalizadas`;
+    }
+
+    if (item.frequencia === paymentTypes.WEEKLY) {
+      return `${item.semanas} semana(s)`;
+    }
+
+    return `Até ${formatDateBR(item.dataTermino)}`;
   }
 
-  const parcela = calculateInstallment(client);
-  const parcelaComMulta = calculateLateAmount(parcela, client.multaPercentual);
-  const eventos = buildCalendarEvents([client]);
-
-  const pagos = eventos.filter((event) => event.statusPagamento === "Pago");
-  const pendentes = eventos.filter((event) => event.statusPagamento === "Pendente");
-  const atrasados = eventos.filter((event) => event.statusPagamento === "Atrasado");
-
-  const historicoEmprestimos = client.historicoEmprestimos || [];
-
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-        <button onClick={onBack} className="text-sm text-zinc-400 hover:text-white mb-4">
-          ← Voltar para clientes
-        </button>
-
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+    <div className="rounded-[2rem] shadow-2xl border border-zinc-800 bg-zinc-950 text-white overflow-hidden">
+      <div className="p-4 md:p-6 border-b border-zinc-800 bg-gradient-to-r from-purple-950/30 to-transparent">
+        <div className="flex flex-col gap-4">
           <div>
-            <h2 className="text-3xl font-bold">{client.nome}</h2>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <StatusBadge status={client.status} />
-
-              {client.status === "Quitado" && (
-                <span className="px-3 py-1 rounded-full text-xs border border-emerald-500/30 bg-emerald-600/20 text-emerald-200">
-                  Empréstimo atual quitado
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => onEdit(client)}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 hover:border-purple-500 transition"
-            >
-              Editar ficha
-            </button>
-
-            {client.status !== "Quitado" && (
-              <button
-                onClick={() => onMarkRecordAsPaid(client.id)}
-                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold transition"
-              >
-                Marcar como totalmente pago
-              </button>
-            )}
-
-            {client.status === "Quitado" && (
-              <button
-                onClick={() => onNewLoan(client.id)}
-                className="rounded-xl bg-purple-600 hover:bg-purple-700 px-4 py-3 font-semibold transition"
-              >
-                Novo empréstimo
-              </button>
-            )}
-
-            <button
-              onClick={() => onRemove(client.id)}
-              className="rounded-xl bg-red-600 hover:bg-red-700 px-4 py-3 font-semibold transition"
-            >
-              Excluir cliente
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-          <h3 className="text-xl font-bold mb-4">Dados pessoais</h3>
-
-          <div className="space-y-3 text-sm">
-            <p><span className="text-zinc-500">WhatsApp:</span> {client.whatsapp || "-"}</p>
-            <p><span className="text-zinc-500">CPF:</span> {client.cpf || "-"}</p>
-            <p><span className="text-zinc-500">CEP:</span> {client.cep || "-"}</p>
-            <p><span className="text-zinc-500">Endereço:</span> {client.endereco || "-"}, {client.numero || "-"}</p>
-            <p><span className="text-zinc-500">Complemento:</span> {client.complemento || "-"}</p>
-            <p><span className="text-zinc-500">Bairro:</span> {client.bairro || "-"}</p>
-            <p><span className="text-zinc-500">Cidade/UF:</span> {client.cidade || "-"}/{client.estado || "-"}</p>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-          <h3 className="text-xl font-bold mb-4">Empréstimo atual</h3>
-
-          {client.abrirConta && client.valorReceber > 0 ? (
-            <div className="space-y-3 text-sm">
-              <p><span className="text-zinc-500">Valor enviado:</span> {money.format(client.valorEnviado)}</p>
-              <p><span className="text-zinc-500">% de retorno:</span> {client.porcentagemRetorno}%</p>
-              <p>
-                <span className="text-zinc-500">Valor a receber:</span>{" "}
-                <strong className="text-purple-200">{money.format(client.valorReceber)}</strong>
-              </p>
-              <p><span className="text-zinc-500">Lucro previsto:</span> {money.format(client.valorReceber - client.valorEnviado)}</p>
-              <p><span className="text-zinc-500">Pagamento:</span> {client.frequencia}</p>
-              <p><span className="text-zinc-500">Início:</span> {formatDateBR(client.dataInicio)}</p>
-              <p>
-                <span className="text-zinc-500">Término:</span>{" "}
-                {client.frequencia === "Diário"
-                  ? formatDateBR(client.dataTermino)
-                  : `${client.semanas} semanas`}
-              </p>
-              <p>
-                <span className="text-zinc-500">Parcela:</span>{" "}
-                <strong className="text-emerald-200">{money.format(parcela)}</strong>
-              </p>
-              <p>
-                <span className="text-zinc-500">Com multa:</span>{" "}
-                <strong className="text-red-200">{money.format(parcelaComMulta)}</strong>
-              </p>
-            </div>
-          ) : (
-            <p className="text-zinc-500">
-              Nenhum empréstimo atual cadastrado. Clique em editar ficha para cadastrar.
+            <p className="text-purple-300 text-sm font-medium">Clientes</p>
+            <h2 className="text-2xl md:text-3xl font-bold">
+              Clientes cadastrados
+            </h2>
+            <p className="text-sm text-zinc-500 mt-1">
+              Abra a ficha para editar, encerrar, criar novo empréstimo ou excluir.
             </p>
-          )}
-        </div>
+          </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-          <h3 className="text-xl font-bold mb-4">Documentos</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar cliente..."
+              className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-purple-500"
+            />
 
-          <div className="space-y-2 text-sm">
-            {client.anexos?.extrato?.url && (
-              <a className="block text-purple-300 hover:underline" href={client.anexos.extrato.url} target="_blank" rel="noreferrer">
-                Abrir extrato
-              </a>
-            )}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-purple-500"
+            >
+              <option>Todos</option>
+              <option>Ativo</option>
+              <option>Recebido</option>
+              <option>Atrasado</option>
+              <option>Quitado</option>
+            </select>
 
-            {client.anexos?.comprovanteResidencia?.url && (
-              <a className="block text-purple-300 hover:underline" href={client.anexos.comprovanteResidencia.url} target="_blank" rel="noreferrer">
-                Abrir comprovante de residência
-              </a>
-            )}
-
-            {client.anexos?.identidade?.url && (
-              <a className="block text-purple-300 hover:underline" href={client.anexos.identidade.url} target="_blank" rel="noreferrer">
-                Abrir identidade
-              </a>
-            )}
-
-            {client.anexos?.outros?.url && (
-              <a className="block text-purple-300 hover:underline" href={client.anexos.outros.url} target="_blank" rel="noreferrer">
-                Abrir outros
-              </a>
-            )}
-
-            {!client.anexos?.extrato?.url &&
-              !client.anexos?.comprovanteResidencia?.url &&
-              !client.anexos?.identidade?.url &&
-              !client.anexos?.outros?.url && (
-                <p className="text-zinc-500">Nenhum documento anexado.</p>
-              )}
+            <select
+              value={frequencyFilter}
+              onChange={(e) => setFrequencyFilter(e.target.value)}
+              className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-purple-500"
+            >
+              <option>Todos</option>
+              <option>{paymentTypes.DAILY}</option>
+              <option>{paymentTypes.WEEKLY}</option>
+              <option>{paymentTypes.FIXED_DATES}</option>
+              <option>{paymentTypes.CUSTOM}</option>
+            </select>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-        <h3 className="text-xl font-bold mb-4">Resumo dos pagamentos do empréstimo atual</h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
-            <p className="text-sm text-zinc-500">Total de parcelas</p>
-            <p className="text-2xl font-bold">{eventos.length}</p>
+      <div className="p-4 md:p-6">
+        {loading ? (
+          <div className="text-center py-12 text-zinc-500">
+            Carregando clientes...
           </div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {visibleClients.map((item) => {
+              const parcela = calculateInstallment(item);
+              const parcelaComMulta = calculateLateAmount(
+                parcela,
+                item.multaPercentual
+              );
 
-          <div className="rounded-2xl bg-emerald-950/20 border border-emerald-500/20 p-4">
-            <p className="text-sm text-zinc-500">Pagas</p>
-            <p className="text-2xl font-bold text-emerald-200">{pagos.length}</p>
-          </div>
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950 p-4 hover:border-purple-500/50 transition shadow-lg"
+                >
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="text-lg md:text-xl font-bold break-words">
+                        {item.nome}
+                      </h3>
 
-          <div className="rounded-2xl bg-yellow-950/20 border border-yellow-500/20 p-4">
-            <p className="text-sm text-zinc-500">Pendentes</p>
-            <p className="text-2xl font-bold text-yellow-200">{pendentes.length}</p>
-          </div>
+                      <p className="text-sm text-zinc-500">
+                        {item.whatsapp || "Sem WhatsApp"}
+                      </p>
 
-          <div className="rounded-2xl bg-red-950/20 border border-red-500/20 p-4">
-            <p className="text-sm text-zinc-500">Atrasadas</p>
-            <p className="text-2xl font-bold text-red-200">{atrasados.length}</p>
-          </div>
-        </div>
+                      <p className="text-xs text-zinc-500 mt-1">
+                        CPF: {item.cpf || "-"} · CEP: {item.cep || "-"}
+                      </p>
 
-        <div className="space-y-3">
-          {eventos.map((event) => (
-            <div
-              key={event.id}
-              className={`rounded-xl border p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${
-                event.statusPagamento === "Pago"
-                  ? "bg-emerald-950/20 border-emerald-500/20"
-                  : event.statusPagamento === "Atrasado"
-                  ? "bg-red-950/20 border-red-500/20"
-                  : "bg-zinc-900 border-zinc-800"
-              }`}
-            >
-              <div>
-                <p className="font-semibold">{formatDateBR(event.date)}</p>
-                <p className="text-sm text-zinc-500">
-                  {event.tipo} · {event.statusPagamento}
-                </p>
-              </div>
+                      <p className="text-xs text-zinc-500 max-w-md mt-1">
+                        {item.endereco || "-"}, {item.numero || "-"} ·{" "}
+                        {item.bairro || "-"} · {item.cidade || "-"}/
+                        {item.estado || "-"}
+                      </p>
 
-              <div className="font-bold text-purple-200">
-                {money.format(event.valor)}
-              </div>
-            </div>
-          ))}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <StatusBadge status={item.status} />
 
-          {eventos.length === 0 && (
-            <p className="text-zinc-500 text-center py-8">
-              Nenhum pagamento gerado para o empréstimo atual.
-            </p>
-          )}
-        </div>
-      </div>
+                        <span className="px-3 py-1 rounded-full text-xs border border-purple-500/20 bg-purple-600/10 text-purple-200">
+                          {item.frequencia || "Sem conta"}
+                        </span>
+                      </div>
+                    </div>
 
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-        <h3 className="text-xl font-bold mb-4">Histórico de empréstimos anteriores</h3>
-
-        <div className="space-y-3">
-          {historicoEmprestimos.map((loan, index) => (
-            <div
-              key={`${loan.finalizadoEm}-${index}`}
-              className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"
-            >
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                  <p className="font-bold">Empréstimo #{index + 1}</p>
-                  <p className="text-sm text-zinc-500">
-                    Finalizado em {loan.finalizadoEm ? new Date(loan.finalizadoEm).toLocaleDateString("pt-BR") : "-"}
-                  </p>
-                  <p className="text-sm text-zinc-500">
-                    {loan.frequencia} · início {formatDateBR(loan.dataInicio)}
-                    {loan.dataTermino ? ` · fim ${formatDateBR(loan.dataTermino)}` : ""}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <p className="text-zinc-500">Enviado</p>
-                    <p>{money.format(loan.valorEnviado || 0)}</p>
+                    <button
+                      onClick={() => onOpenProfile(item)}
+                      className="px-4 py-3 md:py-2 rounded-xl bg-purple-600 hover:bg-purple-700 transition font-semibold shrink-0"
+                    >
+                      Abrir ficha
+                    </button>
                   </div>
 
-                  <div>
-                    <p className="text-zinc-500">Recebido</p>
-                    <p className="text-purple-200">{money.format(loan.valorReceber || 0)}</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 text-sm">
+                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
+                      <p className="text-zinc-500">Enviado</p>
+                      <p>{money.format(item.valorEnviado)}</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
+                      <p className="text-zinc-500">Receber</p>
+                      <p className="text-purple-200 font-semibold">
+                        {money.format(item.valorReceber)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
+                      <p className="text-zinc-500">Parcela</p>
+                      <p className="text-emerald-200">
+                        {item.frequencia === paymentTypes.CUSTOM
+                          ? "Variável"
+                          : money.format(parcela)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
+                      <p className="text-zinc-500">Atraso</p>
+                      <p className="text-red-200">
+                        {item.frequencia === paymentTypes.CUSTOM
+                          ? `${item.multaPercentual || 0}%`
+                          : money.format(parcelaComMulta)}
+                      </p>
+                    </div>
                   </div>
 
-                  <div>
-                    <p className="text-zinc-500">Lucro</p>
-                    <p className="text-emerald-200">{money.format(loan.lucro || 0)}</p>
+                  <div className="mt-4 text-xs text-zinc-500">
+                    {item.frequencia} · início {formatDateBR(item.dataInicio)} ·{" "}
+                    {getFrequencyLabel(item)}
                   </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
+        )}
 
-          {historicoEmprestimos.length === 0 && (
-            <p className="text-zinc-500 text-center py-8">
-              Nenhum empréstimo anterior salvo ainda.
-            </p>
-          )}
-        </div>
+        {!loading && visibleClients.length === 0 && (
+          <div className="text-center py-12 text-zinc-500">
+            Nenhum cliente encontrado.
+          </div>
+        )}
       </div>
-
-      {client.observacao && (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-          <h3 className="text-xl font-bold mb-3">Observações</h3>
-          <p className="text-zinc-400">{client.observacao}</p>
-        </div>
-      )}
     </div>
   );
 }

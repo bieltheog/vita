@@ -19,6 +19,9 @@ import {
   buildCalendarEvents,
   getNextStatus,
   toNumber,
+  paymentTypes,
+  paymentStatuses,
+  isPaymentSettled,
 } from "./utils/calculations";
 
 function filterRecords(records, search) {
@@ -53,11 +56,15 @@ function mapDbRecord(row) {
     valorReceber: toNumber(row.valor_receber),
     porcentagemRetorno: toNumber(row.porcentagem_retorno),
 
-    frequencia: row.frequencia || "Diário",
+    frequencia: row.frequencia || paymentTypes.DAILY,
     dataInicio: row.data_inicio || "",
     dataTermino: row.data_termino || "",
     semanas: row.semanas || 4,
     diaPagamento: row.dia_pagamento ?? 5,
+
+    diasPagamentoFixos: row.dias_pagamento_fixos || [],
+    parcelasPersonalizadas: row.parcelas_personalizadas || [],
+
     multaPercentual: toNumber(row.multa_percentual),
 
     status: row.status || "Ativo",
@@ -88,11 +95,19 @@ function mapRecordToForm(record) {
 
     valorEnviado: String(record.valorEnviado || ""),
     porcentagemRetorno: String(record.porcentagemRetorno || ""),
-    frequencia: record.frequencia || "Diário",
+    frequencia: record.frequencia || paymentTypes.DAILY,
     dataInicio: record.dataInicio || todayISO(),
     dataTermino: record.dataTermino || "",
     semanas: String(record.semanas || 4),
     diaPagamento: String(record.diaPagamento ?? 5),
+
+    diasPagamentoFixos:
+      record.diasPagamentoFixos && record.diasPagamentoFixos.length > 0
+        ? record.diasPagamentoFixos.map(String)
+        : ["15", "30"],
+
+    parcelasPersonalizadas: record.parcelasPersonalizadas || [],
+
     multaPercentual: String(record.multaPercentual || 0),
     status: record.status || "Ativo",
 
@@ -111,6 +126,19 @@ function mapFormToDb(form) {
   const valorReceber = abrirConta
     ? calculateReceivable(form.valorEnviado, form.porcentagemRetorno)
     : 0;
+
+  const diasPagamentoFixos = (form.diasPagamentoFixos || [])
+    .map((day) => Math.floor(toNumber(day)))
+    .filter((day) => day >= 1 && day <= 31);
+
+  const parcelasPersonalizadas = (form.parcelasPersonalizadas || [])
+    .map((item) => ({
+      id: item.id || `${Date.now()}-${Math.random()}`,
+      date: item.date || "",
+      value: toNumber(item.value),
+      descricao: item.descricao || "",
+    }))
+    .filter((item) => item.date && item.value > 0);
 
   return {
     nome: form.nome.trim(),
@@ -134,19 +162,31 @@ function mapFormToDb(form) {
     data_inicio: abrirConta ? form.dataInicio || null : null,
 
     data_termino:
-      abrirConta && form.frequencia === "Diário"
+      abrirConta &&
+      (form.frequencia === paymentTypes.DAILY ||
+        form.frequencia === paymentTypes.FIXED_DATES)
         ? form.dataTermino || null
         : null,
 
     semanas:
-      abrirConta && form.frequencia === "Semanal"
+      abrirConta && form.frequencia === paymentTypes.WEEKLY
         ? Math.max(1, toNumber(form.semanas))
         : null,
 
     dia_pagamento:
-      abrirConta && form.frequencia === "Semanal"
+      abrirConta && form.frequencia === paymentTypes.WEEKLY
         ? toNumber(form.diaPagamento)
         : null,
+
+    dias_pagamento_fixos:
+      abrirConta && form.frequencia === paymentTypes.FIXED_DATES
+        ? diasPagamentoFixos
+        : [],
+
+    parcelas_personalizadas:
+      abrirConta && form.frequencia === paymentTypes.CUSTOM
+        ? parcelasPersonalizadas
+        : [],
 
     multa_percentual: abrirConta ? toNumber(form.multaPercentual) : 0,
 
@@ -321,8 +361,38 @@ export default function App() {
         return;
       }
 
-      if (form.frequencia === "Diário" && !form.dataTermino) {
+      if (
+        form.frequencia === paymentTypes.DAILY &&
+        !form.dataTermino
+      ) {
         setError("Preencha a data de término da diária.");
+        return;
+      }
+
+      if (
+        form.frequencia === paymentTypes.FIXED_DATES &&
+        !form.dataTermino
+      ) {
+        setError("Preencha a data de término das datas fixas.");
+        return;
+      }
+
+      if (
+        form.frequencia === paymentTypes.FIXED_DATES &&
+        (!form.diasPagamentoFixos || form.diasPagamentoFixos.length === 0)
+      ) {
+        setError("Adicione pelo menos um dia fixo de pagamento.");
+        return;
+      }
+
+      if (
+        form.frequencia === paymentTypes.CUSTOM &&
+        (!form.parcelasPersonalizadas ||
+          form.parcelasPersonalizadas.filter(
+            (item) => item.date && toNumber(item.value) > 0
+          ).length === 0)
+      ) {
+        setError("Adicione pelo menos uma parcela personalizada.");
         return;
       }
     }
@@ -415,7 +485,7 @@ export default function App() {
     }
   }
 
-  async function updatePaymentStatus(recordId, date, paymentData) {
+  async function updatePaymentStatus(recordId, paymentKey, paymentData) {
     setError("");
     setSuccess("");
 
@@ -426,8 +496,8 @@ export default function App() {
 
     const updatedPayments = {
       ...(target.pagamentos || {}),
-      [date]: {
-        ...(target.pagamentos?.[date] || {}),
+      [paymentKey]: {
+        ...(target.pagamentos?.[paymentKey] || {}),
         ...paymentData,
         updatedAt: new Date().toISOString(),
       },
@@ -440,11 +510,11 @@ export default function App() {
 
     const updatedTargetEvents = buildCalendarEvents([updatedTarget]);
 
-    const allPaymentsPaid =
+    const allPaymentsSettled =
       updatedTargetEvents.length > 0 &&
-      updatedTargetEvents.every((event) => event.statusPagamento === "Pago");
+      updatedTargetEvents.every((event) => isPaymentSettled(event));
 
-    const nextStatus = allPaymentsPaid ? "Quitado" : target.status;
+    const nextStatus = allPaymentsSettled ? "Quitado" : target.status;
 
     setRecords((prev) =>
       prev.map((item) =>
@@ -472,24 +542,39 @@ export default function App() {
       return;
     }
 
-    if (allPaymentsPaid) {
+    if (allPaymentsSettled) {
       setSuccess(
-        "Todas as parcelas foram pagas. A ficha foi marcada automaticamente como totalmente quitada."
+        "Todas as parcelas foram resolvidas. A ficha foi marcada automaticamente como totalmente quitada."
       );
     }
   }
 
-  async function markPaymentPaid(recordId, date) {
-    await updatePaymentStatus(recordId, date, {
-      status: "Pago",
+  async function markPaymentPaid(recordId, paymentKey) {
+    await updatePaymentStatus(recordId, paymentKey, {
+      status: paymentStatuses.PAID,
       multaPercentual: 0,
     });
   }
 
-  async function markPaymentLate(recordId, date, multaPercentual) {
-    await updatePaymentStatus(recordId, date, {
-      status: "Atrasado",
+  async function markPaymentLate(recordId, paymentKey, multaPercentual) {
+    await updatePaymentStatus(recordId, paymentKey, {
+      status: paymentStatuses.LATE,
       multaPercentual: Number(multaPercentual || 0),
+    });
+  }
+
+  async function markPaymentPartial(recordId, paymentKey, valorPago, observacao) {
+    await updatePaymentStatus(recordId, paymentKey, {
+      status: paymentStatuses.PARTIAL,
+      valorPago: Number(valorPago || 0),
+      observacao: observacao || "",
+    });
+  }
+
+  async function markPaymentCanceled(recordId, paymentKey, observacao) {
+    await updatePaymentStatus(recordId, paymentKey, {
+      status: paymentStatuses.CANCELED,
+      observacao: observacao || "",
     });
   }
 
@@ -589,23 +674,30 @@ export default function App() {
       dataTermino: target.dataTermino,
       semanas: target.semanas,
       diaPagamento: target.diaPagamento,
+      diasPagamentoFixos: target.diasPagamentoFixos || [],
+      parcelasPersonalizadas: target.parcelasPersonalizadas || [],
       multaPercentual: target.multaPercentual,
       pagamentos: target.pagamentos || {},
       observacao: target.observacao || "",
     };
 
-    const updatedHistory = [...(target.historicoEmprestimos || []), previousLoan];
+    const updatedHistory = [
+      ...(target.historicoEmprestimos || []),
+      previousLoan,
+    ];
 
     const cleanLoanData = {
       status: "Ativo",
       valor_enviado: 0,
       valor_receber: 0,
       porcentagem_retorno: 0,
-      frequencia: "Diário",
+      frequencia: paymentTypes.DAILY,
       data_inicio: null,
       data_termino: null,
       semanas: null,
       dia_pagamento: null,
+      dias_pagamento_fixos: [],
+      parcelas_personalizadas: [],
       multa_percentual: 0,
       pagamentos: {},
       historico_emprestimos: updatedHistory,
@@ -620,11 +712,13 @@ export default function App() {
               valorEnviado: 0,
               valorReceber: 0,
               porcentagemRetorno: 0,
-              frequencia: "Diário",
+              frequencia: paymentTypes.DAILY,
               dataInicio: "",
               dataTermino: "",
               semanas: 4,
               diaPagamento: 5,
+              diasPagamentoFixos: [],
+              parcelasPersonalizadas: [],
               multaPercentual: 0,
               pagamentos: {},
               historicoEmprestimos: updatedHistory,
@@ -650,11 +744,13 @@ export default function App() {
       valorEnviado: 0,
       valorReceber: 0,
       porcentagemRetorno: 0,
-      frequencia: "Diário",
+      frequencia: paymentTypes.DAILY,
       dataInicio: "",
       dataTermino: "",
       semanas: 4,
       diaPagamento: 5,
+      diasPagamentoFixos: ["15", "30"],
+      parcelasPersonalizadas: [],
       multaPercentual: 0,
       pagamentos: {},
       historicoEmprestimos: updatedHistory,
@@ -668,6 +764,8 @@ export default function App() {
       dataTermino: "",
       semanas: "4",
       diaPagamento: "5",
+      diasPagamentoFixos: ["15", "30"],
+      parcelasPersonalizadas: [],
       multaPercentual: "0",
       status: "Ativo",
     });
@@ -808,6 +906,8 @@ export default function App() {
             calendarEvents={calendarEvents}
             onMarkPaymentPaid={markPaymentPaid}
             onMarkPaymentLate={markPaymentLate}
+            onMarkPaymentPartial={markPaymentPartial}
+            onMarkPaymentCanceled={markPaymentCanceled}
           />
         )}
 
