@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { StatusBadge } from "./ui";
 import { money, formatDateBR } from "../utils/helpers";
 import {
@@ -10,42 +11,80 @@ import {
 
 function getStatusStyle(status) {
   if (status === paymentStatuses.PAID) {
-    return "border-emerald-500/20 bg-emerald-950/20 text-emerald-200";
+    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-300";
   }
 
   if (status === paymentStatuses.LATE) {
-    return "border-red-500/20 bg-red-950/20 text-red-200";
+    return "border-rose-500/20 bg-rose-500/10 text-rose-300";
   }
 
   if (status === paymentStatuses.PARTIAL) {
-    return "border-blue-500/20 bg-blue-950/20 text-blue-200";
+    return "border-cyan-500/20 bg-cyan-500/10 text-cyan-300";
   }
 
   if (status === paymentStatuses.CANCELED) {
-    return "border-zinc-700 bg-zinc-900/50 text-zinc-300";
+    return "border-slate-600/20 bg-slate-600/10 text-slate-300";
   }
 
   if (status === paymentStatuses.RENEGOTIATED) {
-    return "border-purple-500/20 bg-purple-950/20 text-purple-200";
+    return "border-purple-500/20 bg-purple-500/10 text-purple-300";
   }
 
-  return "border-yellow-500/20 bg-yellow-950/20 text-yellow-200";
+  return "border-orange-500/20 bg-orange-500/10 text-orange-300";
 }
 
-function InfoCard({ title, value, subtitle, tone = "default" }) {
+function getStatusLabel(status) {
+  if (status === paymentStatuses.PAID) return "Pago";
+  if (status === paymentStatuses.LATE) return "Atrasado";
+  if (status === paymentStatuses.PARTIAL) return "Parcial";
+  if (status === paymentStatuses.CANCELED) return "Cancelado";
+  if (status === paymentStatuses.RENEGOTIATED) return "Renegociado";
+  return "Pendente";
+}
+
+function InfoCard({ title, value, subtitle, tone = "purple" }) {
   const tones = {
-    default: "border-zinc-800 bg-zinc-950",
-    purple: "border-purple-500/20 bg-purple-950/20",
-    green: "border-emerald-500/20 bg-emerald-950/20",
-    red: "border-red-500/20 bg-red-950/20",
-    blue: "border-blue-500/20 bg-blue-950/20",
+    purple: "border-purple-500/18 bg-purple-500/10 text-purple-300",
+    green: "border-emerald-500/18 bg-emerald-500/10 text-emerald-300",
+    red: "border-rose-500/18 bg-rose-500/10 text-rose-300",
+    blue: "border-cyan-500/18 bg-cyan-500/10 text-cyan-300",
+    orange: "border-orange-500/18 bg-orange-500/10 text-orange-300",
+    default: "border-white/[0.08] bg-white/[0.04] text-white",
   };
 
   return (
-    <div className={`rounded-3xl border p-4 ${tones[tone] || tones.default}`}>
-      <p className="text-sm text-zinc-500">{title}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-      {subtitle && <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>}
+    <div className={`rounded-2xl border p-4 ${tones[tone] || tones.default}`}>
+      <p className="text-xs font-medium text-slate-500">{title}</p>
+      <p className="mt-2 text-xl font-bold">{value}</p>
+      {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+    </div>
+  );
+}
+
+function SectionCard({ title, subtitle, children, action }) {
+  return (
+    <div className="card-dark rounded-2xl p-4">
+      <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <h3 className="text-base font-bold text-white">{title}</h3>
+          {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+        </div>
+
+        {action}
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
+function DetailLine({ label, value }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
+      <span className="text-xs font-medium text-slate-500">{label}</span>
+      <strong className="break-words text-sm font-semibold text-slate-200">
+        {value || "-"}
+      </strong>
     </div>
   );
 }
@@ -106,6 +145,51 @@ function getLoanEndLabel(client) {
   return formatDateBR(client.dataTermino);
 }
 
+function getClientScore(eventos, historicoEmprestimos) {
+  const total = eventos.length;
+  const atrasados = eventos.filter(
+    (event) => event.statusPagamento === paymentStatuses.LATE
+  ).length;
+  const parciais = eventos.filter(
+    (event) => event.statusPagamento === paymentStatuses.PARTIAL
+  ).length;
+  const pagos = eventos.filter(
+    (event) => event.statusPagamento === paymentStatuses.PAID
+  ).length;
+
+  const historicoCount = historicoEmprestimos.length;
+
+  if (total === 0 && historicoCount === 0) {
+    return {
+      label: "Sem histórico",
+      tone: "default",
+      description: "Ainda não há dados suficientes.",
+    };
+  }
+
+  if (atrasados === 0 && parciais <= 1 && (pagos > 0 || historicoCount > 0)) {
+    return {
+      label: "Bom pagador",
+      tone: "green",
+      description: "Cliente com bom comportamento de pagamento.",
+    };
+  }
+
+  if (atrasados <= 2) {
+    return {
+      label: "Atenção",
+      tone: "orange",
+      description: "Cliente exige acompanhamento próximo.",
+    };
+  }
+
+  return {
+    label: "Risco alto",
+    tone: "red",
+    description: "Cliente com atrasos relevantes.",
+  };
+}
+
 export default function ClientProfile({
   client,
   onBack,
@@ -114,13 +198,16 @@ export default function ClientProfile({
   onNewLoan,
   onRemove,
 }) {
+  const [activeSection, setActiveSection] = useState("resumo");
+
   if (!client) {
     return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 text-white">
-        <p className="text-zinc-400">Cliente não encontrado.</p>
+      <div className="card-dark rounded-2xl p-5 text-white">
+        <p className="text-slate-400">Cliente não encontrado.</p>
+
         <button
           onClick={onBack}
-          className="mt-4 rounded-xl bg-purple-600 px-4 py-2"
+          className="mt-4 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-bold text-white"
         >
           Voltar
         </button>
@@ -187,52 +274,80 @@ export default function ClientProfile({
     0
   );
 
+  const valorAtrasado = atrasados.reduce(
+    (sum, event) => sum + Number(event.saldo || event.valor || 0),
+    0
+  );
+
   const historicoEmprestimos = safeClient.historicoEmprestimos;
 
+  const score = useMemo(
+    () => getClientScore(eventos, historicoEmprestimos),
+    [eventos, historicoEmprestimos]
+  );
+
+  const tabs = [
+    { id: "resumo", label: "Resumo" },
+    { id: "dados", label: "Dados" },
+    { id: "parcelas", label: "Parcelas" },
+    { id: "documentos", label: "Documentos" },
+    { id: "historico", label: "Histórico" },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-[2rem] border border-zinc-800 bg-gradient-to-br from-purple-950/40 via-zinc-950 to-black p-5 md:p-6 shadow-2xl">
+    <div className="space-y-4">
+      <div className="card-dark rounded-2xl p-4 md:p-5">
         <button
           onClick={onBack}
-          className="text-sm text-zinc-400 hover:text-white mb-5"
+          className="mb-4 text-sm font-medium text-slate-500 transition hover:text-white"
         >
           ← Voltar para clientes
         </button>
 
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-          <div>
-            <p className="text-purple-300 text-sm font-medium">
-              Ficha do cliente
-            </p>
+        <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-300">
+                Ficha do cliente
+              </p>
 
-            <h2 className="text-3xl md:text-5xl font-black mt-1 break-words">
+              <StatusBadge status={safeClient.status} />
+            </div>
+
+            <h2 className="mt-2 break-words text-2xl font-bold text-white md:text-3xl">
               {safeClient.nome}
             </h2>
 
-            <p className="text-zinc-400 mt-2">
+            <p className="mt-2 text-sm text-slate-500">
               {safeClient.whatsapp || "Sem WhatsApp"} · CPF{" "}
               {safeClient.cpf || "-"}
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <StatusBadge status={safeClient.status} />
-
-              <span className="px-3 py-1 rounded-full text-xs border border-purple-500/20 bg-purple-600/10 text-purple-200">
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-300">
                 {getPaymentDescription(safeClient)}
               </span>
 
-              {safeClient.status === "Quitado" && (
-                <span className="px-3 py-1 rounded-full text-xs border border-emerald-500/30 bg-emerald-600/20 text-emerald-200">
-                  Empréstimo atual quitado
-                </span>
-              )}
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                  score.tone === "green"
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                    : score.tone === "orange"
+                    ? "border-orange-500/20 bg-orange-500/10 text-orange-300"
+                    : score.tone === "red"
+                    ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+                    : "border-white/[0.08] bg-white/[0.04] text-slate-300"
+                }`}
+              >
+                {score.label}
+              </span>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => onEdit(safeClient)}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 hover:border-purple-500 transition"
+              className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
             >
               Editar ficha
             </button>
@@ -240,16 +355,16 @@ export default function ClientProfile({
             {safeClient.status !== "Quitado" && (
               <button
                 onClick={() => onMarkRecordAsPaid(safeClient.id)}
-                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-3 font-semibold transition"
+                className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700"
               >
-                Marcar como totalmente pago
+                Marcar quitado
               </button>
             )}
 
             {safeClient.status === "Quitado" && (
               <button
                 onClick={() => onNewLoan(safeClient.id)}
-                className="rounded-xl bg-purple-600 hover:bg-purple-700 px-4 py-3 font-semibold transition"
+                className="rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-purple-700"
               >
                 Novo empréstimo
               </button>
@@ -257,15 +372,15 @@ export default function ClientProfile({
 
             <button
               onClick={() => onRemove(safeClient.id)}
-              className="rounded-xl bg-red-600 hover:bg-red-700 px-4 py-3 font-semibold transition"
+              className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-rose-700"
             >
-              Excluir cliente
+              Excluir
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <InfoCard
           title="Valor enviado"
           value={money.format(safeClient.valorEnviado || 0)}
@@ -274,7 +389,7 @@ export default function ClientProfile({
         />
 
         <InfoCard
-          title="Valor a receber"
+          title="A receber"
           value={money.format(safeClient.valorReceber || 0)}
           subtitle={`${safeClient.porcentagemRetorno || 0}% de retorno`}
           tone="green"
@@ -283,401 +398,408 @@ export default function ClientProfile({
         <InfoCard
           title="Em aberto"
           value={money.format(valorAberto)}
-          subtitle="Saldo das parcelas atuais"
+          subtitle="Saldo atual"
           tone="blue"
         />
 
         <InfoCard
-          title="Pagamentos parciais"
-          value={money.format(valorPagoParcial)}
-          subtitle="Valor já recebido parcialmente"
-          tone="default"
+          title="Atrasado"
+          value={money.format(valorAtrasado)}
+          subtitle={`${atrasados.length} parcela(s)`}
+          tone="red"
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-          <h3 className="text-xl font-bold mb-4">Dados pessoais</h3>
-
-          <div className="space-y-3 text-sm">
-            <p>
-              <span className="text-zinc-500">WhatsApp:</span>{" "}
-              {safeClient.whatsapp || "-"}
-            </p>
-
-            <p>
-              <span className="text-zinc-500">CPF:</span>{" "}
-              {safeClient.cpf || "-"}
-            </p>
-
-            <p>
-              <span className="text-zinc-500">CEP:</span>{" "}
-              {safeClient.cep || "-"}
-            </p>
-
-            <p>
-              <span className="text-zinc-500">Endereço:</span>{" "}
-              {safeClient.endereco || "-"}, {safeClient.numero || "-"}
-            </p>
-
-            <p>
-              <span className="text-zinc-500">Complemento:</span>{" "}
-              {safeClient.complemento || "-"}
-            </p>
-
-            <p>
-              <span className="text-zinc-500">Bairro:</span>{" "}
-              {safeClient.bairro || "-"}
-            </p>
-
-            <p>
-              <span className="text-zinc-500">Cidade/UF:</span>{" "}
-              {safeClient.cidade || "-"}/{safeClient.estado || "-"}
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-          <h3 className="text-xl font-bold mb-4">Empréstimo atual</h3>
-
-          {safeClient.abrirConta && Number(safeClient.valorReceber || 0) > 0 ? (
-            <div className="space-y-3 text-sm">
-              <p>
-                <span className="text-zinc-500">Tipo:</span>{" "}
-                {safeClient.frequencia}
-              </p>
-
-              <p>
-                <span className="text-zinc-500">Valor enviado:</span>{" "}
-                {money.format(safeClient.valorEnviado)}
-              </p>
-
-              <p>
-                <span className="text-zinc-500">% de retorno:</span>{" "}
-                {safeClient.porcentagemRetorno}%
-              </p>
-
-              <p>
-                <span className="text-zinc-500">Valor a receber:</span>{" "}
-                <strong className="text-purple-200">
-                  {money.format(safeClient.valorReceber)}
-                </strong>
-              </p>
-
-              <p>
-                <span className="text-zinc-500">Lucro previsto:</span>{" "}
-                {money.format(
-                  Number(safeClient.valorReceber || 0) -
-                    Number(safeClient.valorEnviado || 0)
-                )}
-              </p>
-
-              <p>
-                <span className="text-zinc-500">Início:</span>{" "}
-                {formatDateBR(safeClient.dataInicio)}
-              </p>
-
-              <p>
-                <span className="text-zinc-500">Término:</span>{" "}
-                {getLoanEndLabel(safeClient)}
-              </p>
-
-              {safeClient.frequencia === paymentTypes.FIXED_DATES && (
-                <p>
-                  <span className="text-zinc-500">Dias fixos:</span>{" "}
-                  {safeClient.diasPagamentoFixos.join(", ") || "-"}
-                </p>
-              )}
-
-              {safeClient.frequencia === paymentTypes.CUSTOM ? (
-                <p>
-                  <span className="text-zinc-500">Parcelas:</span>{" "}
-                  {safeClient.parcelasPersonalizadas.length} personalizada(s)
-                </p>
-              ) : (
-                <>
-                  <p>
-                    <span className="text-zinc-500">Parcela:</span>{" "}
-                    <strong className="text-emerald-200">
-                      {money.format(parcela)}
-                    </strong>
-                  </p>
-
-                  <p>
-                    <span className="text-zinc-500">Com multa:</span>{" "}
-                    <strong className="text-red-200">
-                      {money.format(parcelaComMulta)}
-                    </strong>
-                  </p>
-                </>
-              )}
-            </div>
-          ) : (
-            <p className="text-zinc-500">
-              Nenhum empréstimo atual cadastrado. Clique em editar ficha para
-              cadastrar.
-            </p>
-          )}
-        </div>
-
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-          <h3 className="text-xl font-bold mb-4">Documentos</h3>
-
-          <div className="space-y-2 text-sm">
-            {safeClient.anexos?.extrato?.url && (
-              <a
-                className="block text-purple-300 hover:underline"
-                href={safeClient.anexos.extrato.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir extrato
-              </a>
-            )}
-
-            {safeClient.anexos?.comprovanteResidencia?.url && (
-              <a
-                className="block text-purple-300 hover:underline"
-                href={safeClient.anexos.comprovanteResidencia.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir comprovante de residência
-              </a>
-            )}
-
-            {safeClient.anexos?.identidade?.url && (
-              <a
-                className="block text-purple-300 hover:underline"
-                href={safeClient.anexos.identidade.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir identidade
-              </a>
-            )}
-
-            {safeClient.anexos?.outros?.url && (
-              <a
-                className="block text-purple-300 hover:underline"
-                href={safeClient.anexos.outros.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir outros
-              </a>
-            )}
-
-            {!safeClient.anexos?.extrato?.url &&
-              !safeClient.anexos?.comprovanteResidencia?.url &&
-              !safeClient.anexos?.identidade?.url &&
-              !safeClient.anexos?.outros?.url && (
-                <p className="text-zinc-500">Nenhum documento anexado.</p>
-              )}
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-          <div>
-            <p className="text-purple-300 text-sm font-medium">
-              Empréstimo atual
-            </p>
-            <h3 className="text-2xl font-bold">Resumo dos pagamentos</h3>
-          </div>
-
-          <div className="text-sm text-zinc-500">
-            {eventos.length} parcela(s)
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <InfoCard
-            title="Pagas"
-            value={pagos.length}
-            subtitle="quitadas"
-            tone="green"
-          />
-
-          <InfoCard
-            title="Pendentes"
-            value={pendentes.length}
-            subtitle="aguardando"
-          />
-
-          <InfoCard
-            title="Parciais"
-            value={parciais.length}
-            subtitle="pagas em parte"
-            tone="blue"
-          />
-
-          <InfoCard
-            title="Atrasadas"
-            value={atrasados.length}
-            subtitle="com atraso"
-            tone="red"
-          />
-
-          <InfoCard
-            title="Canceladas"
-            value={cancelados.length}
-            subtitle="sem cobrança"
-          />
-        </div>
-
-        <div className="space-y-3">
-          {eventos.map((event) => (
-            <div
-              key={event.id}
-              className={`rounded-2xl border p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${getStatusStyle(
-                event.statusPagamento
-              )}`}
+      <div className="card-dark rounded-2xl p-2">
+        <div className="flex gap-2 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSection(tab.id)}
+              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                activeSection === tab.id
+                  ? "bg-purple-600 text-white"
+                  : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+              }`}
             >
-              <div>
-                <p className="font-semibold">{formatDateBR(event.date)}</p>
-
-                <p className="text-sm text-zinc-500">
-                  {event.tipo} · {event.statusPagamento}
-                </p>
-
-                {event.descricao && (
-                  <p className="text-xs text-zinc-400 mt-1">
-                    {event.descricao}
-                  </p>
-                )}
-
-                {event.observacao && (
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Obs: {event.observacao}
-                  </p>
-                )}
-              </div>
-
-              <div className="text-left md:text-right">
-                {Number(event.valorPago || 0) > 0 && (
-                  <p className="text-xs text-blue-200">
-                    Pago parcial: {money.format(event.valorPago)}
-                  </p>
-                )}
-
-                <p className="font-bold text-purple-200">
-                  {money.format(event.valor)}
-                </p>
-
-                {event.statusPagamento === paymentStatuses.LATE && (
-                  <p className="text-xs text-red-200">
-                    Com multa: {money.format(event.valorComMulta)}
-                  </p>
-                )}
-              </div>
-            </div>
+              {tab.label}
+            </button>
           ))}
-
-          {eventos.length === 0 && (
-            <p className="text-zinc-500 text-center py-8">
-              Nenhum pagamento gerado para o empréstimo atual.
-            </p>
-          )}
         </div>
       </div>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-        <div className="mb-5">
-          <p className="text-purple-300 text-sm font-medium">Histórico</p>
-          <h3 className="text-2xl font-bold">
-            Empréstimos anteriores deste cliente
-          </h3>
-          <p className="text-zinc-500 text-sm mt-1">
-            Cada vez que você inicia um novo empréstimo, o anterior fica salvo
-            aqui.
-          </p>
+      {activeSection === "resumo" && (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_0.8fr]">
+          <SectionCard
+            title="Resumo do empréstimo atual"
+            subtitle="Informações principais da conta em andamento."
+          >
+            {safeClient.abrirConta && Number(safeClient.valorReceber || 0) > 0 ? (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <DetailLine label="Tipo" value={safeClient.frequencia} />
+
+                <DetailLine
+                  label="Valor enviado"
+                  value={money.format(safeClient.valorEnviado)}
+                />
+
+                <DetailLine
+                  label="Valor a receber"
+                  value={money.format(safeClient.valorReceber)}
+                />
+
+                <DetailLine
+                  label="Lucro previsto"
+                  value={money.format(
+                    Number(safeClient.valorReceber || 0) -
+                      Number(safeClient.valorEnviado || 0)
+                  )}
+                />
+
+                <DetailLine
+                  label="Início"
+                  value={formatDateBR(safeClient.dataInicio)}
+                />
+
+                <DetailLine label="Término" value={getLoanEndLabel(safeClient)} />
+
+                {safeClient.frequencia === paymentTypes.FIXED_DATES && (
+                  <DetailLine
+                    label="Dias fixos"
+                    value={safeClient.diasPagamentoFixos.join(", ") || "-"}
+                  />
+                )}
+
+                {safeClient.frequencia === paymentTypes.WEEKLY && (
+                  <DetailLine
+                    label="Quantidade de semanas"
+                    value={`${safeClient.semanas || 0} semana(s)`}
+                  />
+                )}
+
+                {safeClient.frequencia !== paymentTypes.CUSTOM && (
+                  <>
+                    <DetailLine
+                      label="Valor da parcela"
+                      value={money.format(parcela)}
+                    />
+
+                    <DetailLine
+                      label="Parcela com multa"
+                      value={money.format(parcelaComMulta)}
+                    />
+                  </>
+                )}
+
+                {safeClient.frequencia === paymentTypes.CUSTOM && (
+                  <DetailLine
+                    label="Parcelas personalizadas"
+                    value={`${safeClient.parcelasPersonalizadas.length} parcela(s)`}
+                  />
+                )}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm text-slate-500">
+                Nenhum empréstimo atual cadastrado.
+              </p>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title="Comportamento"
+            subtitle="Leitura rápida do cliente."
+          >
+            <div className="space-y-3">
+              <div
+                className={`rounded-2xl border p-4 ${
+                  score.tone === "green"
+                    ? "border-emerald-500/20 bg-emerald-500/10"
+                    : score.tone === "orange"
+                    ? "border-orange-500/20 bg-orange-500/10"
+                    : score.tone === "red"
+                    ? "border-rose-500/20 bg-rose-500/10"
+                    : "border-white/[0.08] bg-white/[0.03]"
+                }`}
+              >
+                <p className="text-xs text-slate-500">Score do cliente</p>
+                <p className="mt-2 text-2xl font-bold text-white">
+                  {score.label}
+                </p>
+                <p className="mt-1 text-sm text-slate-400">
+                  {score.description}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <InfoCard
+                  title="Pagas"
+                  value={pagos.length}
+                  subtitle="quitadas"
+                  tone="green"
+                />
+
+                <InfoCard
+                  title="Pendentes"
+                  value={pendentes.length}
+                  subtitle="aguardando"
+                  tone="orange"
+                />
+
+                <InfoCard
+                  title="Parciais"
+                  value={parciais.length}
+                  subtitle={money.format(valorPagoParcial)}
+                  tone="blue"
+                />
+
+                <InfoCard
+                  title="Canceladas"
+                  value={cancelados.length}
+                  subtitle="sem cobrança"
+                  tone="default"
+                />
+              </div>
+            </div>
+          </SectionCard>
         </div>
+      )}
 
-        <div className="space-y-3">
-          {historicoEmprestimos.map((loan, index) => (
-            <div
-              key={`${loan?.finalizadoEm || "loan"}-${index}`}
-              className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950 p-4"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div>
-                  <p className="font-bold">Empréstimo #{index + 1}</p>
+      {activeSection === "dados" && (
+        <SectionCard
+          title="Dados pessoais"
+          subtitle="Informações de contato e endereço do cliente."
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <DetailLine label="Nome" value={safeClient.nome} />
+            <DetailLine label="WhatsApp" value={safeClient.whatsapp} />
+            <DetailLine label="CPF" value={safeClient.cpf} />
+            <DetailLine label="CEP" value={safeClient.cep} />
+            <DetailLine label="Endereço" value={safeClient.endereco} />
+            <DetailLine label="Número" value={safeClient.numero} />
+            <DetailLine label="Complemento" value={safeClient.complemento} />
+            <DetailLine label="Bairro" value={safeClient.bairro} />
+            <DetailLine
+              label="Cidade/UF"
+              value={`${safeClient.cidade || "-"}/${safeClient.estado || "-"}`}
+            />
+          </div>
 
-                  <p className="text-sm text-zinc-500">
-                    Finalizado em{" "}
-                    {loan?.finalizadoEm
-                      ? new Date(loan.finalizadoEm).toLocaleDateString("pt-BR")
-                      : "-"}
+          {safeClient.observacao && (
+            <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+              <p className="text-xs font-medium text-slate-500">
+                Observações gerais
+              </p>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-300">
+                {safeClient.observacao}
+              </p>
+            </div>
+          )}
+        </SectionCard>
+      )}
+
+      {activeSection === "parcelas" && (
+        <SectionCard
+          title="Parcelas do empréstimo atual"
+          subtitle="Todas as parcelas geradas para a conta atual."
+          action={
+            <span className="rounded-full bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-400">
+              {eventos.length} parcela(s)
+            </span>
+          }
+        >
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <InfoCard title="Pagas" value={pagos.length} tone="green" />
+            <InfoCard title="Pendentes" value={pendentes.length} tone="orange" />
+            <InfoCard title="Parciais" value={parciais.length} tone="blue" />
+            <InfoCard title="Atrasadas" value={atrasados.length} tone="red" />
+            <InfoCard title="Canceladas" value={cancelados.length} tone="default" />
+          </div>
+
+          <div className="space-y-3">
+            {eventos.map((event) => (
+              <div
+                key={event.id}
+                className={`rounded-xl border p-4 ${getStatusStyle(
+                  event.statusPagamento
+                )}`}
+              >
+                <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold text-white">
+                        {formatDateBR(event.date)}
+                      </p>
+
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusStyle(
+                          event.statusPagamento
+                        )}`}
+                      >
+                        {getStatusLabel(event.statusPagamento)}
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      {event.tipo}
+                      {event.descricao ? ` · ${event.descricao}` : ""}
+                    </p>
+
+                    {event.observacao && (
+                      <p className="mt-1 text-xs text-slate-400">
+                        Obs: {event.observacao}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-left md:text-right">
+                    {Number(event.valorPago || 0) > 0 && (
+                      <p className="text-xs text-cyan-300">
+                        Pago parcial: {money.format(event.valorPago)}
+                      </p>
+                    )}
+
+                    <p className="text-base font-bold text-white">
+                      {money.format(event.valor)}
+                    </p>
+
+                    {event.statusPagamento === paymentStatuses.LATE && (
+                      <p className="text-xs text-rose-300">
+                        Com multa: {money.format(event.valorComMulta)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {eventos.length === 0 && (
+              <p className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-6 text-center text-sm text-slate-500">
+                Nenhum pagamento gerado para o empréstimo atual.
+              </p>
+            )}
+          </div>
+        </SectionCard>
+      )}
+
+      {activeSection === "documentos" && (
+        <SectionCard
+          title="Documentos"
+          subtitle="Arquivos anexados na ficha do cliente."
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {[
+              ["Extrato", safeClient.anexos?.extrato?.url],
+              [
+                "Comprovante de residência",
+                safeClient.anexos?.comprovanteResidencia?.url,
+              ],
+              ["Identidade", safeClient.anexos?.identidade?.url],
+              ["Outros", safeClient.anexos?.outros?.url],
+            ].map(([label, url]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4"
+              >
+                <p className="text-sm font-bold text-white">{label}</p>
+
+                {url ? (
+                  <a
+                    className="mt-2 inline-flex rounded-xl bg-purple-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-purple-700"
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Abrir documento
+                  </a>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-500">
+                    Nenhum arquivo anexado.
                   </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      )}
 
-                  <p className="text-sm text-zinc-500">
-                    {loan?.frequencia || "-"} · início{" "}
-                    {formatDateBR(loan?.dataInicio)}
-                    {loan?.dataTermino
-                      ? ` · fim ${formatDateBR(loan.dataTermino)}`
-                      : ""}
-                  </p>
+      {activeSection === "historico" && (
+        <SectionCard
+          title="Histórico de empréstimos"
+          subtitle="Empréstimos anteriores salvos deste cliente."
+        >
+          <div className="space-y-3">
+            {historicoEmprestimos.map((loan, index) => (
+              <div
+                key={`${loan?.finalizadoEm || "loan"}-${index}`}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4"
+              >
+                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                  <div>
+                    <p className="font-bold text-white">
+                      Empréstimo #{index + 1}
+                    </p>
 
-                  {loan?.frequencia === paymentTypes.FIXED_DATES && (
-                    <p className="text-xs text-zinc-500 mt-1">
-                      Dias fixos:{" "}
-                      {Array.isArray(loan.diasPagamentoFixos)
-                        ? loan.diasPagamentoFixos.join(", ")
+                    <p className="mt-1 text-sm text-slate-500">
+                      Finalizado em{" "}
+                      {loan?.finalizadoEm
+                        ? new Date(loan.finalizadoEm).toLocaleDateString("pt-BR")
                         : "-"}
                     </p>
-                  )}
 
-                  {loan?.frequencia === paymentTypes.CUSTOM && (
-                    <p className="text-xs text-zinc-500 mt-1">
-                      Parcelas personalizadas:{" "}
-                      {Array.isArray(loan.parcelasPersonalizadas)
-                        ? loan.parcelasPersonalizadas.length
-                        : 0}
+                    <p className="mt-1 text-sm text-slate-500">
+                      {loan?.frequencia || "-"} · início{" "}
+                      {formatDateBR(loan?.dataInicio)}
+                      {loan?.dataTermino
+                        ? ` · fim ${formatDateBR(loan.dataTermino)}`
+                        : ""}
                     </p>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <p className="text-zinc-500">Enviado</p>
-                    <p>{money.format(loan?.valorEnviado || 0)}</p>
+                    {loan?.frequencia === paymentTypes.FIXED_DATES && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Dias fixos:{" "}
+                        {Array.isArray(loan.diasPagamentoFixos)
+                          ? loan.diasPagamentoFixos.join(", ")
+                          : "-"}
+                      </p>
+                    )}
+
+                    {loan?.frequencia === paymentTypes.CUSTOM && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Parcelas personalizadas:{" "}
+                        {Array.isArray(loan.parcelasPersonalizadas)
+                          ? loan.parcelasPersonalizadas.length
+                          : 0}
+                      </p>
+                    )}
                   </div>
 
-                  <div>
-                    <p className="text-zinc-500">Recebido</p>
-                    <p className="text-purple-200">
-                      {money.format(loan?.valorReceber || 0)}
-                    </p>
-                  </div>
+                  <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+                    <DetailLine
+                      label="Enviado"
+                      value={money.format(loan?.valorEnviado || 0)}
+                    />
 
-                  <div>
-                    <p className="text-zinc-500">Lucro</p>
-                    <p className="text-emerald-200">
-                      {money.format(loan?.lucro || 0)}
-                    </p>
+                    <DetailLine
+                      label="Recebido"
+                      value={money.format(loan?.valorReceber || 0)}
+                    />
+
+                    <DetailLine
+                      label="Lucro"
+                      value={money.format(loan?.lucro || 0)}
+                    />
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {historicoEmprestimos.length === 0 && (
-            <p className="text-zinc-500 text-center py-8">
-              Nenhum empréstimo anterior salvo ainda.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {safeClient.observacao && (
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-          <h3 className="text-xl font-bold mb-3">Observações gerais</h3>
-          <p className="text-zinc-400 whitespace-pre-wrap">
-            {safeClient.observacao}
-          </p>
-        </div>
+            {historicoEmprestimos.length === 0 && (
+              <p className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-6 text-center text-sm text-slate-500">
+                Nenhum empréstimo anterior salvo ainda.
+              </p>
+            )}
+          </div>
+        </SectionCard>
       )}
     </div>
   );
