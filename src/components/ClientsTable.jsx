@@ -1,198 +1,320 @@
 import { useMemo, useState } from "react";
-import { StatusBadge } from "./ui";
 import { money, formatDateBR } from "../utils/helpers";
-import {
-  calculateInstallment,
-  calculateLateAmount,
-  paymentTypes,
-} from "../utils/calculations";
+import { getClientRisk, getClientMetrics } from "../utils/calculations";
+
+function ClientStatusBadge({ status }) {
+  const styles = {
+    Ativo: "border-orange-500/25 bg-orange-500/10 text-orange-300",
+    Quitado: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
+    Recebido: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
+    Atrasado: "border-rose-500/25 bg-rose-500/10 text-rose-300",
+    Bloqueado: "border-rose-500/25 bg-rose-500/10 text-rose-300",
+  };
+
+  return (
+    <span
+      className={`rounded-full border px-3 py-1 text-xs font-bold ${
+        styles[status] || styles.Ativo
+      }`}
+    >
+      {status || "Ativo"}
+    </span>
+  );
+}
+
+function FilterButton({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+        active
+          ? "bg-orange-500 text-white"
+          : "border border-white/[0.08] bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SummaryCard({ label, value, tone = "orange" }) {
+  const tones = {
+    orange: "border-orange-500/20 bg-orange-500/10 text-orange-300",
+    green: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+    red: "border-rose-500/20 bg-rose-500/10 text-rose-300",
+    amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
+    slate: "border-white/[0.08] bg-white/[0.03] text-white",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-4 ${tones[tone] || tones.orange}`}>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="mt-2 text-xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function ClientCard({ client, onOpenProfile }) {
+  const risk = getClientRisk(client);
+  const metrics = getClientMetrics(client);
+
+  const cityState =
+    client.cidade || client.estado
+      ? `${client.cidade || "-"} / ${client.estado || "-"}`
+      : "Sem cidade";
+
+  const lastCreatedAt = client.createdAt
+    ? formatDateBR(String(client.createdAt).slice(0, 10))
+    : "Sem data";
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenProfile?.(client)}
+      className="group rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 text-left transition hover:border-orange-500/30 hover:bg-white/[0.055]"
+    >
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-base font-bold text-white">
+              {String(client.nome || "C").charAt(0).toUpperCase()}
+            </div>
+
+            <div className="min-w-0">
+              <h4 className="truncate text-lg font-bold text-white">
+                {client.nome || "Cliente sem nome"}
+              </h4>
+
+              <p className="mt-1 truncate text-sm text-slate-500">
+                {client.whatsapp || "Sem WhatsApp"} · CPF {client.cpf || "-"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <ClientStatusBadge status={client.status} />
+
+            <span
+              className={`rounded-full border px-3 py-1 text-xs font-bold ${risk.className}`}
+            >
+              {risk.label}
+            </span>
+
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-400">
+              {client.frequencia || "Sem frequência"}
+            </span>
+          </div>
+        </div>
+
+        <div className="text-left md:text-right">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+            Em aberto
+          </p>
+
+          <p className="mt-1 text-lg font-bold text-orange-300">
+            {money.format(metrics.totalOpenCurrent || metrics.abertoAtual || 0)}
+          </p>
+
+          <p className="mt-1 text-xs text-slate-500">
+            Criado em {lastCreatedAt}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-white/[0.06] bg-[#0d1016] p-3">
+          <p className="text-xs text-slate-500">Enviado</p>
+          <p className="mt-1 font-bold text-white">
+            {money.format(client.valorEnviado || 0)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-white/[0.06] bg-[#0d1016] p-3">
+          <p className="text-xs text-slate-500">A receber</p>
+          <p className="mt-1 font-bold text-white">
+            {money.format(client.valorReceber || 0)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-white/[0.06] bg-[#0d1016] p-3">
+          <p className="text-xs text-slate-500">Lucro total</p>
+          <p className="mt-1 font-bold text-emerald-300">
+            {money.format(metrics.totalProfit || metrics.totalLucro || 0)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-white/[0.06] bg-[#0d1016] p-3">
+          <p className="text-xs text-slate-500">Local</p>
+          <p className="mt-1 truncate font-bold text-white">{cityState}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
+        <p className="line-clamp-1 text-sm text-slate-500">
+          {client.observacao || risk.description || "Sem observações."}
+        </p>
+
+        <span className="shrink-0 text-sm font-bold text-orange-300 transition group-hover:text-orange-200">
+          Abrir ficha →
+        </span>
+      </div>
+    </button>
+  );
+}
 
 export default function ClientsTable({
-  filtered,
+  filtered = [],
   search,
   setSearch,
   loading,
   onOpenProfile,
 }) {
-  const [statusFilter, setStatusFilter] = useState("Todos");
-  const [frequencyFilter, setFrequencyFilter] = useState("Todos");
+  const [filter, setFilter] = useState("todos");
 
-  const visibleClients = useMemo(() => {
-    return filtered.filter((item) => {
-      const statusMatch = statusFilter === "Todos" || item.status === statusFilter;
-      const frequencyMatch =
-        frequencyFilter === "Todos" || item.frequencia === frequencyFilter;
+  const clients = Array.isArray(filtered) ? filtered : [];
 
-      return statusMatch && frequencyMatch;
+  const summary = useMemo(() => {
+    const active = clients.filter((client) => client.status !== "Quitado");
+    const paid = clients.filter((client) => client.status === "Quitado");
+
+    const attention = clients.filter((client) => {
+      const risk = getClientRisk(client);
+      return risk.label === "Atenção" || risk.label === "Risco alto";
     });
-  }, [filtered, statusFilter, frequencyFilter]);
 
-  function getFrequencyLabel(item) {
-    if (item.frequencia === paymentTypes.FIXED_DATES) {
-      return `Datas fixas: ${(item.diasPagamentoFixos || []).join(", ")}`;
+    const highRisk = clients.filter((client) => {
+      const risk = getClientRisk(client);
+      return risk.label === "Risco alto";
+    });
+
+    return {
+      total: clients.length,
+      active: active.length,
+      paid: paid.length,
+      attention: attention.length,
+      highRisk: highRisk.length,
+    };
+  }, [clients]);
+
+  const filteredByTab = useMemo(() => {
+    if (filter === "ativos") {
+      return clients.filter((client) => client.status !== "Quitado");
     }
 
-    if (item.frequencia === paymentTypes.CUSTOM) {
-      return `${item.parcelasPersonalizadas?.length || 0} parcela(s) personalizadas`;
+    if (filter === "quitados") {
+      return clients.filter((client) => client.status === "Quitado");
     }
 
-    if (item.frequencia === paymentTypes.WEEKLY) {
-      return `${item.semanas} semana(s)`;
+    if (filter === "atencao") {
+      return clients.filter((client) => {
+        const risk = getClientRisk(client);
+        return risk.label === "Atenção" || risk.label === "Risco alto";
+      });
     }
 
-    return `Até ${formatDateBR(item.dataTermino)}`;
-  }
+    if (filter === "risco") {
+      return clients.filter((client) => getClientRisk(client).label === "Risco alto");
+    }
+
+    return clients;
+  }, [clients, filter]);
 
   return (
-    <div className="rounded-[2rem] shadow-2xl border border-zinc-800 bg-zinc-950 text-white overflow-hidden">
-      <div className="p-4 md:p-6 border-b border-zinc-800 bg-gradient-to-r from-purple-950/30 to-transparent">
-        <div className="flex flex-col gap-4">
+    <div className="space-y-4">
+      <div className="card-dark rounded-2xl p-4 md:p-5">
+        <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
           <div>
-            <p className="text-purple-300 text-sm font-medium">Clientes</p>
-            <h2 className="text-2xl md:text-3xl font-bold">
-              Clientes cadastrados
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-300">
+              Clientes
+            </p>
+
+            <h2 className="mt-2 text-2xl font-bold text-white">
+              Carteira de clientes
             </h2>
-            <p className="text-sm text-zinc-500 mt-1">
-              Abra a ficha para editar, encerrar, criar novo empréstimo ou excluir.
+
+            <p className="mt-1 text-sm text-slate-500">
+              Busque, filtre e abra a ficha completa de cada cliente.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="w-full xl:max-w-[420px]">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar cliente..."
-              className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-purple-500"
+              placeholder="Buscar por nome, CPF, WhatsApp, cidade..."
+              className="input-dark w-full rounded-xl px-4 py-3 text-sm outline-none"
             />
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-purple-500"
-            >
-              <option>Todos</option>
-              <option>Ativo</option>
-              <option>Recebido</option>
-              <option>Atrasado</option>
-              <option>Quitado</option>
-            </select>
-
-            <select
-              value={frequencyFilter}
-              onChange={(e) => setFrequencyFilter(e.target.value)}
-              className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-purple-500"
-            >
-              <option>Todos</option>
-              <option>{paymentTypes.DAILY}</option>
-              <option>{paymentTypes.WEEKLY}</option>
-              <option>{paymentTypes.FIXED_DATES}</option>
-              <option>{paymentTypes.CUSTOM}</option>
-            </select>
           </div>
         </div>
       </div>
 
-      <div className="p-4 md:p-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <SummaryCard label="Total" value={summary.total} tone="slate" />
+        <SummaryCard label="Ativos" value={summary.active} tone="orange" />
+        <SummaryCard label="Quitados" value={summary.paid} tone="green" />
+        <SummaryCard label="Atenção" value={summary.attention} tone="amber" />
+        <SummaryCard label="Risco alto" value={summary.highRisk} tone="red" />
+      </div>
+
+      <div className="card-dark rounded-2xl p-3">
+        <div className="flex gap-2 overflow-x-auto">
+          <FilterButton active={filter === "todos"} onClick={() => setFilter("todos")}>
+            Todos
+          </FilterButton>
+
+          <FilterButton active={filter === "ativos"} onClick={() => setFilter("ativos")}>
+            Ativos
+          </FilterButton>
+
+          <FilterButton
+            active={filter === "quitados"}
+            onClick={() => setFilter("quitados")}
+          >
+            Quitados
+          </FilterButton>
+
+          <FilterButton
+            active={filter === "atencao"}
+            onClick={() => setFilter("atencao")}
+          >
+            Atenção
+          </FilterButton>
+
+          <FilterButton active={filter === "risco"} onClick={() => setFilter("risco")}>
+            Risco alto
+          </FilterButton>
+        </div>
+      </div>
+
+      <div className="card-dark rounded-2xl p-4">
         {loading ? (
-          <div className="text-center py-12 text-zinc-500">
+          <div className="flex min-h-[260px] items-center justify-center text-sm text-slate-500">
             Carregando clientes...
           </div>
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {visibleClients.map((item) => {
-              const parcela = calculateInstallment(item);
-              const parcelaComMulta = calculateLateAmount(
-                parcela,
-                item.multaPercentual
-              );
-
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950 p-4 hover:border-purple-500/50 transition shadow-lg"
-                >
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="min-w-0">
-                      <h3 className="text-lg md:text-xl font-bold break-words">
-                        {item.nome}
-                      </h3>
-
-                      <p className="text-sm text-zinc-500">
-                        {item.whatsapp || "Sem WhatsApp"}
-                      </p>
-
-                      <p className="text-xs text-zinc-500 mt-1">
-                        CPF: {item.cpf || "-"} · CEP: {item.cep || "-"}
-                      </p>
-
-                      <p className="text-xs text-zinc-500 max-w-md mt-1">
-                        {item.endereco || "-"}, {item.numero || "-"} ·{" "}
-                        {item.bairro || "-"} · {item.cidade || "-"}/
-                        {item.estado || "-"}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <StatusBadge status={item.status} />
-
-                        <span className="px-3 py-1 rounded-full text-xs border border-purple-500/20 bg-purple-600/10 text-purple-200">
-                          {item.frequencia || "Sem conta"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => onOpenProfile(item)}
-                      className="px-4 py-3 md:py-2 rounded-xl bg-purple-600 hover:bg-purple-700 transition font-semibold shrink-0"
-                    >
-                      Abrir ficha
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 text-sm">
-                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
-                      <p className="text-zinc-500">Enviado</p>
-                      <p>{money.format(item.valorEnviado)}</p>
-                    </div>
-
-                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
-                      <p className="text-zinc-500">Receber</p>
-                      <p className="text-purple-200 font-semibold">
-                        {money.format(item.valorReceber)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
-                      <p className="text-zinc-500">Parcela</p>
-                      <p className="text-emerald-200">
-                        {item.frequencia === paymentTypes.CUSTOM
-                          ? "Variável"
-                          : money.format(parcela)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
-                      <p className="text-zinc-500">Atraso</p>
-                      <p className="text-red-200">
-                        {item.frequencia === paymentTypes.CUSTOM
-                          ? `${item.multaPercentual || 0}%`
-                          : money.format(parcelaComMulta)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 text-xs text-zinc-500">
-                    {item.frequencia} · início {formatDateBR(item.dataInicio)} ·{" "}
-                    {getFrequencyLabel(item)}
-                  </div>
-                </div>
-              );
-            })}
+        ) : filteredByTab.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+            {filteredByTab.map((client) => (
+              <ClientCard
+                key={client.id}
+                client={client}
+                onOpenProfile={onOpenProfile}
+              />
+            ))}
           </div>
-        )}
+        ) : (
+          <div className="flex min-h-[260px] flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] p-8 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/10 text-2xl text-orange-300">
+              ◌
+            </div>
 
-        {!loading && visibleClients.length === 0 && (
-          <div className="text-center py-12 text-zinc-500">
-            Nenhum cliente encontrado.
+            <h3 className="mt-4 text-lg font-bold text-white">
+              Nenhum cliente encontrado
+            </h3>
+
+            <p className="mt-2 max-w-md text-sm text-slate-500">
+              Tente mudar o filtro ou buscar por outro nome, CPF, WhatsApp ou cidade.
+            </p>
           </div>
         )}
       </div>

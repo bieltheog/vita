@@ -1,13 +1,99 @@
-import { useMemo } from "react";
-import { Field, Section, inputClass } from "./ui";
-import { money, weekDays } from "../utils/helpers";
+import { useMemo, useState } from "react";
+import { money, todayISO } from "../utils/helpers";
 import {
-  paymentTypes,
   calculateReceivable,
-  calculateInstallment,
-  calculateLateAmount,
+  paymentTypes,
   toNumber,
 } from "../utils/calculations";
+
+function Field({ label, children, hint }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-semibold text-slate-300">
+        {label}
+      </span>
+
+      {children}
+
+      {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+    </label>
+  );
+}
+
+function Section({ title, subtitle, children }) {
+  return (
+    <div className="card-dark rounded-2xl p-4 md:p-5">
+      <div className="mb-5">
+        <h3 className="text-base font-bold text-white">{title}</h3>
+        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
+function inputClass() {
+  return "input-dark w-full rounded-xl px-4 py-3 text-sm outline-none";
+}
+
+function ToggleButton({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
+        active
+          ? "bg-orange-500 text-white"
+          : "border border-white/[0.08] bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SummaryCard({ label, value, tone = "orange" }) {
+  const tones = {
+    orange: "border-orange-500/20 bg-orange-500/10 text-orange-300",
+    green: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+    amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
+    slate: "border-white/[0.08] bg-white/[0.03] text-white",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-4 ${tones[tone] || tones.orange}`}>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="mt-2 break-words text-xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function FileInput({ label, value, onChange }) {
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+      <p className="text-sm font-bold text-white">{label}</p>
+
+      <input
+        type="file"
+        onChange={(e) => onChange(e.target.files?.[0] || null)}
+        className="mt-3 block w-full text-sm text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-orange-500 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-orange-600"
+      />
+
+      {value && (
+        <p className="mt-2 truncate text-xs text-orange-300">
+          Selecionado: {value.name}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function normalizeFixedDays(days) {
+  return (days || [])
+    .map((day) => String(day))
+    .filter((day) => day.trim() !== "");
+}
 
 export default function ClientForm({
   form,
@@ -17,673 +103,738 @@ export default function ClientForm({
   onSubmit,
   onCancelEdit,
 }) {
-  const valorReceberPreview = useMemo(
-    () => calculateReceivable(form.valorEnviado, form.porcentagemRetorno),
-    [form.valorEnviado, form.porcentagemRetorno]
-  );
+  const [customDate, setCustomDate] = useState("");
+  const [customValue, setCustomValue] = useState("");
+  const [customDescription, setCustomDescription] = useState("");
 
-  const previewRecord = useMemo(
-    () => ({
-      ...form,
-      valorReceber: valorReceberPreview,
-      diasPagamentoFixos: form.diasPagamentoFixos || [],
-      parcelasPersonalizadas: form.parcelasPersonalizadas || [],
-    }),
-    [form, valorReceberPreview]
-  );
+  const safeForm = {
+    ...form,
+    abrirConta: form.abrirConta !== false,
+    diasPagamentoFixos: Array.isArray(form.diasPagamentoFixos)
+      ? form.diasPagamentoFixos
+      : ["15", "30"],
+    parcelasPersonalizadas: Array.isArray(form.parcelasPersonalizadas)
+      ? form.parcelasPersonalizadas
+      : [],
+    dataInicio: form.dataInicio || todayISO(),
+  };
 
-  const parcelaPreview = useMemo(
-    () => calculateInstallment(previewRecord),
-    [previewRecord]
-  );
+  const valorReceber = useMemo(() => {
+    if (!safeForm.abrirConta) return 0;
 
-  const totalPersonalizado = useMemo(() => {
-    return (form.parcelasPersonalizadas || []).reduce(
+    return calculateReceivable(
+      safeForm.valorEnviado,
+      safeForm.porcentagemRetorno
+    );
+  }, [safeForm.abrirConta, safeForm.valorEnviado, safeForm.porcentagemRetorno]);
+
+  const lucro = useMemo(() => {
+    return Math.max(0, valorReceber - toNumber(safeForm.valorEnviado));
+  }, [valorReceber, safeForm.valorEnviado]);
+
+  const customTotal = useMemo(() => {
+    return safeForm.parcelasPersonalizadas.reduce(
       (sum, item) => sum + toNumber(item.value),
       0
     );
-  }, [form.parcelasPersonalizadas]);
+  }, [safeForm.parcelasPersonalizadas]);
 
-  function handleChange(e) {
-    const { name, value, files, type, checked } = e.target;
+  const fixedDays = normalizeFixedDays(safeForm.diasPagamentoFixos);
 
-    if (files) {
-      setForm((prev) => ({
-        ...prev,
-        [name]: files[0] || null,
-      }));
-      return;
-    }
-
-    if (type === "checkbox") {
-      setForm((prev) => ({
-        ...prev,
-        [name]: checked,
-      }));
-      return;
-    }
-
+  function updateField(name, value) {
     setForm((prev) => ({
       ...prev,
       [name]: value,
     }));
   }
 
-  function updateFixedDay(index, value) {
-    setForm((prev) => {
-      const nextDays = [...(prev.diasPagamentoFixos || [])];
-      nextDays[index] = value;
-
-      return {
-        ...prev,
-        diasPagamentoFixos: nextDays,
-      };
-    });
+  function updateAddressField(name, value) {
+    updateField(name, value);
   }
 
-  function addFixedDay() {
+  function setFrequency(frequency) {
     setForm((prev) => ({
       ...prev,
-      diasPagamentoFixos: [...(prev.diasPagamentoFixos || []), ""],
+      frequencia: frequency,
+      diasPagamentoFixos:
+        frequency === paymentTypes.FIXED_DATES
+          ? normalizeFixedDays(prev.diasPagamentoFixos).length > 0
+            ? normalizeFixedDays(prev.diasPagamentoFixos)
+            : ["15", "30"]
+          : prev.diasPagamentoFixos,
+      dataInicio: prev.dataInicio || todayISO(),
     }));
   }
 
-  function removeFixedDay(index) {
-    setForm((prev) => ({
-      ...prev,
-      diasPagamentoFixos: (prev.diasPagamentoFixos || []).filter(
-        (_, itemIndex) => itemIndex !== index
-      ),
-    }));
+  function toggleFixedDay(day) {
+    const dayString = String(day);
+
+    const current = normalizeFixedDays(safeForm.diasPagamentoFixos);
+
+    const exists = current.includes(dayString);
+
+    const next = exists
+      ? current.filter((item) => item !== dayString)
+      : [...current, dayString];
+
+    updateField(
+      "diasPagamentoFixos",
+      next.sort((a, b) => Number(a) - Number(b))
+    );
   }
 
   function addCustomInstallment() {
+    if (!customDate || !toNumber(customValue)) {
+      alert("Preencha a data e o valor da parcela personalizada.");
+      return;
+    }
+
+    const nextItem = {
+      id: `${Date.now()}-${Math.random()}`,
+      date: customDate,
+      value: String(customValue),
+      descricao: customDescription,
+    };
+
     setForm((prev) => ({
       ...prev,
       parcelasPersonalizadas: [
-        ...(prev.parcelasPersonalizadas || []),
-        {
-          id: crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random()}`,
-          date: "",
-          value: "",
-          descricao: "",
-        },
-      ],
+        ...(Array.isArray(prev.parcelasPersonalizadas)
+          ? prev.parcelasPersonalizadas
+          : []),
+        nextItem,
+      ].sort((a, b) => String(a.date).localeCompare(String(b.date))),
+    }));
+
+    setCustomDate("");
+    setCustomValue("");
+    setCustomDescription("");
+  }
+
+  function removeCustomInstallment(id) {
+    setForm((prev) => ({
+      ...prev,
+      parcelasPersonalizadas: (
+        Array.isArray(prev.parcelasPersonalizadas)
+          ? prev.parcelasPersonalizadas
+          : []
+      ).filter((item) => item.id !== id),
     }));
   }
 
-  function updateCustomInstallment(index, field, value) {
-    setForm((prev) => {
-      const nextInstallments = [...(prev.parcelasPersonalizadas || [])];
-
-      nextInstallments[index] = {
-        ...nextInstallments[index],
-        [field]: value,
-      };
-
-      return {
-        ...prev,
-        parcelasPersonalizadas: nextInstallments,
-      };
-    });
-  }
-
-  function removeCustomInstallment(index) {
+  function updateCustomInstallment(id, field, value) {
     setForm((prev) => ({
       ...prev,
-      parcelasPersonalizadas: (prev.parcelasPersonalizadas || []).filter(
-        (_, itemIndex) => itemIndex !== index
+      parcelasPersonalizadas: (
+        Array.isArray(prev.parcelasPersonalizadas)
+          ? prev.parcelasPersonalizadas
+          : []
+      ).map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              [field]: value,
+            }
+          : item
       ),
     }));
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="rounded-2xl shadow-sm border border-zinc-800 bg-zinc-950 p-4 md:p-5 space-y-6"
-    >
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">
-            {editingId ? "Editar cliente" : "Novo cliente"}
-          </h2>
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="card-dark rounded-2xl p-4 md:p-5">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-300">
+              {editingId ? "Editar ficha" : "Novo cliente"}
+            </p>
 
-          <p className="text-zinc-400 text-sm mt-1">
-            Dados pessoais, documentos e conta ficam fáceis de editar depois.
-          </p>
+            <h2 className="mt-2 text-2xl font-bold text-white">
+              {editingId ? "Atualizar cadastro" : "Cadastrar novo cliente"}
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Preencha os dados do cliente, configure o empréstimo e anexe documentos.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {editingId && (
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                Cancelar edição
+              </button>
+            )}
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-orange-600 disabled:opacity-60"
+            >
+              {saving
+                ? "Salvando..."
+                : editingId
+                ? "Salvar alterações"
+                : "Cadastrar cliente"}
+            </button>
+          </div>
         </div>
+      </div>
 
-        {editingId && (
-          <button
-            type="button"
-            onClick={onCancelEdit}
-            className="rounded-xl border border-zinc-800 px-4 py-3 text-zinc-300 hover:text-white"
-          >
-            Cancelar edição
-          </button>
-        )}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <SummaryCard
+          label="Valor enviado"
+          value={money.format(toNumber(safeForm.valorEnviado))}
+          tone="orange"
+        />
+
+        <SummaryCard
+          label="Valor a receber"
+          value={money.format(valorReceber)}
+          tone="green"
+        />
+
+        <SummaryCard
+          label="Lucro previsto"
+          value={money.format(lucro)}
+          tone="amber"
+        />
+
+        <SummaryCard
+          label="Parcelas personalizadas"
+          value={safeForm.parcelasPersonalizadas.length}
+          tone="slate"
+        />
       </div>
 
       <Section
         title="Dados do cliente"
-        description="Informações principais e endereço completo."
+        subtitle="Informações principais para identificar e entrar em contato."
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Field label="Nome completo">
             <input
-              name="nome"
-              value={form.nome}
-              onChange={handleChange}
+              value={safeForm.nome}
+              onChange={(e) => updateField("nome", e.target.value)}
               className={inputClass()}
+              placeholder="Ex: Maria Silva"
             />
           </Field>
 
           <Field label="WhatsApp">
             <input
-              name="whatsapp"
-              value={form.whatsapp}
-              onChange={handleChange}
+              value={safeForm.whatsapp}
+              onChange={(e) => updateField("whatsapp", e.target.value)}
               className={inputClass()}
+              placeholder="Ex: (35) 99999-9999"
             />
           </Field>
 
           <Field label="CPF">
             <input
-              name="cpf"
-              value={form.cpf}
-              onChange={handleChange}
+              value={safeForm.cpf}
+              onChange={(e) => updateField("cpf", e.target.value)}
               className={inputClass()}
+              placeholder="000.000.000-00"
             />
           </Field>
+        </div>
+      </Section>
 
+      <Section
+        title="Endereço"
+        subtitle="Dados úteis para cadastro e conferência do cliente."
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <Field label="CEP">
             <input
-              name="cep"
-              value={form.cep}
-              onChange={handleChange}
+              value={safeForm.cep}
+              onChange={(e) => updateAddressField("cep", e.target.value)}
               className={inputClass()}
+              placeholder="00000-000"
             />
           </Field>
 
           <Field label="Endereço">
             <input
-              name="endereco"
-              value={form.endereco}
-              onChange={handleChange}
+              value={safeForm.endereco}
+              onChange={(e) => updateAddressField("endereco", e.target.value)}
               className={inputClass()}
+              placeholder="Rua, avenida..."
             />
           </Field>
 
           <Field label="Número">
             <input
-              name="numero"
-              value={form.numero}
-              onChange={handleChange}
+              value={safeForm.numero}
+              onChange={(e) => updateAddressField("numero", e.target.value)}
               className={inputClass()}
+              placeholder="Nº"
             />
           </Field>
 
           <Field label="Complemento">
             <input
-              name="complemento"
-              value={form.complemento}
-              onChange={handleChange}
+              value={safeForm.complemento}
+              onChange={(e) => updateAddressField("complemento", e.target.value)}
               className={inputClass()}
+              placeholder="Casa, apto..."
             />
           </Field>
 
           <Field label="Bairro">
             <input
-              name="bairro"
-              value={form.bairro}
-              onChange={handleChange}
+              value={safeForm.bairro}
+              onChange={(e) => updateAddressField("bairro", e.target.value)}
               className={inputClass()}
+              placeholder="Bairro"
             />
           </Field>
 
           <Field label="Cidade">
             <input
-              name="cidade"
-              value={form.cidade}
-              onChange={handleChange}
+              value={safeForm.cidade}
+              onChange={(e) => updateAddressField("cidade", e.target.value)}
               className={inputClass()}
+              placeholder="Cidade"
             />
           </Field>
 
           <Field label="Estado">
             <input
-              name="estado"
-              value={form.estado}
-              onChange={handleChange}
+              value={safeForm.estado}
+              onChange={(e) => updateAddressField("estado", e.target.value)}
               className={inputClass()}
+              placeholder="UF"
             />
           </Field>
         </div>
       </Section>
 
       <Section
-        title="Conta do cliente"
-        description="Abra uma conta e escolha o melhor tipo de pagamento."
+        title="Conta e valores"
+        subtitle="Configure se este cliente terá uma conta/empréstimo aberto."
       >
-        <label className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 cursor-pointer">
-          <input
-            type="checkbox"
-            name="abrirConta"
-            checked={form.abrirConta}
-            onChange={handleChange}
-            className="w-5 h-5"
-          />
+        <div className="mb-5 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={safeForm.abrirConta}
+              onChange={(e) => updateField("abrirConta", e.target.checked)}
+              className="h-5 w-5 accent-orange-500"
+            />
 
-          <div>
-            <p className="font-semibold">Abrir conta para este cliente</p>
-            <p className="text-sm text-zinc-500">
-              Ative para adicionar valor pedido/enviado, retorno e calendário.
-            </p>
-          </div>
-        </label>
-
-        {form.abrirConta && (
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Field label="Quanto ele pediu / valor enviado">
-                <input
-                  name="valorEnviado"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.valorEnviado}
-                  onChange={handleChange}
-                  className={inputClass()}
-                />
-              </Field>
-
-              <Field label="% que precisa voltar">
-                <input
-                  name="porcentagemRetorno"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.porcentagemRetorno}
-                  onChange={handleChange}
-                  className={inputClass()}
-                />
-              </Field>
-
-              <Field label="Valor total a receber">
-                <input
-                  readOnly
-                  value={money.format(valorReceberPreview)}
-                  className={`${inputClass()} text-purple-200 font-bold`}
-                />
-              </Field>
-
-              <Field label="Status">
-                <select
-                  name="status"
-                  value={form.status}
-                  onChange={handleChange}
-                  className={inputClass()}
-                >
-                  <option>Ativo</option>
-                  <option>Recebido</option>
-                  <option>Atrasado</option>
-                  <option>Quitado</option>
-                </select>
-              </Field>
-
-              <Field label="Tipo de pagamento">
-                <select
-                  name="frequencia"
-                  value={form.frequencia}
-                  onChange={handleChange}
-                  className={inputClass()}
-                >
-                  <option>{paymentTypes.DAILY}</option>
-                  <option>{paymentTypes.WEEKLY}</option>
-                  <option>{paymentTypes.FIXED_DATES}</option>
-                  <option>{paymentTypes.CUSTOM}</option>
-                </select>
-              </Field>
-
-              <Field label="Data de início">
-                <input
-                  name="dataInicio"
-                  type="date"
-                  value={form.dataInicio}
-                  onChange={handleChange}
-                  className={inputClass()}
-                />
-              </Field>
-
-              {(form.frequencia === paymentTypes.DAILY ||
-                form.frequencia === paymentTypes.FIXED_DATES) && (
-                <Field label="Data de término">
-                  <input
-                    name="dataTermino"
-                    type="date"
-                    value={form.dataTermino}
-                    onChange={handleChange}
-                    className={inputClass()}
-                  />
-                </Field>
-              )}
-
-              {form.frequencia === paymentTypes.WEEKLY && (
-                <Field label="Número de semanas">
-                  <input
-                    name="semanas"
-                    type="number"
-                    min="1"
-                    value={form.semanas}
-                    onChange={handleChange}
-                    className={inputClass()}
-                  />
-                </Field>
-              )}
-
-              {form.frequencia === paymentTypes.WEEKLY && (
-                <Field label="Dia do pagamento">
-                  <select
-                    name="diaPagamento"
-                    value={form.diaPagamento}
-                    onChange={handleChange}
-                    className={inputClass()}
-                  >
-                    {weekDays.map((day) => (
-                      <option key={day.value} value={day.value}>
-                        {day.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-
-              <Field label="Multa em atraso (%)">
-                <input
-                  name="multaPercentual"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.multaPercentual}
-                  onChange={handleChange}
-                  className={inputClass()}
-                />
-              </Field>
-
-              {form.frequencia !== paymentTypes.CUSTOM && (
-                <Field
-                  label={
-                    form.frequencia === paymentTypes.DAILY
-                      ? "Valor por dia"
-                      : form.frequencia === paymentTypes.WEEKLY
-                      ? "Valor por semana"
-                      : "Valor por data"
-                  }
-                >
-                  <input
-                    readOnly
-                    value={money.format(parcelaPreview)}
-                    className={`${inputClass()} text-emerald-200 font-bold`}
-                  />
-                </Field>
-              )}
-
-              {form.frequencia !== paymentTypes.CUSTOM && (
-                <Field label="Parcela com multa">
-                  <input
-                    readOnly
-                    value={money.format(
-                      calculateLateAmount(
-                        parcelaPreview,
-                        form.multaPercentual
-                      )
-                    )}
-                    className={`${inputClass()} text-red-200 font-bold`}
-                  />
-                </Field>
-              )}
+            <div>
+              <p className="text-sm font-bold text-white">Abrir conta/empréstimo</p>
+              <p className="text-xs text-slate-500">
+                Desmarque caso queira cadastrar apenas os dados do cliente.
+              </p>
             </div>
+          </label>
+        </div>
 
-            {form.frequencia === paymentTypes.DAILY && (
-              <div className="rounded-2xl border border-purple-500/20 bg-purple-600/10 p-4 text-sm text-purple-100">
-                A diária será calculada da data de início até a data de término,
-                sem contar domingos.
-              </div>
-            )}
+        {safeForm.abrirConta && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <Field label="Valor enviado/pedido">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={safeForm.valorEnviado}
+                onChange={(e) => updateField("valorEnviado", e.target.value)}
+                className={inputClass()}
+                placeholder="Ex: 500"
+              />
+            </Field>
 
-            {form.frequencia === paymentTypes.WEEKLY && (
-              <div className="rounded-2xl border border-purple-500/20 bg-purple-600/10 p-4 text-sm text-purple-100">
-                O pagamento semanal será dividido pelo número de semanas no dia
-                escolhido.
-              </div>
-            )}
+            <Field label="% de retorno">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={safeForm.porcentagemRetorno}
+                onChange={(e) =>
+                  updateField("porcentagemRetorno", e.target.value)
+                }
+                className={inputClass()}
+                placeholder="Ex: 30"
+              />
+            </Field>
 
-            {form.frequencia === paymentTypes.FIXED_DATES && (
-              <div className="rounded-2xl border border-purple-500/20 bg-purple-600/10 p-4 space-y-4">
-                <div>
-                  <h4 className="font-bold text-purple-100">
-                    Dias fixos do mês
-                  </h4>
-                  <p className="text-sm text-purple-100/70 mt-1">
-                    Exemplo: dia 15 e dia 30. O sistema gera parcelas nessas
-                    datas entre início e término.
-                  </p>
-                </div>
+            <Field label="Multa por atraso (%)">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={safeForm.multaPercentual}
+                onChange={(e) => updateField("multaPercentual", e.target.value)}
+                className={inputClass()}
+                placeholder="Ex: 10"
+              />
+            </Field>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  {(form.diasPagamentoFixos || []).map((day, index) => (
-                    <div key={index} className="flex gap-2">
-                      <input
-                        type="number"
-                        min="1"
-                        max="31"
-                        value={day}
-                        onChange={(e) =>
-                          updateFixedDay(index, e.target.value)
-                        }
-                        placeholder="Dia"
-                        className={inputClass()}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => removeFixedDay(index)}
-                        className="rounded-xl bg-red-600 hover:bg-red-700 px-3 font-semibold"
-                      >
-                        X
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={addFixedDay}
-                  className="rounded-xl border border-purple-500/40 px-4 py-3 text-sm font-semibold text-purple-100 hover:bg-purple-600/20"
-                >
-                  + Adicionar dia fixo
-                </button>
-              </div>
-            )}
-
-            {form.frequencia === paymentTypes.CUSTOM && (
-              <div className="rounded-2xl border border-purple-500/20 bg-purple-600/10 p-4 space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div>
-                    <h4 className="font-bold text-purple-100">
-                      Parcelas personalizadas
-                    </h4>
-                    <p className="text-sm text-purple-100/70 mt-1">
-                      Use quando cada parcela tiver uma data ou valor diferente.
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-black/30 border border-purple-500/20 px-4 py-2 text-sm">
-                    Total personalizado:{" "}
-                    <strong className="text-purple-100">
-                      {money.format(totalPersonalizado)}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {(form.parcelasPersonalizadas || []).map((item, index) => (
-                    <div
-                      key={item.id || index}
-                      className="rounded-2xl border border-zinc-800 bg-black/30 p-3 grid grid-cols-1 md:grid-cols-12 gap-3"
-                    >
-                      <div className="md:col-span-3">
-                        <input
-                          type="date"
-                          value={item.date || ""}
-                          onChange={(e) =>
-                            updateCustomInstallment(
-                              index,
-                              "date",
-                              e.target.value
-                            )
-                          }
-                          className={inputClass()}
-                        />
-                      </div>
-
-                      <div className="md:col-span-3">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.value || ""}
-                          onChange={(e) =>
-                            updateCustomInstallment(
-                              index,
-                              "value",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Valor da parcela"
-                          className={inputClass()}
-                        />
-                      </div>
-
-                      <div className="md:col-span-5">
-                        <input
-                          value={item.descricao || ""}
-                          onChange={(e) =>
-                            updateCustomInstallment(
-                              index,
-                              "descricao",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Observação da parcela"
-                          className={inputClass()}
-                        />
-                      </div>
-
-                      <div className="md:col-span-1">
-                        <button
-                          type="button"
-                          onClick={() => removeCustomInstallment(index)}
-                          className="w-full h-full rounded-xl bg-red-600 hover:bg-red-700 px-3 py-3 font-semibold"
-                        >
-                          X
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={addCustomInstallment}
-                  className="rounded-xl border border-purple-500/40 px-4 py-3 text-sm font-semibold text-purple-100 hover:bg-purple-600/20"
-                >
-                  + Adicionar parcela personalizada
-                </button>
-
-                {totalPersonalizado > 0 &&
-                  Math.abs(totalPersonalizado - valorReceberPreview) > 0.01 && (
-                    <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-100">
-                      Atenção: o total das parcelas personalizadas é{" "}
-                      {money.format(totalPersonalizado)}, diferente do valor a
-                      receber calculado de {money.format(valorReceberPreview)}.
-                    </div>
-                  )}
-              </div>
-            )}
+            <Field label="Status">
+              <select
+                value={safeForm.status}
+                onChange={(e) => updateField("status", e.target.value)}
+                className={inputClass()}
+              >
+                <option value="Ativo">Ativo</option>
+                <option value="Quitado">Quitado</option>
+                <option value="Atrasado">Atrasado</option>
+                <option value="Recebido">Recebido</option>
+                <option value="Bloqueado">Bloqueado</option>
+              </select>
+            </Field>
           </div>
         )}
       </Section>
 
+      {safeForm.abrirConta && (
+        <Section
+          title="Plano de pagamento"
+          subtitle="Escolha como o cliente vai pagar. Para pagar dia 15 e 30, use Datas Fixas."
+        >
+          <div className="mb-5 grid grid-cols-2 gap-2 md:grid-cols-4">
+            <ToggleButton
+              active={safeForm.frequencia === paymentTypes.DAILY}
+              onClick={() => setFrequency(paymentTypes.DAILY)}
+            >
+              Diário
+            </ToggleButton>
+
+            <ToggleButton
+              active={safeForm.frequencia === paymentTypes.WEEKLY}
+              onClick={() => setFrequency(paymentTypes.WEEKLY)}
+            >
+              Semanal
+            </ToggleButton>
+
+            <ToggleButton
+              active={safeForm.frequencia === paymentTypes.FIXED_DATES}
+              onClick={() => setFrequency(paymentTypes.FIXED_DATES)}
+            >
+              Datas Fixas
+            </ToggleButton>
+
+            <ToggleButton
+              active={safeForm.frequencia === paymentTypes.CUSTOM}
+              onClick={() => setFrequency(paymentTypes.CUSTOM)}
+            >
+              Personalizado
+            </ToggleButton>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Field label="Data de início">
+              <input
+                type="date"
+                value={safeForm.dataInicio}
+                onChange={(e) => updateField("dataInicio", e.target.value)}
+                className={inputClass()}
+              />
+            </Field>
+
+            {(safeForm.frequencia === paymentTypes.DAILY ||
+              safeForm.frequencia === paymentTypes.FIXED_DATES) && (
+              <Field label="Data de término">
+                <input
+                  type="date"
+                  value={safeForm.dataTermino}
+                  onChange={(e) => updateField("dataTermino", e.target.value)}
+                  className={inputClass()}
+                />
+              </Field>
+            )}
+
+            {safeForm.frequencia === paymentTypes.WEEKLY && (
+              <>
+                <Field label="Quantidade de semanas">
+                  <input
+                    type="number"
+                    min="1"
+                    value={safeForm.semanas}
+                    onChange={(e) => updateField("semanas", e.target.value)}
+                    className={inputClass()}
+                  />
+                </Field>
+
+                <Field label="Dia da semana">
+                  <select
+                    value={safeForm.diaPagamento}
+                    onChange={(e) => updateField("diaPagamento", e.target.value)}
+                    className={inputClass()}
+                  >
+                    <option value="1">Segunda-feira</option>
+                    <option value="2">Terça-feira</option>
+                    <option value="3">Quarta-feira</option>
+                    <option value="4">Quinta-feira</option>
+                    <option value="5">Sexta-feira</option>
+                    <option value="6">Sábado</option>
+                    <option value="0">Domingo</option>
+                  </select>
+                </Field>
+              </>
+            )}
+          </div>
+
+          {safeForm.frequencia === paymentTypes.FIXED_DATES && (
+            <div className="mt-5 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-4">
+              <div className="mb-4">
+                <h4 className="text-sm font-bold text-white">
+                  Dias fixos de pagamento
+                </h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  Use isso para casos como pagar uma parcela dia 15 e outra dia 30.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {[5, 10, 15, 20, 25, 30].map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleFixedDay(day)}
+                    className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                      fixedDays.includes(String(day))
+                        ? "bg-orange-500 text-white"
+                        : "border border-white/[0.08] bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    Dia {day}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+                <input
+                  value={fixedDays.join(", ")}
+                  onChange={(e) =>
+                    updateField(
+                      "diasPagamentoFixos",
+                      e.target.value
+                        .split(",")
+                        .map((item) => item.trim())
+                        .filter(Boolean)
+                    )
+                  }
+                  className={inputClass()}
+                  placeholder="Ex: 15, 30"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => updateField("diasPagamentoFixos", ["15", "30"])}
+                  className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-orange-600"
+                >
+                  Usar 15 e 30
+                </button>
+              </div>
+            </div>
+          )}
+
+          {safeForm.frequencia === paymentTypes.CUSTOM && (
+            <div className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+              <div className="mb-4">
+                <h4 className="text-sm font-bold text-white">
+                  Parcelas personalizadas
+                </h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  Crie parcelas com datas e valores específicos.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  className={inputClass()}
+                />
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={customValue}
+                  onChange={(e) => setCustomValue(e.target.value)}
+                  className={inputClass()}
+                  placeholder="Valor"
+                />
+
+                <input
+                  value={customDescription}
+                  onChange={(e) => setCustomDescription(e.target.value)}
+                  className={inputClass()}
+                  placeholder="Descrição"
+                />
+
+                <button
+                  type="button"
+                  onClick={addCustomInstallment}
+                  className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-orange-600"
+                >
+                  Adicionar
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {safeForm.parcelasPersonalizadas.map((item) => (
+                  <div
+                    key={item.id}
+                    className="grid grid-cols-1 gap-2 rounded-xl border border-white/[0.08] bg-[#0d1016] p-3 md:grid-cols-[1fr_1fr_1fr_auto]"
+                  >
+                    <input
+                      type="date"
+                      value={item.date}
+                      onChange={(e) =>
+                        updateCustomInstallment(item.id, "date", e.target.value)
+                      }
+                      className={inputClass()}
+                    />
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.value}
+                      onChange={(e) =>
+                        updateCustomInstallment(item.id, "value", e.target.value)
+                      }
+                      className={inputClass()}
+                    />
+
+                    <input
+                      value={item.descricao || ""}
+                      onChange={(e) =>
+                        updateCustomInstallment(
+                          item.id,
+                          "descricao",
+                          e.target.value
+                        )
+                      }
+                      className={inputClass()}
+                      placeholder="Descrição"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => removeCustomInstallment(item.id)}
+                      className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-rose-700"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+
+                {safeForm.parcelasPersonalizadas.length === 0 && (
+                  <p className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm text-slate-500">
+                    Nenhuma parcela personalizada adicionada.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+                <p className="text-sm text-amber-300">
+                  Total das parcelas personalizadas:{" "}
+                  <strong>{money.format(customTotal)}</strong>
+                </p>
+
+                {customTotal > 0 && valorReceber > 0 && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    Diferença em relação ao valor a receber:{" "}
+                    {money.format(valorReceber - customTotal)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      <Section
+        title="Observações"
+        subtitle="Anote detalhes importantes sobre o cliente ou negociação."
+      >
+        <textarea
+          value={safeForm.observacao}
+          onChange={(e) => updateField("observacao", e.target.value)}
+          className="input-dark min-h-[120px] w-full rounded-xl px-4 py-3 text-sm outline-none"
+          placeholder="Ex: cliente indicado por..., prefere pagar via Pix..., combinar horário..."
+        />
+      </Section>
+
       <Section
         title="Documentos"
-        description="Anexe fotos ou PDFs. A opção Outros serve para documentos extras."
+        subtitle="Anexe arquivos importantes para análise e conferência."
       >
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Field label="Extrato">
-            <input
-              name="extrato"
-              type="file"
-              accept="image/*,.pdf"
-              onChange={handleChange}
-              className={inputClass()}
-            />
-          </Field>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FileInput
+            label="Extrato"
+            value={safeForm.extrato}
+            onChange={(file) => updateField("extrato", file)}
+          />
 
-          <Field label="Comprovante de residência">
-            <input
-              name="comprovanteResidencia"
-              type="file"
-              accept="image/*,.pdf"
-              onChange={handleChange}
-              className={inputClass()}
-            />
-          </Field>
+          <FileInput
+            label="Comprovante de residência"
+            value={safeForm.comprovanteResidencia}
+            onChange={(file) => updateField("comprovanteResidencia", file)}
+          />
 
-          <Field label="Identidade">
-            <input
-              name="identidade"
-              type="file"
-              accept="image/*,.pdf"
-              onChange={handleChange}
-              className={inputClass()}
-            />
-          </Field>
+          <FileInput
+            label="Identidade"
+            value={safeForm.identidade}
+            onChange={(file) => updateField("identidade", file)}
+          />
 
-          <Field label="Outros">
-            <input
-              name="outros"
-              type="file"
-              accept="image/*,.pdf"
-              onChange={handleChange}
-              className={inputClass()}
-            />
-          </Field>
+          <FileInput
+            label="Outros"
+            value={safeForm.outros}
+            onChange={(file) => updateField("outros", file)}
+          />
         </div>
       </Section>
 
-      <Field label="Observações">
-        <textarea
-          name="observacao"
-          value={form.observacao}
-          onChange={handleChange}
-          className={`${inputClass()} min-h-[100px]`}
-        />
-      </Field>
+      <div className="sticky bottom-3 z-20 rounded-2xl border border-white/[0.08] bg-[#11151b]/95 p-3 shadow-2xl backdrop-blur">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div>
+            <p className="text-sm font-bold text-white">
+              {editingId ? "Editar ficha" : "Cadastrar cliente"}
+            </p>
+            <p className="text-xs text-slate-500">
+              Valor a receber: {money.format(valorReceber)} · Lucro:{" "}
+              {money.format(lucro)}
+            </p>
+          </div>
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="w-full md:w-auto rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-8 py-4 font-semibold transition"
-      >
-        {saving
-          ? "Salvando..."
-          : editingId
-          ? "Salvar alterações"
-          : "Cadastrar cliente"}
-      </button>
+          <div className="flex flex-wrap gap-2">
+            {editingId && (
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                Cancelar
+              </button>
+            )}
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-orange-600 disabled:opacity-60"
+            >
+              {saving
+                ? "Salvando..."
+                : editingId
+                ? "Salvar alterações"
+                : "Cadastrar cliente"}
+            </button>
+          </div>
+        </div>
+      </div>
     </form>
   );
 }

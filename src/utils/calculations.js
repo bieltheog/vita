@@ -1,9 +1,7 @@
-import { todayISO } from "./helpers";
-
 export const paymentTypes = {
   DAILY: "Diário",
   WEEKLY: "Semanal",
-  FIXED_DATES: "Datas fixas",
+  FIXED_DATES: "Datas Fixas",
   CUSTOM: "Personalizado",
 };
 
@@ -12,7 +10,6 @@ export const paymentStatuses = {
   PAID: "Pago",
   LATE: "Atrasado",
   PARTIAL: "Parcial",
-  RENEGOTIATED: "Renegociado",
   CANCELED: "Cancelado",
 };
 
@@ -27,24 +24,19 @@ export const emptyForm = {
   bairro: "",
   cidade: "",
   estado: "",
-
   abrirConta: true,
   valorEnviado: "",
   porcentagemRetorno: "",
   frequencia: paymentTypes.DAILY,
-  dataInicio: todayISO(),
+  dataInicio: "",
   dataTermino: "",
   semanas: "4",
   diaPagamento: "5",
-
   diasPagamentoFixos: ["15", "30"],
   parcelasPersonalizadas: [],
-
   multaPercentual: "0",
   status: "Ativo",
-
   observacao: "",
-
   extrato: null,
   comprovanteResidencia: null,
   identidade: null,
@@ -52,432 +44,844 @@ export const emptyForm = {
 };
 
 export function toNumber(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  if (value === null || value === undefined || value === "") return 0;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const normalized = String(value)
+    .replace(/\./g, "")
+    .replace(",", ".")
+    .trim();
+
+  const number = Number(normalized);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
+export function roundMoney(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
 export function calculateReceivable(valorEnviado, porcentagemRetorno) {
   const enviado = toNumber(valorEnviado);
-  const percentual = toNumber(porcentagemRetorno);
+  const retorno = toNumber(porcentagemRetorno);
 
-  return enviado + enviado * (percentual / 100);
+  return roundMoney(enviado + (enviado * retorno) / 100);
 }
 
-export function calculateLateAmount(baseAmount, multaPercentual) {
-  const base = toNumber(baseAmount);
-  const multa = toNumber(multaPercentual);
+export function normalizePaymentType(value) {
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/_/g, " ")
+    .replace(/-/g, " ");
 
-  return base + base * (multa / 100);
+  if (
+    raw === "diario" ||
+    raw === "daily" ||
+    raw === "dia" ||
+    raw === "todos os dias"
+  ) {
+    return paymentTypes.DAILY;
+  }
+
+  if (
+    raw === "semanal" ||
+    raw === "weekly" ||
+    raw === "semana" ||
+    raw === "por semana"
+  ) {
+    return paymentTypes.WEEKLY;
+  }
+
+  if (
+    raw === "datas fixas" ||
+    raw === "data fixa" ||
+    raw === "fixed dates" ||
+    raw === "fixed date" ||
+    raw === "fixed dates" ||
+    raw === "fixeddates" ||
+    raw === "fixed dates" ||
+    raw === "fixed" ||
+    raw === "dias fixos" ||
+    raw === "dia fixo"
+  ) {
+    return paymentTypes.FIXED_DATES;
+  }
+
+  if (
+    raw === "personalizado" ||
+    raw === "custom" ||
+    raw === "parcelas personalizadas" ||
+    raw === "parcela personalizada"
+  ) {
+    return paymentTypes.CUSTOM;
+  }
+
+  return value || paymentTypes.DAILY;
 }
 
-export function getDateOnly(date) {
+function parseISODate(dateString) {
+  if (!dateString) return null;
+
+  const [year, month, day] = String(dateString).split("-").map(Number);
+
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day);
+}
+
+function toISODate(date) {
+  if (!(date instanceof Date)) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date, amount) {
   const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
+  copy.setDate(copy.getDate() + amount);
   return copy;
 }
 
-export function normalizeDateString(dateString) {
-  if (!dateString) return "";
-
-  if (typeof dateString === "string" && dateString.includes("T")) {
-    return dateString.slice(0, 10);
-  }
-
-  return String(dateString).slice(0, 10);
+function isSunday(date) {
+  return date.getDay() === 0;
 }
 
-export function makePaymentId(recordId, dateString, index = 0) {
-  return `${recordId || "record"}-${dateString}-${index}`;
-}
+function enumerateDates(start, end) {
+  const dates = [];
+  const cursor = new Date(start);
 
-export function getDailyPaymentDays(startDateString, endDateString) {
-  const start = startDateString
-    ? getDateOnly(new Date(`${startDateString}T00:00:00`))
-    : getDateOnly(new Date());
-
-  const end = endDateString
-    ? getDateOnly(new Date(`${endDateString}T00:00:00`))
-    : new Date(start.getFullYear(), start.getMonth() + 1, 0);
-
-  const days = [];
-
-  if (end < start) return days;
-
-  for (
-    let date = new Date(start);
-    date <= end;
-    date.setDate(date.getDate() + 1)
-  ) {
-    if (date.getDay() !== 0) {
-      days.push(new Date(date));
-    }
+  while (cursor <= end) {
+    dates.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
   }
 
-  return days;
+  return dates;
 }
 
-export function getWeeklyPaymentDays(startDateString, weeks, dayOfWeek) {
-  const start = startDateString
-    ? getDateOnly(new Date(`${startDateString}T00:00:00`))
-    : getDateOnly(new Date());
+function distributeAmounts(total, count) {
+  if (count <= 0) return [];
 
-  const quantity = Math.max(1, toNumber(weeks));
-  const wantedDay = toNumber(dayOfWeek);
+  const base = roundMoney(total / count);
+  const amounts = Array(count).fill(base);
 
-  const days = [];
-  const current = new Date(start);
+  const currentTotal = roundMoney(amounts.reduce((sum, value) => sum + value, 0));
+  const difference = roundMoney(total - currentTotal);
 
-  while (current.getDay() !== wantedDay) {
-    current.setDate(current.getDate() + 1);
-  }
+  amounts[amounts.length - 1] = roundMoney(
+    amounts[amounts.length - 1] + difference
+  );
 
-  for (let i = 0; i < quantity; i++) {
-    const paymentDate = new Date(current);
-    paymentDate.setDate(current.getDate() + i * 7);
-    days.push(paymentDate);
-  }
-
-  return days;
+  return amounts;
 }
 
-export function getFixedDatePaymentDays(startDateString, endDateString, fixedDays) {
-  const start = startDateString
-    ? getDateOnly(new Date(`${startDateString}T00:00:00`))
-    : getDateOnly(new Date());
+export function calculateInstallment(record) {
+  if (!record || !record.abrirConta) return 0;
 
-  const end = endDateString
-    ? getDateOnly(new Date(`${endDateString}T00:00:00`))
-    : new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  const total = toNumber(record.valorReceber);
 
-  const safeFixedDays = Array.isArray(fixedDays) ? fixedDays : [];
+  if (total <= 0) return 0;
 
-  const cleanDays = safeFixedDays
-    .map((day) => Math.floor(toNumber(day)))
+  const frequencia = normalizePaymentType(record.frequencia);
+
+  if (frequencia === paymentTypes.CUSTOM) {
+    return 0;
+  }
+
+  if (frequencia === paymentTypes.WEEKLY) {
+    const semanas = Math.max(1, toNumber(record.semanas));
+    return roundMoney(total / semanas);
+  }
+
+  const entries = buildRawEntries(record);
+
+  if (entries.length <= 0) return 0;
+
+  return roundMoney(total / entries.length);
+}
+
+export function calculateLateAmount(value, multaPercentual = 0) {
+  const amount = toNumber(value);
+  const fine = toNumber(multaPercentual);
+
+  return roundMoney(amount + (amount * fine) / 100);
+}
+
+function buildDailyEntries(record) {
+  const start = parseISODate(record.dataInicio);
+  const end = parseISODate(record.dataTermino);
+
+  if (!start || !end || end < start) return [];
+
+  const validDates = enumerateDates(start, end).filter((date) => !isSunday(date));
+  const amounts = distributeAmounts(toNumber(record.valorReceber), validDates.length);
+
+  return validDates.map((date, index) => ({
+    date: toISODate(date),
+    amount: roundMoney(amounts[index] || 0),
+    index,
+    label: "Diária",
+  }));
+}
+
+function buildWeeklyEntries(record) {
+  const start = parseISODate(record.dataInicio);
+  const weeks = Math.max(1, toNumber(record.semanas));
+  const weekday = Number(record.diaPagamento ?? 5);
+
+  if (!start) return [];
+
+  let firstPayment = new Date(start);
+
+  while (firstPayment.getDay() !== weekday) {
+    firstPayment = addDays(firstPayment, 1);
+  }
+
+  const dates = [];
+
+  for (let index = 0; index < weeks; index += 1) {
+    dates.push(addDays(firstPayment, index * 7));
+  }
+
+  const amounts = distributeAmounts(toNumber(record.valorReceber), dates.length);
+
+  return dates.map((date, index) => ({
+    date: toISODate(date),
+    amount: roundMoney(amounts[index] || 0),
+    index,
+    label: "Semanal",
+  }));
+}
+
+function buildFixedDatesEntries(record) {
+  const start = parseISODate(record.dataInicio);
+  const end = parseISODate(record.dataTermino);
+
+  if (!start || !end || end < start) return [];
+
+  const fixedDays = (record.diasPagamentoFixos || record.dias_pagamento_fixos || [])
+    .map((day) => Number(day))
     .filter((day) => day >= 1 && day <= 31)
     .sort((a, b) => a - b);
 
-  if (end < start || cleanDays.length === 0) return [];
+  if (fixedDays.length === 0) return [];
 
-  const days = [];
+  const dates = [];
   const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
 
   while (cursor <= end) {
     const year = cursor.getFullYear();
     const month = cursor.getMonth();
-    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
 
-    cleanDays.forEach((dayNumber) => {
-      const validDay = Math.min(dayNumber, lastDayOfMonth);
-      const paymentDate = getDateOnly(new Date(year, month, validDay));
+    fixedDays.forEach((day) => {
+      const candidate = new Date(year, month, day);
 
-      if (paymentDate >= start && paymentDate <= end) {
-        days.push(paymentDate);
+      if (
+        candidate.getMonth() === month &&
+        candidate >= start &&
+        candidate <= end
+      ) {
+        dates.push(candidate);
       }
     });
 
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
-  return days.sort((a, b) => a - b);
+  dates.sort((a, b) => a - b);
+
+  const amounts = distributeAmounts(toNumber(record.valorReceber), dates.length);
+
+  return dates.map((date, index) => ({
+    date: toISODate(date),
+    amount: roundMoney(amounts[index] || 0),
+    index,
+    label: "Datas Fixas",
+  }));
 }
 
-export function getCustomInstallments(record = {}) {
-  const parcelas = Array.isArray(record.parcelasPersonalizadas)
-    ? record.parcelasPersonalizadas
-    : [];
-
-  return parcelas
-    .map((item, index) => {
-      const date = normalizeDateString(
-        item?.date || item?.data || item?.dataPagamento
-      );
-
-      const value = toNumber(item?.value || item?.valor || item?.valorParcela);
-
-      return {
-        id: item?.id || `${record.id || "custom"}-${date}-${index}`,
-        date,
-        value,
-        descricao: item?.descricao || item?.observacao || "",
-      };
-    })
-    .filter((item) => item.date && item.value > 0)
-    .sort((a, b) => a.date.localeCompare(b.date));
+function buildCustomEntries(record) {
+  return (record.parcelasPersonalizadas || record.parcelas_personalizadas || [])
+    .filter((item) => item?.date && toNumber(item?.value) > 0)
+    .map((item, index) => ({
+      date: item.date,
+      amount: roundMoney(toNumber(item.value)),
+      index,
+      label: item.descricao || "Parcela personalizada",
+      descricao: item.descricao || "",
+    }))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
-export function getRecordPaymentDates(record = {}) {
-  if (!record.abrirConta || toNumber(record.valorReceber) <= 0) return [];
+function buildRawEntries(record) {
+  if (!record) return [];
+  if (!record.abrirConta) return [];
+  if (toNumber(record.valorReceber) <= 0) return [];
 
-  if (record.frequencia === paymentTypes.DAILY) {
-    return getDailyPaymentDays(record.dataInicio, record.dataTermino);
+  const frequencia = normalizePaymentType(record.frequencia);
+
+  if (frequencia === paymentTypes.DAILY) {
+    return buildDailyEntries(record);
   }
 
-  if (record.frequencia === paymentTypes.WEEKLY) {
-    return getWeeklyPaymentDays(
-      record.dataInicio,
-      record.semanas,
-      record.diaPagamento
-    );
+  if (frequencia === paymentTypes.WEEKLY) {
+    return buildWeeklyEntries(record);
   }
 
-  if (record.frequencia === paymentTypes.FIXED_DATES) {
-    return getFixedDatePaymentDays(
-      record.dataInicio,
-      record.dataTermino,
-      record.diasPagamentoFixos || []
-    );
+  if (frequencia === paymentTypes.FIXED_DATES) {
+    return buildFixedDatesEntries(record);
   }
 
-  if (record.frequencia === paymentTypes.CUSTOM) {
-    return getCustomInstallments(record).map(
-      (item) => new Date(`${item.date}T00:00:00`)
-    );
+  if (frequencia === paymentTypes.CUSTOM) {
+    return buildCustomEntries(record);
   }
 
   return [];
 }
 
-export function calculateInstallment(record = {}) {
-  if (!record.abrirConta && !record.valorReceber) return 0;
-
-  const valorReceber = toNumber(record.valorReceber);
-
-  if (record.frequencia === paymentTypes.CUSTOM) {
-    return 0;
+function getPaymentState(record, paymentKey) {
+  if (!record?.pagamentos || typeof record.pagamentos !== "object") {
+    return {};
   }
 
-  const days = getRecordPaymentDates(record);
-
-  return days.length ? valorReceber / days.length : valorReceber;
+  return record.pagamentos[paymentKey] || {};
 }
 
-export function getPaymentData(record = {}, eventKey) {
-  return record.pagamentos?.[eventKey] || {};
+function getPaymentStatus(paymentState) {
+  return paymentState.status || paymentStatuses.PENDING;
 }
 
-export function getPaymentStatus(record = {}, eventKey, dateString) {
-  const savedPayment = getPaymentData(record, eventKey);
-
-  if (savedPayment?.status) {
-    return savedPayment.status;
-  }
-
-  const today = getDateOnly(new Date());
-  const date = getDateOnly(new Date(`${dateString}T00:00:00`));
-
-  if (record.status === "Atrasado" || date < today) {
-    return paymentStatuses.LATE;
-  }
-
-  return paymentStatuses.PENDING;
+function isSettledStatus(status) {
+  return status === paymentStatuses.PAID || status === paymentStatuses.CANCELED;
 }
 
-export function getPaymentFine(record = {}, eventKey) {
-  const savedPayment = getPaymentData(record, eventKey);
+export function isPaymentSettled(event) {
+  if (!event) return false;
 
-  if (savedPayment?.multaPercentual !== undefined) {
-    return toNumber(savedPayment.multaPercentual);
-  }
+  const status = event.statusPagamento || event.status;
 
-  return toNumber(record.multaPercentual);
-}
-
-export function getPaidAmount(record = {}, eventKey) {
-  const savedPayment = getPaymentData(record, eventKey);
-
-  return toNumber(savedPayment.valorPago);
-}
-
-export function getPaymentNote(record = {}, eventKey) {
-  const savedPayment = getPaymentData(record, eventKey);
-
-  return savedPayment.observacao || "";
-}
-
-export function buildEventFromPayment({
-  record,
-  dateString,
-  baseAmount,
-  index = 0,
-  customId,
-  descricao = "",
-}) {
-  const eventKey = customId || makePaymentId(record?.id, dateString, index);
-  const statusPagamento = getPaymentStatus(record, eventKey, dateString);
-  const multaPercentual = getPaymentFine(record, eventKey);
-
-  const valorOriginal = toNumber(baseAmount);
-
-  const valorComMulta =
-    statusPagamento === paymentStatuses.LATE
-      ? calculateLateAmount(valorOriginal, multaPercentual)
-      : valorOriginal;
-
-  const valorPago = getPaidAmount(record, eventKey);
-
-  const valorEmAberto =
-    statusPagamento === paymentStatuses.PAID ||
-    statusPagamento === paymentStatuses.CANCELED
-      ? 0
-      : Math.max(0, valorComMulta - valorPago);
-
-  return {
-    recordId: record?.id,
-    date: dateString,
-    nome: record?.nome || "Cliente",
-
-    eventKey,
-    paymentKey: eventKey,
-
-    valor: valorEmAberto,
-    valorOriginal,
-    valorComMulta,
-    valorPago,
-    saldo: valorEmAberto,
-
-    tipo: record?.frequencia || "",
-    statusPagamento,
-
-    atrasado: statusPagamento === paymentStatuses.LATE,
-    pago: statusPagamento === paymentStatuses.PAID,
-    parcial: statusPagamento === paymentStatuses.PARTIAL,
-    renegociado: statusPagamento === paymentStatuses.RENEGOTIATED,
-    cancelado: statusPagamento === paymentStatuses.CANCELED,
-
-    multaPercentual,
-    observacao: getPaymentNote(record, eventKey),
-    descricao,
-
-    id: eventKey,
-  };
+  return isSettledStatus(status) || event.settled === true || event.isSettled === true;
 }
 
 export function buildCalendarEvents(records = []) {
   const events = [];
 
-  if (!Array.isArray(records)) return events;
+  (records || []).forEach((record) => {
+    const rawEntries = buildRawEntries(record);
 
-  records
-    .filter(
-      (record) =>
-        record &&
-        record.abrirConta !== false &&
-        record.status !== "Quitado" &&
-        toNumber(record.valorReceber) > 0
-    )
-    .forEach((record) => {
-      if (record.frequencia === paymentTypes.CUSTOM) {
-        getCustomInstallments(record).forEach((installment, index) => {
-          events.push(
-            buildEventFromPayment({
-              record,
-              dateString: installment.date,
-              baseAmount: installment.value,
-              index,
-              customId: installment.id,
-              descricao: installment.descricao,
-            })
-          );
-        });
+    rawEntries.forEach((entry) => {
+      const paymentKey = `${record.id}__${entry.date}__${entry.index}`;
+      const paymentState = getPaymentState(record, paymentKey);
+      const statusPagamento = getPaymentStatus(paymentState);
 
-        return;
+      const originalAmount = roundMoney(entry.amount);
+
+      const finePercent =
+        statusPagamento === paymentStatuses.LATE
+          ? toNumber(paymentState.multaPercentual ?? record.multaPercentual ?? 0)
+          : toNumber(paymentState.multaPercentual ?? 0);
+
+      const fineAmount = roundMoney((originalAmount * finePercent) / 100);
+      const totalWithFine = roundMoney(originalAmount + fineAmount);
+      const amountPaid = roundMoney(paymentState.valorPago || 0);
+
+      let remainingAmount = totalWithFine;
+
+      if (statusPagamento === paymentStatuses.PARTIAL) {
+        remainingAmount = Math.max(0, roundMoney(totalWithFine - amountPaid));
       }
 
-      const days = getRecordPaymentDates(record);
-      const baseAmount = calculateInstallment(record);
+      if (isSettledStatus(statusPagamento)) {
+        remainingAmount = 0;
+      }
 
-      days.forEach((date, index) => {
-        const dateString = date.toISOString().slice(0, 10);
+      const clientName = record.nome || "Cliente";
 
-        events.push(
-          buildEventFromPayment({
-            record,
-            dateString,
-            baseAmount,
-            index,
-          })
-        );
+      events.push({
+        id: paymentKey,
+        paymentKey,
+        eventKey: paymentKey,
+
+        recordId: record.id,
+        clientId: record.id,
+
+        nome: clientName,
+        clientName,
+        nomeCliente: clientName,
+
+        whatsapp: record.whatsapp || "",
+        cpf: record.cpf || "",
+
+        date: entry.date,
+        data: entry.date,
+
+        valor: remainingAmount,
+        amount: remainingAmount,
+        saldo: remainingAmount,
+        remainingAmount,
+
+        valorOriginal: originalAmount,
+        originalAmount,
+
+        valorComMulta: totalWithFine,
+        totalWithFine,
+
+        valorPago: amountPaid,
+        amountPaid,
+
+        multaPercentual: finePercent,
+        finePercent,
+
+        multaValor: fineAmount,
+        fineAmount,
+
+        statusPagamento,
+        status: statusPagamento,
+
+        settled: isSettledStatus(statusPagamento),
+        isSettled: isSettledStatus(statusPagamento),
+
+        tipo: entry.label,
+        typeLabel: entry.label,
+        descricao: entry.descricao || paymentState.observacao || "",
+        observacao: paymentState.observacao || "",
+
+        recordStatus: record.status || "Ativo",
+        createdAt: record.createdAt || "",
       });
     });
+  });
 
-  return events.sort((a, b) => a.date.localeCompare(b.date));
+  return events.sort((a, b) => {
+    if (a.date === b.date) {
+      return String(a.clientName).localeCompare(String(b.clientName));
+    }
+
+    return String(a.date).localeCompare(String(b.date));
+  });
 }
 
-export function isPaymentSettled(event) {
-  return (
-    event.statusPagamento === paymentStatuses.PAID ||
-    event.statusPagamento === paymentStatuses.CANCELED
-  );
+export function getNextStatus(currentStatus) {
+  if (currentStatus === "Ativo") return "Quitado";
+  if (currentStatus === "Quitado") return "Ativo";
+  if (currentStatus === "Recebido") return "Ativo";
+  if (currentStatus === "Atrasado") return "Quitado";
+
+  return "Ativo";
 }
 
 export function calculateTotals(records = []) {
   const safeRecords = Array.isArray(records) ? records : [];
+  const calendarEvents = buildCalendarEvents(safeRecords);
 
-  const currentLoans = safeRecords.filter(
-    (item) => item.abrirConta !== false && toNumber(item.valorReceber) > 0
-  );
+  const clientes = safeRecords.length;
 
-  const previousLoans = safeRecords.flatMap((item) => {
-    const history = Array.isArray(item.historicoEmprestimos)
-      ? item.historicoEmprestimos
+  const clientesAtivos = safeRecords.filter(
+    (record) => record.status !== "Quitado"
+  ).length;
+
+  const contasAbertas = safeRecords.filter(
+    (record) => record.abrirConta && record.status !== "Quitado"
+  ).length;
+
+  const enviadoAtual = safeRecords
+    .filter((record) => record.status !== "Quitado")
+    .reduce((sum, record) => sum + toNumber(record.valorEnviado), 0);
+
+  const receberAtual = safeRecords
+    .filter((record) => record.status !== "Quitado")
+    .reduce((sum, record) => sum + toNumber(record.valorReceber), 0);
+
+  const historicoEnviado = safeRecords.reduce((sum, record) => {
+    const loans = Array.isArray(record.historicoEmprestimos)
+      ? record.historicoEmprestimos
       : [];
 
-    return history.map((loan) => ({
-      valorEnviado: toNumber(loan.valorEnviado),
-      valorReceber: toNumber(loan.valorReceber),
-      lucro: toNumber(loan.lucro),
-    }));
-  });
+    return (
+      sum +
+      loans.reduce((acc, loan) => acc + toNumber(loan.valorEnviado), 0)
+    );
+  }, 0);
 
-  const currentOpenLoans = currentLoans.filter((item) => item.status !== "Quitado");
-  const currentClosedLoans = currentLoans.filter((item) => item.status === "Quitado");
+  const historicoReceber = safeRecords.reduce((sum, record) => {
+    const loans = Array.isArray(record.historicoEmprestimos)
+      ? record.historicoEmprestimos
+      : [];
 
-  const enviadoAtual = currentOpenLoans.reduce(
-    (sum, item) => sum + toNumber(item.valorEnviado),
-    0
+    return (
+      sum +
+      loans.reduce((acc, loan) => acc + toNumber(loan.valorReceber), 0)
+    );
+  }, 0);
+
+  const enviadoGeral = roundMoney(
+    safeRecords.reduce((sum, record) => sum + toNumber(record.valorEnviado), 0) +
+      historicoEnviado
   );
 
-  const receberAtual = currentOpenLoans.reduce(
-    (sum, item) => sum + toNumber(item.valorReceber),
-    0
+  const receberGeral = roundMoney(
+    safeRecords.reduce((sum, record) => sum + toNumber(record.valorReceber), 0) +
+      historicoReceber
   );
 
-  const enviadoHistorico =
-    previousLoans.reduce((sum, item) => sum + toNumber(item.valorEnviado), 0) +
-    currentClosedLoans.reduce((sum, item) => sum + toNumber(item.valorEnviado), 0);
+  const totalRecebido = calendarEvents.reduce((sum, event) => {
+    if (event.statusPagamento === paymentStatuses.PAID) {
+      return sum + toNumber(event.totalWithFine || event.valorOriginal);
+    }
 
-  const recebidoHistorico =
-    previousLoans.reduce((sum, item) => sum + toNumber(item.valorReceber), 0) +
-    currentClosedLoans.reduce((sum, item) => sum + toNumber(item.valorReceber), 0);
+    if (event.statusPagamento === paymentStatuses.PARTIAL) {
+      return sum + toNumber(event.valorPago);
+    }
 
-  const lucroHistorico = recebidoHistorico - enviadoHistorico;
+    return sum;
+  }, 0);
+
+  const totalAtrasado = calendarEvents
+    .filter((event) => event.statusPagamento === paymentStatuses.LATE)
+    .reduce((sum, event) => sum + toNumber(event.saldo || event.valor), 0);
+
+  const totalPendente = calendarEvents
+    .filter(
+      (event) =>
+        event.statusPagamento === paymentStatuses.PENDING ||
+        event.statusPagamento === paymentStatuses.PARTIAL
+    )
+    .reduce((sum, event) => sum + toNumber(event.saldo || event.valor), 0);
+
+  const today = toISODate(new Date());
+  const tomorrow = toISODate(addDays(new Date(), 1));
+
+  const receberHoje = calendarEvents.filter(
+    (event) => event.date === today && !isPaymentSettled(event)
+  );
+
+  const receberAmanha = calendarEvents.filter(
+    (event) => event.date === tomorrow && !isPaymentSettled(event)
+  );
+
+  const paidCount = calendarEvents.filter(
+    (event) => event.statusPagamento === paymentStatuses.PAID
+  ).length;
+
+  const pendingCount = calendarEvents.filter(
+    (event) =>
+      event.statusPagamento === paymentStatuses.PENDING ||
+      event.statusPagamento === paymentStatuses.PARTIAL
+  ).length;
+
+  const lateCount = calendarEvents.filter(
+    (event) => event.statusPagamento === paymentStatuses.LATE
+  ).length;
 
   return {
-    clientes: safeRecords.length,
-    contas: currentLoans.length,
+    clientes,
+    clientesAtivos,
+    contasAbertas,
 
-    enviado: enviadoAtual,
-    receber: receberAtual,
-    lucro: receberAtual - enviadoAtual,
+    enviado: roundMoney(enviadoAtual),
+    receber: roundMoney(receberAtual),
+    lucro: roundMoney(receberAtual - enviadoAtual),
 
-    enviadoHistorico,
-    recebidoHistorico,
-    lucroHistorico,
+    enviadoGeral,
+    receberGeral,
+    lucroGeral: roundMoney(receberGeral - enviadoGeral),
 
-    enviadoGeral: enviadoAtual + enviadoHistorico,
-    receberGeral: receberAtual + recebidoHistorico,
-    lucroGeral: receberAtual - enviadoAtual + lucroHistorico,
+    totalEmprestado: enviadoGeral,
+    totalReceber: receberGeral,
+    totalReceberAtual: roundMoney(receberAtual),
+    totalEnviadoAtual: roundMoney(enviadoAtual),
+    lucroAtual: roundMoney(receberAtual - enviadoAtual),
 
-    ativos: currentOpenLoans.filter((item) => item.status === "Ativo").length,
-    atrasados: currentOpenLoans.filter((item) => item.status === "Atrasado").length,
-    historico: previousLoans.length + currentClosedLoans.length,
+    totalRecebido: roundMoney(totalRecebido),
+    totalAtrasado: roundMoney(totalAtrasado),
+    totalPendente: roundMoney(totalPendente),
+
+    receberHoje,
+    receberAmanha,
+
+    paidCount,
+    pendingCount,
+    lateCount,
+
+    historicoQuitado: safeRecords.filter((record) => record.status === "Quitado")
+      .length,
   };
 }
 
-export function getNextStatus(currentStatus) {
-  if (currentStatus === "Ativo") return "Recebido";
-  if (currentStatus === "Recebido") return "Atrasado";
-  if (currentStatus === "Atrasado") return "Ativo";
+export function getClientRisk(record) {
+  const safeRecord = record || {};
+  const events = buildCalendarEvents([safeRecord]);
 
-  return "Ativo";
+  const lateCount = events.filter(
+    (event) => event.statusPagamento === paymentStatuses.LATE
+  ).length;
+
+  const partialCount = events.filter(
+    (event) => event.statusPagamento === paymentStatuses.PARTIAL
+  ).length;
+
+  const paidCount = events.filter(
+    (event) => event.statusPagamento === paymentStatuses.PAID
+  ).length;
+
+  const historico = Array.isArray(safeRecord.historicoEmprestimos)
+    ? safeRecord.historicoEmprestimos
+    : [];
+
+  const totalLoans = 1 + historico.length;
+
+  if (safeRecord.status === "Bloqueado") {
+    return {
+      label: "Bloqueado",
+      description: "Cliente bloqueado manualmente.",
+      color: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+      className: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+    };
+  }
+
+  if (lateCount >= 3) {
+    return {
+      label: "Risco alto",
+      description:
+        "Cliente com muitos atrasos. Analise com cuidado antes de emprestar novamente.",
+      color: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+      className: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+    };
+  }
+
+  if (lateCount >= 1 || partialCount >= 2) {
+    return {
+      label: "Atenção",
+      description:
+        "Cliente possui atraso ou pagamento parcial no histórico recente.",
+      color: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+      className: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+    };
+  }
+
+  if (paidCount > 0 || totalLoans > 1) {
+    return {
+      label: "Bom pagador",
+      description: "Cliente com comportamento positivo de pagamento.",
+      color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    };
+  }
+
+  return {
+    label: "Novo",
+    description: "Ainda não há histórico suficiente para avaliar.",
+    color: "border-orange-500/30 bg-orange-500/10 text-orange-300",
+    className: "border-orange-500/30 bg-orange-500/10 text-orange-300",
+  };
+}
+
+export function getClientMetrics(record) {
+  const safeRecord = record || {};
+
+  const historico = Array.isArray(safeRecord.historicoEmprestimos)
+    ? safeRecord.historicoEmprestimos
+    : [];
+
+  const events = buildCalendarEvents([safeRecord]);
+
+  const historicoEnviado = historico.reduce(
+    (sum, loan) => sum + toNumber(loan?.valorEnviado),
+    0
+  );
+
+  const historicoReceber = historico.reduce(
+    (sum, loan) => sum + toNumber(loan?.valorReceber),
+    0
+  );
+
+  const historicoLucro = historico.reduce((sum, loan) => {
+    if (loan?.lucro !== undefined) {
+      return sum + toNumber(loan.lucro);
+    }
+
+    return sum + toNumber(loan?.valorReceber) - toNumber(loan?.valorEnviado);
+  }, 0);
+
+  const valorEnviadoAtual = toNumber(safeRecord.valorEnviado);
+  const valorReceberAtual = toNumber(safeRecord.valorReceber);
+  const lucroAtual = valorReceberAtual - valorEnviadoAtual;
+
+  const totalReceivedCurrent = events.reduce((sum, event) => {
+    const status = event.statusPagamento;
+
+    if (status === paymentStatuses.PAID) {
+      return sum + toNumber(event.totalWithFine || event.valorOriginal);
+    }
+
+    if (status === paymentStatuses.PARTIAL) {
+      return sum + toNumber(event.valorPago);
+    }
+
+    return sum;
+  }, 0);
+
+  const totalOpenCurrent = events.reduce((sum, event) => {
+    if (isPaymentSettled(event)) return sum;
+
+    return sum + toNumber(event.saldo || event.valor);
+  }, 0);
+
+  const totalLateCurrent = events
+    .filter((event) => event.statusPagamento === paymentStatuses.LATE)
+    .reduce((sum, event) => sum + toNumber(event.saldo || event.valor), 0);
+
+  const lateCount = events.filter(
+    (event) => event.statusPagamento === paymentStatuses.LATE
+  ).length;
+
+  const partialCount = events.filter(
+    (event) => event.statusPagamento === paymentStatuses.PARTIAL
+  ).length;
+
+  const paidCount = events.filter(
+    (event) => event.statusPagamento === paymentStatuses.PAID
+  ).length;
+
+  const pendingCount = events.filter(
+    (event) =>
+      !event.statusPagamento ||
+      event.statusPagamento === paymentStatuses.PENDING
+  ).length;
+
+  return {
+    totalLoans: 1 + historico.length,
+
+    totalSent: roundMoney(historicoEnviado + valorEnviadoAtual),
+    totalExpected: roundMoney(historicoReceber + valorReceberAtual),
+    totalProfit: roundMoney(historicoLucro + lucroAtual),
+
+    totalEnviado: roundMoney(historicoEnviado + valorEnviadoAtual),
+    totalAReceber: roundMoney(historicoReceber + valorReceberAtual),
+    totalLucro: roundMoney(historicoLucro + lucroAtual),
+
+    valorEnviadoAtual: roundMoney(valorEnviadoAtual),
+    valorReceberAtual: roundMoney(valorReceberAtual),
+    lucroAtual: roundMoney(lucroAtual),
+
+    totalReceivedCurrent: roundMoney(totalReceivedCurrent),
+    totalOpenCurrent: roundMoney(totalOpenCurrent),
+    totalLateCurrent: roundMoney(totalLateCurrent),
+
+    recebidoAtual: roundMoney(totalReceivedCurrent),
+    abertoAtual: roundMoney(totalOpenCurrent),
+    atrasadoAtual: roundMoney(totalLateCurrent),
+
+    currentLateCount: lateCount,
+    lateCount,
+    partialCount,
+    paidCount,
+    pendingCount,
+  };
+}
+
+export function groupEventsByDay(events = [], days = 7) {
+  const today = new Date();
+  const result = [];
+
+  for (let index = 0; index < days; index += 1) {
+    const date = addDays(today, index);
+    const key = toISODate(date);
+
+    const bucket = events.filter((event) => event.date === key);
+
+    result.push({
+      key,
+      date: key,
+      label: date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+      }),
+      previsto: roundMoney(
+        bucket.reduce(
+          (sum, event) => sum + toNumber(event.valorOriginal || event.originalAmount || event.valor),
+          0
+        )
+      ),
+      recebido: roundMoney(
+        bucket.reduce((sum, event) => {
+          if (event.statusPagamento === paymentStatuses.PAID) {
+            return sum + toNumber(event.valorComMulta || event.totalWithFine || event.valorOriginal || event.valor);
+          }
+
+          if (event.statusPagamento === paymentStatuses.PARTIAL) {
+            return sum + toNumber(event.valorPago || event.amountPaid);
+          }
+
+          return sum;
+        }, 0)
+      ),
+    });
+  }
+
+  return result;
+}
+
+export function groupEventsByMonth(events = []) {
+  const map = new Map();
+
+  events.forEach((event) => {
+    const date = parseISODate(event.date);
+
+    if (!date) return;
+
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}`;
+
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        label: date.toLocaleDateString("pt-BR", {
+          month: "short",
+        }),
+        previsto: 0,
+        recebido: 0,
+        atrasado: 0,
+      });
+    }
+
+    const item = map.get(key);
+
+    item.previsto += toNumber(
+      event.valorOriginal || event.originalAmount || event.valor
+    );
+
+    if (event.statusPagamento === paymentStatuses.PAID) {
+      item.recebido += toNumber(
+        event.valorComMulta || event.totalWithFine || event.valorOriginal || event.valor
+      );
+    }
+
+    if (event.statusPagamento === paymentStatuses.PARTIAL) {
+      item.recebido += toNumber(event.valorPago || event.amountPaid);
+    }
+
+    if (event.statusPagamento === paymentStatuses.LATE) {
+      item.atrasado += toNumber(event.saldo || event.remainingAmount || event.valor);
+    }
+  });
+
+  return Array.from(map.values())
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((item) => ({
+      ...item,
+      previsto: roundMoney(item.previsto),
+      recebido: roundMoney(item.recebido),
+      atrasado: roundMoney(item.atrasado),
+    }));
 }

@@ -201,13 +201,24 @@ function mapFormToDb(form) {
   };
 }
 
+function getPageTitle(activeTab, editingId) {
+  if (activeTab === "dashboard") return "Dashboard";
+  if (activeTab === "calendario") return "Calendário";
+  if (activeTab === "novo") return editingId ? "Editar cliente" : "Novo cliente";
+  if (activeTab === "clientes") return "Clientes";
+  if (activeTab === "ficha") return "Ficha do cliente";
+  if (activeTab === "atrasados") return "Atrasados";
+  if (activeTab === "historico") return "Histórico";
+  return "Dashboard";
+}
+
 function NavItem({ active, icon, label, badge, onClick }) {
   return (
     <button
       onClick={onClick}
       className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
         active
-          ? "bg-purple-600 text-white"
+          ? "bg-orange-500 text-white"
           : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
       }`}
     >
@@ -278,6 +289,8 @@ export default function App() {
     },
     { id: "historico", label: "Histórico", icon: "↺" },
   ];
+
+  const pageTitle = getPageTitle(activeTab, editingId);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -856,7 +869,7 @@ export default function App() {
 
   if (checkingSession) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#070b16] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-[#0b0d11] text-white">
         <div className="text-slate-400">Carregando acesso...</div>
       </div>
     );
@@ -867,20 +880,22 @@ export default function App() {
   }
 
   return (
-    <div className="app-bg min-h-screen text-white">
+    <div className="app-shell text-white">
       <div className="flex min-h-screen">
-        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/[0.08] bg-[#080d1a]/95 p-4 lg:block">
+        <aside className="app-sidebar sticky top-0 hidden h-screen w-[274px] shrink-0 p-4 lg:block">
           <div className="flex h-full flex-col">
             <div className="mb-8 flex items-center gap-3 px-2">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-700 to-purple-400 text-xl font-bold">
-                C
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-500 text-lg font-bold text-white">
+                J
               </div>
 
               <div>
-                <h1 className="text-xl font-bold">
-                  Client<span className="text-purple-400">Control</span>
+                <h1 className="text-lg font-bold text-white">
+                  Jure<span className="text-orange-400">minha</span>
                 </h1>
-                <p className="text-xs text-slate-500">Painel Administrativo</p>
+                <p className="text-xs text-slate-500">
+                  Gestão de Recebimentos
+                </p>
               </div>
             </div>
 
@@ -902,7 +917,7 @@ export default function App() {
 
             <div className="mt-auto rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-sm font-bold">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500 text-sm font-bold text-white">
                   A
                 </div>
 
@@ -928,13 +943,21 @@ export default function App() {
 
         <main className="min-w-0 flex-1 p-3 md:p-5">
           <div className="mx-auto max-w-[1500px] space-y-4">
-            <header className="panel rounded-2xl p-4 lg:hidden">
+            <header className="app-topbar rounded-2xl p-4 lg:hidden">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h1 className="text-xl font-bold">
-                    Client<span className="text-purple-400">Control</span>
-                  </h1>
-                  <p className="text-xs text-slate-500">{session.user.email}</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-500 text-base font-bold text-white">
+                    J
+                  </div>
+
+                  <div>
+                    <h1 className="text-lg font-bold text-white">
+                      Jure<span className="text-orange-400">minha</span>
+                    </h1>
+                    <p className="text-xs text-slate-500">
+                      Gestão de Recebimentos
+                    </p>
+                  </div>
                 </div>
 
                 <button
@@ -953,7 +976,7 @@ export default function App() {
                     className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold ${
                       activeTab === item.id ||
                       (item.id === "clientes" && activeTab === "ficha")
-                        ? "bg-purple-600 text-white"
+                        ? "bg-orange-500 text-white"
                         : "bg-white/[0.04] text-slate-300"
                     }`}
                   >
@@ -964,30 +987,36 @@ export default function App() {
               </div>
             </header>
 
-            <div className="panel hidden items-center justify-between rounded-2xl p-5 lg:flex">
-              <div>
-                <h2 className="text-3xl font-bold text-white">
-                  {activeTab === "dashboard" && "Dashboard"}
-                  {activeTab === "calendario" && "Calendário"}
-                  {activeTab === "novo" &&
-                    (editingId ? "Editar cliente" : "Novo cliente")}
-                  {activeTab === "clientes" && "Clientes"}
-                  {activeTab === "ficha" && "Ficha do cliente"}
-                  {activeTab === "atrasados" && "Atrasados"}
-                  {activeTab === "historico" && "Histórico"}
-                </h2>
+            <div className="app-topbar hidden items-center justify-between rounded-2xl p-5 lg:flex">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-xl font-bold text-white">
+                  J
+                </div>
 
-                <p className="mt-1 text-sm text-slate-400">
-                  Bem-vindo de volta. Aqui está o resumo do seu negócio.
-                </p>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold text-white">
+                      Jure<span className="text-orange-400">minha</span>
+                    </h2>
+
+                    <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-3 py-1 text-xs font-bold text-orange-300">
+                      {pageTitle}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-sm text-slate-400">
+                    Gestão de Recebimentos · controle de clientes, parcelas e
+                    empréstimos.
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="hidden rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-slate-400 xl:block">
+                <div className="hidden rounded-xl border border-white/[0.06] bg-white/[0.04] px-4 py-2.5 text-sm text-slate-400 xl:block">
                   Buscar...
                 </div>
 
-                <div className="rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-slate-300">
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.04] px-4 py-2.5 text-sm text-slate-300">
                   {new Date().toLocaleDateString("pt-BR", {
                     day: "2-digit",
                     month: "long",

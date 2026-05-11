@@ -1,7 +1,15 @@
 import { useMemo } from "react";
-import { StatCard, PremiumCard } from "./ui";
 import { money, formatDateBR } from "../utils/helpers";
 import { paymentStatuses } from "../utils/calculations";
+
+const ORANGE = "#ff7a1a";
+const YELLOW = "#facc15";
+const GREEN = "#22c55e";
+const RED = "#ef4444";
+const CYAN = "#06b6d4";
+const CARD = "#171b22";
+const CARD_2 = "#1d222b";
+const BORDER = "rgba(255,255,255,0.07)";
 
 function isoToday() {
   return new Date().toISOString().slice(0, 10);
@@ -22,277 +30,508 @@ function getLastSevenDays() {
   });
 }
 
-function LineChart({ data }) {
-  const width = 760;
-  const height = 260;
-  const padding = 34;
-  const maxValue = Math.max(...data.map((item) => item.value), 1);
+function getDayName(dateString) {
+  const names = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const date = new Date(`${dateString}T00:00:00`);
+  return names[date.getDay()];
+}
 
-  const points = data.map((item, index) => {
-    const x =
-      padding + (index * (width - padding * 2)) / Math.max(data.length - 1, 1);
-
-    const y =
-      height -
-      padding -
-      (item.value / maxValue) * (height - padding * 2);
-
-    return { x, y };
-  });
-
-  const path = points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
-    .join(" ");
-
-  const path2 = points
-    .map((point, index) => {
-      const y = point.y + 32 > height - padding ? height - padding : point.y + 32;
-      return `${index === 0 ? "M" : "L"} ${point.x} ${y}`;
-    })
-    .join(" ");
-
+function Panel({ children, className = "" }) {
   return (
-    <div className="h-[270px] w-full overflow-hidden rounded-xl bg-[#0a0f1f] p-3">
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full">
-        <defs>
-          <linearGradient id="mainLine" x1="0" x2="1">
-            <stop offset="0%" stopColor="#7c3aed" />
-            <stop offset="55%" stopColor="#8b5cf6" />
-            <stop offset="100%" stopColor="#ec4899" />
-          </linearGradient>
-        </defs>
-
-        {[0, 1, 2, 3].map((line) => {
-          const y = padding + line * ((height - padding * 2) / 3);
-
-          return (
-            <line
-              key={line}
-              x1={padding}
-              x2={width - padding}
-              y1={y}
-              y2={y}
-              stroke="rgba(148,163,184,0.12)"
-              strokeWidth="1"
-            />
-          );
-        })}
-
-        <path
-          d={path2}
-          fill="none"
-          stroke="#06b6d4"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray="8 8"
-        />
-
-        <path
-          d={path}
-          fill="none"
-          stroke="url(#mainLine)"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {points.map((point, index) => (
-          <circle
-            key={index}
-            cx={point.x}
-            cy={point.y}
-            r="4"
-            fill="#0a0f1f"
-            stroke="#8b5cf6"
-            strokeWidth="3"
-          />
-        ))}
-
-        {data.map((item, index) => {
-          const x =
-            padding +
-            (index * (width - padding * 2)) / Math.max(data.length - 1, 1);
-
-          return (
-            <text
-              key={item.date}
-              x={x}
-              y={height - 6}
-              textAnchor="middle"
-              fill="#64748b"
-              fontSize="12"
-              fontWeight="600"
-            >
-              {item.label}
-            </text>
-          );
-        })}
-      </svg>
+    <div
+      className={`rounded-[18px] border ${className}`}
+      style={{
+        background: `linear-gradient(180deg, ${CARD} 0%, #12161d 100%)`,
+        borderColor: BORDER,
+        boxShadow: "0 18px 40px rgba(0,0,0,0.24)",
+      }}
+    >
+      {children}
     </div>
   );
 }
 
-function DonutChart({ paid, pending, late, partial }) {
+function HeaderButton({ children, onClick, active = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-xl border px-3 py-2 text-xs font-bold transition hover:opacity-90"
+      style={{
+        borderColor: active ? `${ORANGE}88` : BORDER,
+        background: active ? "rgba(255,122,26,0.12)" : "rgba(255,255,255,0.03)",
+        color: active ? ORANGE : "#cbd5e1",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MetricCard({ title, value, subtitle, icon, color = ORANGE }) {
+  return (
+    <Panel className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-slate-500">{title}</p>
+
+          <h3 className="mt-2 break-words text-xl font-bold text-white">
+            {value}
+          </h3>
+
+          {subtitle && <p className="mt-2 text-xs text-slate-500">{subtitle}</p>}
+        </div>
+
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold"
+          style={{
+            color,
+            borderColor: `${color}55`,
+            background: `${color}16`,
+          }}
+        >
+          {icon}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function QuickAction({ title, subtitle, icon, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-[16px] border p-4 text-left transition hover:-translate-y-[1px] hover:opacity-95"
+      style={{
+        background: CARD_2,
+        borderColor: BORDER,
+      }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-white">{title}</p>
+          <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+        </div>
+
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-bold"
+          style={{
+            color: ORANGE,
+            borderColor: `${ORANGE}55`,
+            background: "rgba(255,122,26,0.08)",
+          }}
+        >
+          {icon}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function normalizeEvent(event) {
+  const status = event.statusPagamento || paymentStatuses.PENDING;
+
+  const isSettled =
+    status === paymentStatuses.PAID ||
+    status === paymentStatuses.CANCELED;
+
+  const value = Number(
+    event.saldo ??
+      event.remainingAmount ??
+      event.valorComMulta ??
+      event.totalWithFine ??
+      event.valor ??
+      event.amount ??
+      0
+  );
+
+  const originalValue = Number(
+    event.valorOriginal ?? event.originalAmount ?? event.valor ?? event.amount ?? 0
+  );
+
+  const paidValue = Number(event.valorPago ?? event.amountPaid ?? 0);
+
+  return {
+    ...event,
+    name: event.nome || event.clientName || event.nomeCliente || "Cliente",
+    status,
+    isSettled,
+    value: isSettled ? 0 : Math.max(0, value),
+    originalValue,
+    paidValue,
+  };
+}
+
+function MainChart({ dataA = [], dataB = [] }) {
+  const safeDataA = Array.isArray(dataA) ? dataA : [];
+  const safeDataB = Array.isArray(dataB) ? dataB : [];
+
+  const width = 820;
+  const height = 285;
+  const padX = 34;
+  const padTop = 22;
+  const padBottom = 34;
+
+  const maxValue = Math.max(
+    ...safeDataA.map((item) => Number(item.value || 0)),
+    ...safeDataB.map((item) => Number(item.value || 0)),
+    1
+  );
+
+  function makePoints(data) {
+    return data.map((item, index) => {
+      const x =
+        padX + (index * (width - padX * 2)) / Math.max(data.length - 1, 1);
+
+      const y =
+        height -
+        padBottom -
+        (Number(item.value || 0) / maxValue) * (height - padTop - padBottom);
+
+      return { x, y };
+    });
+  }
+
+  const pointsA = makePoints(safeDataA);
+  const pointsB = makePoints(safeDataB);
+
+  function makePath(points) {
+    return points
+      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+      .join(" ");
+  }
+
+  const pathA = makePath(pointsA);
+  const pathB = makePath(pointsB);
+
+  const areaPath =
+    pointsA.length > 0
+      ? `${pathA} L ${width - padX} ${height - padBottom} L ${padX} ${
+          height - padBottom
+        } Z`
+      : "";
+
+  return (
+    <div
+      className="rounded-[16px] border p-3"
+      style={{
+        background: "#10141b",
+        borderColor: BORDER,
+      }}
+    >
+      <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <p className="text-sm font-bold text-white">Fluxo de recebimentos</p>
+
+          <p className="text-xs text-slate-500">
+            Recebido x previsto nos últimos 7 dias
+          </p>
+        </div>
+
+        <div className="flex gap-4 text-xs">
+          <span className="flex items-center gap-2 text-slate-300">
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ background: ORANGE }}
+            />
+            Previsto
+          </span>
+
+          <span className="flex items-center gap-2 text-slate-300">
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ background: YELLOW }}
+            />
+            Recebido
+          </span>
+        </div>
+      </div>
+
+      <div className="h-[270px] overflow-hidden">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full">
+          <defs>
+            <linearGradient id="orangeAreaSaasSafe" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor={ORANGE} stopOpacity="0.55" />
+              <stop offset="100%" stopColor={ORANGE} stopOpacity="0.03" />
+            </linearGradient>
+          </defs>
+
+          {[0, 1, 2, 3, 4].map((line) => {
+            const y = padTop + line * ((height - padTop - padBottom) / 4);
+
+            return (
+              <line
+                key={line}
+                x1={padX}
+                x2={width - padX}
+                y1={y}
+                y2={y}
+                stroke="rgba(255,255,255,0.06)"
+              />
+            );
+          })}
+
+          {areaPath && <path d={areaPath} fill="url(#orangeAreaSaasSafe)" />}
+
+          {pathA && (
+            <path
+              d={pathA}
+              fill="none"
+              stroke={ORANGE}
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {pathB && (
+            <path
+              d={pathB}
+              fill="none"
+              stroke={YELLOW}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="7 7"
+            />
+          )}
+
+          {pointsA.map((point, index) => (
+            <circle
+              key={index}
+              cx={point.x}
+              cy={point.y}
+              r="4"
+              fill={ORANGE}
+              stroke="#111827"
+              strokeWidth="2"
+            />
+          ))}
+
+          {safeDataA.map((item, index) => {
+            const x =
+              padX +
+              (index * (width - padX * 2)) / Math.max(safeDataA.length - 1, 1);
+
+            return (
+              <text
+                key={item.date || index}
+                x={x}
+                y={height - 8}
+                textAnchor="middle"
+                fill="#7c8799"
+                fontSize="12"
+                fontWeight="600"
+              >
+                {item.label}
+              </text>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function StatusDonut({ paid = 0, pending = 0, late = 0, partial = 0 }) {
   const total = paid + pending + late + partial;
 
-  const paidPercent = total > 0 ? (paid / total) * 100 : 0;
-  const partialPercent = total > 0 ? (partial / total) * 100 : 0;
-  const pendingPercent = total > 0 ? (pending / total) * 100 : 0;
+  const paidPercent = total ? (paid / total) * 100 : 0;
+  const partialPercent = total ? (partial / total) * 100 : 0;
+  const pendingPercent = total ? (pending / total) * 100 : 0;
 
   const style = {
-    background:
-      total > 0
-        ? `conic-gradient(
-          #7c3aed 0% ${paidPercent}%,
-          #06b6d4 ${paidPercent}% ${paidPercent + partialPercent}%,
-          #f59e0b ${paidPercent + partialPercent}% ${
-            paidPercent + partialPercent + pendingPercent
-          }%,
-          #ec4899 ${paidPercent + partialPercent + pendingPercent}% 100%
+    background: total
+      ? `conic-gradient(
+          ${GREEN} 0% ${paidPercent}%,
+          ${CYAN} ${paidPercent}% ${paidPercent + partialPercent}%,
+          ${YELLOW} ${paidPercent + partialPercent}% ${
+          paidPercent + partialPercent + pendingPercent
+        }%,
+          ${RED} ${paidPercent + partialPercent + pendingPercent}% 100%
         )`
-        : "#1e293b",
+      : "#263142",
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row">
-      <div className="relative h-36 w-36 shrink-0 rounded-full" style={style}>
-        <div className="absolute inset-7 rounded-full bg-[#111827]" />
+    <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+      <div className="relative h-32 w-32 shrink-0 rounded-full" style={style}>
+        <div
+          className="absolute inset-7 flex flex-col items-center justify-center rounded-full"
+          style={{ background: CARD }}
+        >
+          <span className="text-[10px] text-slate-500">Parcelas</span>
+          <strong className="text-2xl text-white">{total}</strong>
+        </div>
       </div>
 
-      <div className="grid w-full grid-cols-2 gap-2 text-sm">
+      <div className="grid flex-1 grid-cols-2 gap-2 text-xs">
         <div className="rounded-xl bg-white/[0.04] p-3">
-          <p className="text-xs text-slate-500">Pagas</p>
-          <strong className="text-purple-300">{paid}</strong>
+          <p className="text-slate-500">Pagas</p>
+          <strong className="text-emerald-400">{paid}</strong>
         </div>
 
         <div className="rounded-xl bg-white/[0.04] p-3">
-          <p className="text-xs text-slate-500">Parciais</p>
-          <strong className="text-cyan-300">{partial}</strong>
+          <p className="text-slate-500">Parciais</p>
+          <strong className="text-cyan-400">{partial}</strong>
         </div>
 
         <div className="rounded-xl bg-white/[0.04] p-3">
-          <p className="text-xs text-slate-500">Pendentes</p>
-          <strong className="text-orange-300">{pending}</strong>
+          <p className="text-slate-500">Pendentes</p>
+          <strong className="text-yellow-400">{pending}</strong>
         </div>
 
         <div className="rounded-xl bg-white/[0.04] p-3">
-          <p className="text-xs text-slate-500">Atrasadas</p>
-          <strong className="text-pink-300">{late}</strong>
+          <p className="text-slate-500">Atrasadas</p>
+          <strong className="text-red-400">{late}</strong>
         </div>
       </div>
     </div>
   );
 }
 
-function BarChart({ data }) {
-  const max = Math.max(...data.map((item) => item.value), 1);
-
+function AlertItem({ title, subtitle, value, color = ORANGE, onClick }) {
   return (
-    <div className="flex h-44 items-end gap-3 rounded-xl bg-[#0a0f1f] p-4">
-      {data.map((item) => (
-        <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
-          <div className="flex h-32 w-full items-end rounded-md bg-white/[0.04]">
-            <div
-              className="w-full rounded-md bg-gradient-to-t from-purple-700 to-purple-400"
-              style={{ height: `${Math.max(8, (item.value / max) * 100)}%` }}
-            />
-          </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 rounded-[14px] border p-3 text-left transition hover:opacity-90"
+      style={{
+        background: CARD_2,
+        borderColor: BORDER,
+      }}
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm font-bold text-white">{title}</p>
+        <p className="mt-1 truncate text-xs text-slate-500">{subtitle}</p>
+      </div>
 
-          <span className="text-xs text-slate-500">{item.label}</span>
-        </div>
-      ))}
-    </div>
+      <strong className="shrink-0 text-sm" style={{ color }}>
+        {value}
+      </strong>
+    </button>
   );
 }
 
-function ActivityItem({ icon, title, subtitle, tone = "purple" }) {
-  const tones = {
-    purple: "bg-purple-500/12 text-purple-300",
-    green: "bg-emerald-500/12 text-emerald-300",
-    red: "bg-rose-500/12 text-rose-300",
-    orange: "bg-orange-500/12 text-orange-300",
-    cyan: "bg-cyan-500/12 text-cyan-300",
-  };
-
+function ActivityItem({ title, subtitle, value, positive }) {
   return (
     <div className="flex items-center gap-3 border-b border-white/[0.06] py-3 last:border-0">
-      <div
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
-          tones[tone] || tones.purple
-        }`}
-      >
-        {icon}
-      </div>
+      <span
+        className="h-3 w-3 shrink-0 rounded-full"
+        style={{ background: positive ? GREEN : ORANGE }}
+      />
 
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{title}</p>
         <p className="truncate text-xs text-slate-500">{subtitle}</p>
       </div>
+
+      <p
+        className="shrink-0 text-sm font-bold"
+        style={{ color: positive ? GREEN : RED }}
+      >
+        {positive ? "+" : "-"} {value}
+      </p>
     </div>
   );
 }
 
-function RecentClientCard({ event }) {
+function ClientMiniCard({ event }) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+    <div
+      className="rounded-[14px] border p-3"
+      style={{
+        background: CARD_2,
+        borderColor: BORDER,
+      }}
+    >
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-sm font-bold text-white">
-          {String(event.nome || "C").charAt(0)}
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white"
+          style={{
+            background: `linear-gradient(135deg, ${ORANGE}, #ffb15c)`,
+          }}
+        >
+          {String(event.name || "C").charAt(0)}
         </div>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{event.nome}</p>
+          <p className="truncate text-sm font-bold text-white">{event.name}</p>
           <p className="text-xs text-slate-500">{formatDateBR(event.date)}</p>
         </div>
       </div>
 
       <p className="mt-3 text-sm font-bold text-white">
-        {money.format(event.valor)}
+        {money.format(event.value || event.originalValue || 0)}
       </p>
-
-      <span className="mt-2 inline-flex rounded-full bg-purple-500/12 px-2.5 py-1 text-xs font-semibold text-purple-300">
-        {event.statusPagamento}
-      </span>
     </div>
   );
 }
 
-export default function Dashboard({ totals, calendarEvents, onGoToTab }) {
+export default function Dashboard({
+  totals = {},
+  calendarEvents = [],
+  onGoToTab,
+}) {
+  const events = useMemo(
+    () => (Array.isArray(calendarEvents) ? calendarEvents.map(normalizeEvent) : []),
+    [calendarEvents]
+  );
+
   const stats = useMemo(() => {
-    const paid = calendarEvents.filter(
-      (event) => event.statusPagamento === paymentStatuses.PAID
+    const paid = events.filter(
+      (event) => event.status === paymentStatuses.PAID
     );
 
-    const pending = calendarEvents.filter(
-      (event) => event.statusPagamento === paymentStatuses.PENDING
+    const pending = events.filter(
+      (event) =>
+        !event.status ||
+        event.status === paymentStatuses.PENDING
     );
 
-    const late = calendarEvents.filter(
-      (event) => event.statusPagamento === paymentStatuses.LATE
+    const late = events.filter(
+      (event) => event.status === paymentStatuses.LATE
     );
 
-    const partial = calendarEvents.filter(
-      (event) => event.statusPagamento === paymentStatuses.PARTIAL
+    const partial = events.filter(
+      (event) => event.status === paymentStatuses.PARTIAL
     );
 
     const today = isoToday();
-    const todayEvents = calendarEvents.filter((event) => event.date === today);
+    const todayEvents = events.filter((event) => event.date === today && !event.isSettled);
 
-    const totalAberto = calendarEvents.reduce(
-      (sum, event) => sum + Number(event.saldo || event.valor || 0),
+    const totalPrevisto = events.reduce(
+      (sum, event) => sum + Number(event.originalValue || event.value || 0),
       0
     );
 
+    const totalRecebido = paid
+      .concat(partial)
+      .reduce(
+        (sum, event) => sum + Number(event.paidValue || event.valorPago || event.originalValue || 0),
+        0
+      );
+
     const totalAtrasado = late.reduce(
-      (sum, event) => sum + Number(event.saldo || event.valor || 0),
+      (sum, event) => sum + Number(event.value || 0),
       0
     );
 
     const totalHoje = todayEvents.reduce(
-      (sum, event) => sum + Number(event.saldo || event.valor || 0),
+      (sum, event) => sum + Number(event.value || 0),
       0
     );
+
+    const emAberto = pending
+      .concat(late)
+      .concat(partial)
+      .filter((event) => !event.isSettled)
+      .reduce((sum, event) => sum + Number(event.value || 0), 0);
+
+    const recent = [...events]
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .slice(0, 5);
 
     return {
       paid,
@@ -300,46 +539,67 @@ export default function Dashboard({ totals, calendarEvents, onGoToTab }) {
       late,
       partial,
       todayEvents,
-      totalAberto,
+      totalPrevisto,
+      totalRecebido,
       totalAtrasado,
       totalHoje,
+      emAberto,
+      recent,
     };
-  }, [calendarEvents]);
+  }, [events]);
 
-  const lineData = useMemo(() => {
+  const chartData = useMemo(() => {
     const days = getLastSevenDays();
 
-    return days.map((date) => {
-      const total = calendarEvents
-        .filter((event) => event.date === date)
+    const expected = days.map((day) => ({
+      date: day,
+      label: getDayName(day),
+      value: events
+        .filter((event) => event.date === day)
         .reduce(
-          (sum, event) => sum + Number(event.valorOriginal || event.valor || 0),
+          (sum, event) => sum + Number(event.originalValue || event.value || 0),
           0
-        );
+        ),
+    }));
 
-      const label = new Date(`${date}T00:00:00`).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-      });
+    const received = days.map((day) => ({
+      date: day,
+      label: getDayName(day),
+      value: events
+        .filter(
+          (event) =>
+            event.date === day &&
+            (event.status === paymentStatuses.PAID ||
+              event.status === paymentStatuses.PARTIAL)
+        )
+        .reduce(
+          (sum, event) => sum + Number(event.paidValue || event.originalValue || 0),
+          0
+        ),
+    }));
 
-      return { date, label, value: total };
-    });
-  }, [calendarEvents]);
+    return { expected, received };
+  }, [events]);
 
-  const weekBars = useMemo(() => {
-    const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const totalEmprestado =
+    totals.enviadoGeral ||
+    totals.enviado ||
+    totals.totalEmprestado ||
+    totals.totalEnviadoAtual ||
+    0;
 
-    return labels.map((label, index) => {
-      const count = calendarEvents.filter((event) => {
-        const day = new Date(`${event.date}T00:00:00`).getDay();
-        return day === index;
-      }).length;
+  const totalReceber =
+    totals.receberGeral ||
+    totals.receber ||
+    totals.totalReceber ||
+    totals.totalReceberAtual ||
+    0;
 
-      return { label, value: count };
-    });
-  }, [calendarEvents]);
-
-  const recentEvents = calendarEvents.slice(0, 4);
+  const lucro =
+    totals.lucroGeral ||
+    totals.lucro ||
+    totals.lucroAtual ||
+    Number(totalReceber) - Number(totalEmprestado);
 
   function go(tab) {
     if (typeof onGoToTab === "function") {
@@ -349,253 +609,229 @@ export default function Dashboard({ totals, calendarEvents, onGoToTab }) {
 
   return (
     <div className="space-y-4">
+      <Panel className="overflow-hidden p-4 md:p-5">
+        <div className="mb-5 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+              Painel financeiro
+            </p>
+
+            <h2 className="mt-1 text-2xl font-bold text-white md:text-3xl">
+              Visão geral da Jureminha
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Controle de clientes, empréstimos, parcelas e recebimentos.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <HeaderButton active onClick={() => go("novo")}>
+              + Novo cliente
+            </HeaderButton>
+
+            <HeaderButton onClick={() => go("clientes")}>Clientes</HeaderButton>
+
+            <HeaderButton onClick={() => go("calendario")}>
+              Calendário
+            </HeaderButton>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <QuickAction
+            title="Receber hoje"
+            subtitle={`${stats.todayEvents.length} parcela(s) previstas`}
+            icon="↓"
+            onClick={() => go("calendario")}
+          />
+
+          <QuickAction
+            title="Clientes"
+            subtitle={`${totals.clientes || 0} cliente(s) cadastrados`}
+            icon="◌"
+            onClick={() => go("clientes")}
+          />
+
+          <QuickAction
+            title="Atrasados"
+            subtitle={`${stats.late.length} parcela(s) em atraso`}
+            icon="!"
+            onClick={() => go("atrasados")}
+          />
+
+          <QuickAction
+            title="Histórico"
+            subtitle="Empréstimos anteriores"
+            icon="↺"
+            onClick={() => go("historico")}
+          />
+        </div>
+      </Panel>
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-        <StatCard
-          title="Total Emprestado"
-          value={money.format(totals.enviadoGeral || totals.enviado || 0)}
-          icon="▣"
-          tone="purple"
-          subtitle="↑ visão geral"
+        <MetricCard
+          title="Total emprestado"
+          value={money.format(totalEmprestado)}
+          subtitle="valor enviado no geral"
+          icon="R$"
+          color={ORANGE}
         />
 
-        <StatCard
-          title="Receber Hoje"
-          value={money.format(stats.totalHoje)}
-          icon="↓"
-          tone="green"
-          subtitle={`${stats.todayEvents.length} parcela(s)`}
+        <MetricCard
+          title="A receber"
+          value={money.format(totalReceber)}
+          subtitle="valor previsto"
+          icon="↗"
+          color={YELLOW}
         />
 
-        <StatCard
+        <MetricCard
           title="Lucro"
-          value={money.format(totals.lucroGeral || totals.lucro || 0)}
-          icon="⌁"
-          tone="pink"
-          subtitle="↑ acumulado"
+          value={money.format(lucro)}
+          subtitle="resultado previsto"
+          icon="%"
+          color={GREEN}
         />
 
-        <StatCard
-          title="Atrasados"
+        <MetricCard
+          title="Atrasado"
           value={money.format(stats.totalAtrasado)}
+          subtitle={`${stats.late.length} parcela(s)`}
           icon="!"
-          tone="orange"
-          subtitle="atenção"
+          color={RED}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.45fr_0.85fr]">
-        <PremiumCard>
-          <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h3 className="text-base font-bold text-white">Recebimentos</h3>
-              <p className="text-xs text-slate-500">Movimentação dos últimos 7 dias</p>
-            </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.55fr_0.75fr]">
+        <Panel className="p-4">
+          <MainChart dataA={chartData.expected} dataB={chartData.received} />
+        </Panel>
 
-            <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1 text-slate-400">
-                <span className="h-2 w-2 rounded-full bg-purple-500" />
-                Recebido
-              </span>
-              <span className="flex items-center gap-1 text-slate-400">
-                <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                Previsto
-              </span>
-            </div>
+        <Panel className="p-4">
+          <div className="mb-4">
+            <h3 className="text-base font-bold text-white">Resumo de parcelas</h3>
+
+            <p className="text-xs text-slate-500">
+              Situação geral dos pagamentos
+            </p>
           </div>
 
-          <LineChart data={lineData} />
-        </PremiumCard>
-
-        <PremiumCard>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-bold text-white">Resumo Financeiro</h3>
-              <p className="text-xs text-slate-500">Distribuição das parcelas</p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => go("calendario")}
-              className="rounded-lg bg-white/[0.04] px-3 py-2 text-xs font-bold text-purple-300 hover:bg-white/[0.08]"
-            >
-              Ver relatório
-            </button>
-          </div>
-
-          <DonutChart
+          <StatusDonut
             paid={stats.paid.length}
             pending={stats.pending.length}
             late={stats.late.length}
             partial={stats.partial.length}
           />
-        </PremiumCard>
+        </Panel>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.05fr_0.85fr]">
-        <PremiumCard>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-base font-bold text-white">Clientes</h3>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_0.85fr_1fr]">
+        <Panel className="p-4">
+          <div className="mb-4">
+            <h3 className="text-base font-bold text-white">Alertas</h3>
+
+            <p className="text-xs text-slate-500">
+              O que precisa de atenção agora
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <AlertItem
+              title="Receber hoje"
+              subtitle="Parcelas previstas para hoje"
+              value={money.format(stats.totalHoje)}
+              color={GREEN}
+              onClick={() => go("calendario")}
+            />
+
+            <AlertItem
+              title="Valor em aberto"
+              subtitle="Pendentes, parciais e atrasados"
+              value={money.format(stats.emAberto)}
+              color={ORANGE}
+              onClick={() => go("calendario")}
+            />
+
+            <AlertItem
+              title="Atrasados"
+              subtitle="Parcelas vencidas"
+              value={money.format(stats.totalAtrasado)}
+              color={RED}
+              onClick={() => go("atrasados")}
+            />
+          </div>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="mb-4">
+            <h3 className="text-base font-bold text-white">Atividade recente</h3>
+
+            <p className="text-xs text-slate-500">
+              Últimas parcelas registradas
+            </p>
+          </div>
+
+          <div>
+            {stats.recent.length > 0 ? (
+              stats.recent.slice(0, 4).map((event) => {
+                const positive =
+                  event.status === paymentStatuses.PAID ||
+                  event.status === paymentStatuses.PARTIAL;
+
+                return (
+                  <ActivityItem
+                    key={event.id}
+                    title={event.name}
+                    subtitle={`${formatDateBR(event.date)} · ${event.tipo || event.typeLabel || ""}`}
+                    value={money.format(event.value || event.originalValue || 0)}
+                    positive={positive}
+                  />
+                );
+              })
+            ) : (
+              <p className="py-6 text-sm text-slate-500">
+                Nenhuma atividade ainda.
+              </p>
+            )}
+          </div>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-white">
+                Clientes recentes
+              </h3>
+
+              <p className="text-xs text-slate-500">
+                Últimas movimentações no calendário
+              </p>
+            </div>
 
             <button
               type="button"
               onClick={() => go("clientes")}
-              className="text-xs font-semibold text-purple-300 hover:text-purple-200"
+              className="text-xs font-bold"
+              style={{ color: ORANGE }}
             >
               Ver todos
             </button>
           </div>
 
-          <BarChart data={weekBars} />
-        </PremiumCard>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {stats.recent.slice(0, 4).map((event) => (
+              <ClientMiniCard key={event.id} event={event} />
+            ))}
 
-        <PremiumCard>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-base font-bold text-white">Distribuição de Parcelas</h3>
-
-            <button
-              type="button"
-              onClick={() => go("calendario")}
-              className="text-xs font-semibold text-purple-300 hover:text-purple-200"
-            >
-              Ver relatório
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-white/[0.04] p-4">
-              <p className="text-xs text-slate-500">Em dia</p>
-              <strong className="text-2xl text-purple-300">{stats.paid.length}</strong>
-            </div>
-
-            <div className="rounded-xl bg-white/[0.04] p-4">
-              <p className="text-xs text-slate-500">Pendentes</p>
-              <strong className="text-2xl text-orange-300">{stats.pending.length}</strong>
-            </div>
-
-            <div className="rounded-xl bg-white/[0.04] p-4">
-              <p className="text-xs text-slate-500">Atrasadas</p>
-              <strong className="text-2xl text-pink-300">{stats.late.length}</strong>
-            </div>
-          </div>
-
-          <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-white/[0.05]">
-            <div className="flex h-full">
-              <div
-                className="bg-purple-500"
-                style={{
-                  width: `${
-                    calendarEvents.length
-                      ? (stats.paid.length / calendarEvents.length) * 100
-                      : 0
-                  }%`,
-                }}
-              />
-
-              <div
-                className="bg-orange-400"
-                style={{
-                  width: `${
-                    calendarEvents.length
-                      ? (stats.pending.length / calendarEvents.length) * 100
-                      : 0
-                  }%`,
-                }}
-              />
-
-              <div
-                className="bg-pink-500"
-                style={{
-                  width: `${
-                    calendarEvents.length
-                      ? (stats.late.length / calendarEvents.length) * 100
-                      : 0
-                  }%`,
-                }}
-              />
-            </div>
-          </div>
-        </PremiumCard>
-
-        <PremiumCard>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-bold text-white">Atividade Recente</h3>
-
-            <button
-              type="button"
-              onClick={() => go("calendario")}
-              className="text-xs font-semibold text-purple-300 hover:text-purple-200"
-            >
-              Ver todas
-            </button>
-          </div>
-
-          <div>
-            {calendarEvents.slice(0, 4).map((event) => {
-              const status = event.statusPagamento;
-
-              const tone =
-                status === paymentStatuses.PAID
-                  ? "green"
-                  : status === paymentStatuses.LATE
-                  ? "red"
-                  : status === paymentStatuses.PARTIAL
-                  ? "cyan"
-                  : "orange";
-
-              const icon =
-                status === paymentStatuses.PAID
-                  ? "✓"
-                  : status === paymentStatuses.LATE
-                  ? "!"
-                  : status === paymentStatuses.PARTIAL
-                  ? "%"
-                  : "•";
-
-              return (
-                <ActivityItem
-                  key={event.id}
-                  icon={icon}
-                  title={event.nome}
-                  subtitle={`${formatDateBR(event.date)} · ${money.format(event.valor)}`}
-                  tone={tone}
-                />
-              );
-            })}
-
-            {calendarEvents.length === 0 && (
-              <p className="rounded-xl bg-white/[0.04] p-3 text-sm text-slate-500">
-                Nenhuma atividade ainda.
+            {stats.recent.length === 0 && (
+              <p className="rounded-xl bg-white/[0.04] p-4 text-sm text-slate-500">
+                Nenhum cliente recente.
               </p>
             )}
           </div>
-        </PremiumCard>
+        </Panel>
       </div>
-
-      <PremiumCard>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-white">Clientes Recentes</h3>
-
-          <button
-            type="button"
-            onClick={() => go("clientes")}
-            className="text-xs font-semibold text-purple-300 hover:text-purple-200"
-          >
-            Ver todos
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          {recentEvents.map((event) => (
-            <RecentClientCard key={event.id} event={event} />
-          ))}
-
-          {recentEvents.length === 0 && (
-            <p className="rounded-xl bg-white/[0.04] p-4 text-sm text-slate-500">
-              Nenhum cliente recente.
-            </p>
-          )}
-        </div>
-      </PremiumCard>
     </div>
   );
 }

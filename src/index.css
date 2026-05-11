@@ -6,7 +6,7 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   color: #f8fafc;
-  background: #070b16;
+  background: #0b0d11;
 }
 
 * {
@@ -19,16 +19,15 @@ body,
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #070b16 !important;
+  background: #0b0d11 !important;
   color: #f8fafc;
 }
 
 body {
   background:
-    radial-gradient(circle at top right, rgba(124, 58, 237, 0.18), transparent 28%),
-    radial-gradient(circle at 62% 0%, rgba(14, 165, 233, 0.09), transparent 26%),
-    radial-gradient(circle at bottom left, rgba(236, 72, 153, 0.08), transparent 28%),
-    linear-gradient(135deg, #070b16 0%, #0a0f1f 42%, #080b16 100%) !important;
+    radial-gradient(circle at top right, rgba(255, 122, 26, 0.12), transparent 28%),
+    radial-gradient(circle at 60% 0%, rgba(250, 204, 21, 0.055), transparent 24%),
+    linear-gradient(135deg, #0b0d11 0%, #11151c 48%, #0b0d11 100%) !important;
 }
 
 button,
@@ -57,92 +56,116 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  background: #080d1a;
+  background: #0b0d11;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #252f4a;
+  background: #343943;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #37415f;
+  background: #454b56;
 }
 
-/* FUNDO PRINCIPAL */
-.app-bg {
+/* ===== BASE APP ===== */
+
+.app-shell {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top right, rgba(124, 58, 237, 0.18), transparent 28%),
-    radial-gradient(circle at 62% 0%, rgba(14, 165, 233, 0.09), transparent 26%),
-    radial-gradient(circle at bottom left, rgba(236, 72, 153, 0.08), transparent 28%),
-    linear-gradient(135deg, #070b16 0%, #0a0f1f 42%, #080b16 100%) !important;
+    radial-gradient(circle at top right, rgba(255, 122, 26, 0.12), transparent 28%),
+    radial-gradient(circle at 60% 0%, rgba(250, 204, 21, 0.055), transparent 24%),
+    linear-gradient(135deg, #0b0d11 0%, #11151c 48%, #0b0d11 100%) !important;
 }
 
-/* PAINÉIS E CARDS NO ESTILO DO MOCKUP DARK */
-.panel,
-.card-dark,
-.geex-panel,
-.geex-card,
-.geex-soft-card,
-.premium-glass,
-.premium-card {
+.app-sidebar {
+  background: rgba(13, 15, 20, 0.98) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.app-topbar,
+.app-panel,
+.panel {
   background: linear-gradient(
     180deg,
-    rgba(18, 24, 43, 0.96),
-    rgba(12, 17, 32, 0.96)
+    rgba(23, 27, 34, 0.96),
+    rgba(18, 22, 29, 0.96)
   ) !important;
-  border: 1px solid rgba(148, 163, 184, 0.13) !important;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.26) !important;
-  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28) !important;
+  backdrop-filter: blur(18px);
+}
+
+.app-card,
+.card-dark,
+.premium-card,
+.premium-glass,
+.geex-card,
+.geex-panel,
+.geex-soft-card {
+  background: linear-gradient(
+    180deg,
+    rgba(23, 27, 34, 0.96),
+    rgba(18, 22, 29, 0.96)
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24) !important;
   color: #f8fafc !important;
+}
+
+.app-card-soft {
+  background: rgba(255, 255, 255, 0.035) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
 }
 
 .card-hover,
-.geex-hover,
-.premium-card-hover {
+.premium-card-hover,
+.geex-hover {
   transition:
-    border-color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .card-hover:hover,
-.geex-hover:hover,
-.premium-card-hover:hover {
+.premium-card-hover:hover,
+.geex-hover:hover {
   transform: translateY(-1px);
-  border-color: rgba(139, 92, 246, 0.45) !important;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34) !important;
+  border-color: rgba(255, 122, 26, 0.42) !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32) !important;
 }
 
-/* INPUTS */
+/* ===== INPUTS ===== */
+
 .input-dark,
-.geex-input,
-.premium-input {
-  background: #0a0f1f !important;
-  border: 1px solid rgba(148, 163, 184, 0.14) !important;
+.premium-input,
+.geex-input {
+  background: #10141b !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: #f8fafc !important;
+  outline: none;
 }
 
 .input-dark:focus,
-.geex-input:focus,
-.premium-input:focus {
-  border-color: rgba(139, 92, 246, 0.7) !important;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12) !important;
+.premium-input:focus,
+.geex-input:focus {
+  border-color: rgba(255, 122, 26, 0.75) !important;
+  box-shadow: 0 0 0 3px rgba(255, 122, 26, 0.12) !important;
 }
 
 .input-dark::placeholder,
-.geex-input::placeholder,
-.premium-input::placeholder {
-  color: #475569 !important;
+.premium-input::placeholder,
+.geex-input::placeholder {
+  color: #606b7a !important;
 }
 
 select option {
-  background: #0a0f1f;
+  background: #10141b;
   color: #f8fafc;
 }
 
-/* TEXTOS */
+/* ===== TEXT HELPERS ===== */
+
 .text-muted {
   color: #94a3b8;
 }
@@ -152,21 +175,24 @@ select option {
 }
 
 .gradient-text {
-  background: linear-gradient(90deg, #a78bfa, #ec4899);
+  background: linear-gradient(90deg, #ff7a1a, #facc15) !important;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-/* GRADIENTES DISCRETOS IGUAL MOCKUP */
+/* ===== GRADIENTS PADRÃO LARANJA ===== */
+
 .gradient-purple,
-.geex-purple {
-  background: linear-gradient(135deg, #5b21b6, #7c3aed) !important;
+.geex-purple,
+.gradient-cyan,
+.geex-cyan {
+  background: linear-gradient(135deg, #cc580f, #ff7a1a) !important;
 }
 
 .gradient-pink,
 .geex-pink {
-  background: linear-gradient(135deg, #be185d, #ec4899) !important;
+  background: linear-gradient(135deg, #b45309, #ff7a1a) !important;
 }
 
 .gradient-green,
@@ -176,47 +202,220 @@ select option {
 
 .gradient-orange,
 .geex-orange {
-  background: linear-gradient(135deg, #b45309, #f97316) !important;
+  background: linear-gradient(135deg, #b45309, #ff7a1a) !important;
 }
 
-.gradient-cyan,
-.geex-cyan {
-  background: linear-gradient(135deg, #0369a1, #06b6d4) !important;
+/* ===== REMOVER ROXO E AZUL ANTIGOS ===== */
+
+.bg-purple-50,
+.bg-purple-100,
+.bg-purple-500,
+.bg-purple-600,
+.bg-purple-700,
+.bg-cyan-50,
+.bg-cyan-100,
+.bg-cyan-500,
+.bg-cyan-600,
+.bg-cyan-700,
+.bg-blue-50,
+.bg-blue-100,
+.bg-blue-500,
+.bg-blue-600,
+.bg-blue-700 {
+  background-color: #ff7a1a !important;
 }
 
-/* BORDAS NEON MAIS SUTIS */
-.neon-border {
-  position: relative;
+.hover\:bg-purple-50:hover,
+.hover\:bg-purple-500\/15:hover,
+.hover\:bg-purple-600:hover,
+.hover\:bg-purple-700:hover,
+.hover\:bg-cyan-500\/15:hover,
+.hover\:bg-cyan-600:hover,
+.hover\:bg-cyan-700:hover,
+.hover\:bg-blue-600:hover,
+.hover\:bg-blue-700:hover {
+  background-color: #e76612 !important;
 }
 
-.neon-border::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(124, 58, 237, 0.5),
-    rgba(236, 72, 153, 0.3),
-    rgba(14, 165, 233, 0.25)
-  );
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0.55;
+.bg-purple-500\/10,
+.bg-purple-500\/12,
+.bg-purple-500\/15,
+.bg-purple-600\/10,
+.bg-purple-600\/15,
+.bg-cyan-500\/10,
+.bg-cyan-500\/12,
+.bg-cyan-500\/15,
+.bg-blue-500\/10,
+.bg-blue-500\/12,
+.bg-blue-500\/15 {
+  background-color: rgba(255, 122, 26, 0.1) !important;
 }
 
-.premium-glow {
-  box-shadow:
-    0 0 0 1px rgba(139, 92, 246, 0.08),
-    0 0 28px rgba(124, 58, 237, 0.12),
-    0 18px 42px rgba(0, 0, 0, 0.34) !important;
+.bg-purple-500\/20,
+.bg-purple-600\/20,
+.bg-cyan-500\/20,
+.bg-blue-500\/20 {
+  background-color: rgba(255, 122, 26, 0.18) !important;
 }
 
-/* GARANTE QUE ÁREAS INTERNAS NÃO FIQUEM BRANCAS */
+.text-purple-100,
+.text-purple-200,
+.text-purple-300,
+.text-purple-400,
+.text-purple-500,
+.text-purple-600,
+.text-purple-700,
+.text-cyan-100,
+.text-cyan-200,
+.text-cyan-300,
+.text-cyan-400,
+.text-cyan-500,
+.text-cyan-600,
+.text-cyan-700,
+.text-blue-100,
+.text-blue-200,
+.text-blue-300,
+.text-blue-400,
+.text-blue-500,
+.text-blue-600,
+.text-blue-700 {
+  color: #ff9f45 !important;
+}
+
+.hover\:text-purple-200:hover,
+.hover\:text-purple-300:hover,
+.hover\:text-purple-400:hover,
+.hover\:text-purple-500:hover,
+.hover\:text-purple-600:hover,
+.hover\:text-purple-700:hover,
+.hover\:text-cyan-300:hover,
+.hover\:text-cyan-400:hover,
+.hover\:text-blue-300:hover,
+.hover\:text-blue-400:hover {
+  color: #ffb35c !important;
+}
+
+.border-purple-400,
+.border-purple-500,
+.border-purple-600,
+.border-cyan-400,
+.border-cyan-500,
+.border-cyan-600,
+.border-blue-400,
+.border-blue-500,
+.border-blue-600 {
+  border-color: rgba(255, 122, 26, 0.45) !important;
+}
+
+.border-purple-400\/20,
+.border-purple-400\/30,
+.border-purple-500\/18,
+.border-purple-500\/20,
+.border-purple-500\/25,
+.border-purple-500\/30,
+.border-purple-500\/40,
+.border-cyan-400\/20,
+.border-cyan-500\/18,
+.border-cyan-500\/20,
+.border-cyan-500\/25,
+.border-cyan-500\/30,
+.border-blue-500\/20,
+.border-blue-500\/30 {
+  border-color: rgba(255, 122, 26, 0.24) !important;
+}
+
+.shadow-purple-950\/30,
+.shadow-purple-950\/40,
+.shadow-purple-200 {
+  box-shadow: 0 18px 36px rgba(255, 122, 26, 0.16) !important;
+}
+
+.from-purple-600,
+.from-purple-700,
+.from-cyan-500,
+.from-cyan-600,
+.from-blue-500,
+.from-blue-600 {
+  --tw-gradient-from: #cc580f var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(204 88 15 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-purple-300,
+.to-purple-400,
+.to-purple-500,
+.to-cyan-400,
+.to-cyan-500,
+.to-blue-400,
+.to-blue-500 {
+  --tw-gradient-to: #ff7a1a var(--tw-gradient-to-position) !important;
+}
+
+.to-pink-500,
+.to-fuchsia-600 {
+  --tw-gradient-to: #ff9f45 var(--tw-gradient-to-position) !important;
+}
+
+/* ===== MANTER STATUS IMPORTANTES ===== */
+
+.bg-emerald-500,
+.bg-emerald-600,
+.bg-emerald-700 {
+  background-color: #059669 !important;
+}
+
+.bg-rose-500,
+.bg-rose-600,
+.bg-rose-700,
+.bg-red-500,
+.bg-red-600,
+.bg-red-700 {
+  background-color: #e11d48 !important;
+}
+
+.bg-orange-400,
+.bg-orange-500,
+.bg-orange-600,
+.bg-yellow-400,
+.bg-yellow-500 {
+  background-color: #ff7a1a !important;
+}
+
+.text-emerald-300,
+.text-emerald-400,
+.text-emerald-500 {
+  color: #34d399 !important;
+}
+
+.text-rose-300,
+.text-rose-400,
+.text-rose-500,
+.text-red-300,
+.text-red-400,
+.text-red-500 {
+  color: #fb7185 !important;
+}
+
+.text-orange-300,
+.text-orange-400,
+.text-orange-500,
+.text-yellow-300,
+.text-yellow-400,
+.text-yellow-500 {
+  color: #ff9f45 !important;
+}
+
+.border-emerald-500\/20,
+.border-emerald-500\/25,
+.border-rose-500\/20,
+.border-rose-500\/25,
+.border-orange-500\/20,
+.border-orange-500\/25 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ===== REMOVER CLASSES CLARAS ANTIGAS ===== */
+
 .bg-white,
 .bg-slate-50,
 .bg-purple-50,
@@ -242,24 +441,49 @@ select option {
 .border-slate-100,
 .border-slate-200,
 .border-zinc-800 {
-  border-color: rgba(148, 163, 184, 0.13) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* AJUSTE MOBILE */
+/* ===== BOTÕES PADRÃO ===== */
+
+button.bg-purple-600,
+button.bg-purple-700,
+button.bg-cyan-600,
+button.bg-cyan-700,
+button.bg-blue-600,
+button.bg-blue-700 {
+  background-color: #ff7a1a !important;
+  color: #ffffff !important;
+}
+
+button.bg-purple-600:hover,
+button.bg-purple-700:hover,
+button.bg-cyan-600:hover,
+button.bg-cyan-700:hover,
+button.bg-blue-600:hover,
+button.bg-blue-700:hover {
+  background-color: #e76612 !important;
+}
+
+/* ===== MOBILE ===== */
+
 @media (max-width: 768px) {
-  body {
+  .app-shell {
     background:
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.16), transparent 34%),
-      linear-gradient(135deg, #070b16 0%, #0a0f1f 100%) !important;
+      radial-gradient(circle at top right, rgba(255, 122, 26, 0.13), transparent 34%),
+      linear-gradient(135deg, #0b0d11 0%, #11151c 100%) !important;
   }
 
+  .app-topbar,
+  .app-panel,
   .panel,
+  .app-card,
   .card-dark,
-  .geex-panel,
-  .geex-card,
-  .geex-soft-card,
+  .premium-card,
   .premium-glass,
-  .premium-card {
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24) !important;
+  .geex-card,
+  .geex-panel,
+  .geex-soft-card {
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22) !important;
   }
 }
