@@ -23,6 +23,91 @@ import {
   isPaymentSettled,
 } from "./utils/calculations";
 
+function NavIcon({ children, active = false }) {
+  return (
+    <span
+      className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center ${
+        active ? "text-white" : "text-slate-400"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function DashboardIcon({ active }) {
+  return (
+    <NavIcon active={active}>
+      <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]">
+        <rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.8" />
+        <rect x="14" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.8" />
+        <rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.8" />
+        <rect x="14" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    </NavIcon>
+  );
+}
+
+function ClientsIcon({ active }) {
+  return (
+    <NavIcon active={active}>
+      <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]">
+        <path d="M16 19a4 4 0 0 0-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <circle cx="12" cy="9" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M20 18a3.5 3.5 0 0 0-2.8-3.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M6.8 14.6A3.5 3.5 0 0 0 4 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </NavIcon>
+  );
+}
+
+function CalendarIcon({ active }) {
+  return (
+    <NavIcon active={active}>
+      <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]">
+        <rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M8 3v4M16 3v4M3 10h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </NavIcon>
+  );
+}
+
+function PlusUserIcon({ active }) {
+  return (
+    <NavIcon active={active}>
+      <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]">
+        <circle cx="10" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M4.5 18a5.5 5.5 0 0 1 11 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M18 8v6M15 11h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    </NavIcon>
+  );
+}
+
+function AlertIcon({ active }) {
+  return (
+    <NavIcon active={active}>
+      <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]">
+        <path d="M12 4 21 20H3L12 4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M12 9v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <circle cx="12" cy="16.5" r="1" fill="currentColor" />
+      </svg>
+    </NavIcon>
+  );
+}
+
+function HistoryIcon({ active }) {
+  return (
+    <NavIcon active={active}>
+      <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px]">
+        <path d="M4 12a8 8 0 1 0 2.3-5.7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M4 4v5h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M12 8v4l3 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </NavIcon>
+  );
+}
+
 function filterRecords(records, search) {
   const term = String(search || "").toLowerCase().trim();
 
@@ -212,19 +297,18 @@ function getPageTitle(activeTab, editingId) {
   return "Dashboard";
 }
 
-function NavItem({ active, icon, label, badge, onClick }) {
+function NavItem({ active, icon: Icon, label, badge, onClick }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+      className={`group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
         active
-          ? "bg-orange-500 text-white"
+          ? "bg-orange-500 text-white shadow-[0_10px_30px_rgba(249,115,22,0.24)]"
           : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
       }`}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg text-sm">
-        {icon}
-      </span>
+      <Icon active={active} />
 
       <span className="flex-1">{label}</span>
 
@@ -277,17 +361,17 @@ export default function App() {
   );
 
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: "▦" },
-    { id: "clientes", label: "Clientes", icon: "◌" },
-    { id: "calendario", label: "Calendário", icon: "□" },
-    { id: "novo", label: "Novo Cliente", icon: "+" },
+    { id: "dashboard", label: "Dashboard", icon: DashboardIcon },
+    { id: "clientes", label: "Clientes", icon: ClientsIcon },
+    { id: "calendario", label: "Calendário", icon: CalendarIcon },
+    { id: "novo", label: "Novo Cliente", icon: PlusUserIcon },
     {
       id: "atrasados",
       label: "Atrasados",
-      icon: "!",
+      icon: AlertIcon,
       badge: delayedEvents.length,
     },
-    { id: "historico", label: "Histórico", icon: "↺" },
+    { id: "historico", label: "Histórico", icon: HistoryIcon },
   ];
 
   const pageTitle = getPageTitle(activeTab, editingId);
@@ -899,7 +983,7 @@ export default function App() {
               </div>
             </div>
 
-            <nav className="space-y-1">
+            <nav className="space-y-2">
               {navItems.map((item) => (
                 <NavItem
                   key={item.id}
@@ -969,21 +1053,33 @@ export default function App() {
               </div>
 
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {navItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => goToTab(item.id)}
-                    className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold ${
-                      activeTab === item.id ||
-                      (item.id === "clientes" && activeTab === "ficha")
-                        ? "bg-orange-500 text-white"
-                        : "bg-white/[0.04] text-slate-300"
-                    }`}
-                  >
-                    <span>{item.icon}</span>
-                    <span>{item.label}</span>
-                  </button>
-                ))}
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    activeTab === item.id ||
+                    (item.id === "clientes" && activeTab === "ficha");
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => goToTab(item.id)}
+                      className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold ${
+                        isActive
+                          ? "bg-orange-500 text-white"
+                          : "bg-white/[0.04] text-slate-300"
+                      }`}
+                    >
+                      <Icon active={isActive} />
+                      <span>{item.label}</span>
+
+                      {item.badge !== undefined && Number(item.badge) > 0 && (
+                        <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] text-white">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </header>
 
