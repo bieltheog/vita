@@ -2,23 +2,6 @@ import { useMemo, useState } from "react";
 import { money, formatDateBR } from "../utils/helpers";
 import { paymentStatuses } from "../utils/calculations";
 
-function getMonthDays(baseDate) {
-  const year = baseDate.getFullYear();
-  const month = baseDate.getMonth();
-
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const days = [];
-
-  for (let i = 0; i < firstDay.getDay(); i++) days.push(null);
-
-  for (let day = 1; day <= lastDay.getDate(); day++) {
-    days.push(new Date(year, month, day));
-  }
-
-  return days;
-}
-
 function toISODate(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -30,7 +13,27 @@ function getMonthName(date) {
   });
 }
 
-function groupEventsByDate(events) {
+function getMonthDays(baseDate) {
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+
+  const days = [];
+
+  for (let i = 0; i < firstDay.getDay(); i++) {
+    days.push(null);
+  }
+
+  for (let day = 1; day <= lastDay.getDate(); day++) {
+    days.push(new Date(year, month, day));
+  }
+
+  return days;
+}
+
+function groupEventsByDate(events = []) {
   return events.reduce((groups, event) => {
     if (!groups[event.date]) groups[event.date] = [];
     groups[event.date].push(event);
@@ -38,52 +41,85 @@ function groupEventsByDate(events) {
   }, {});
 }
 
-function statusStyle(status) {
-  if (status === paymentStatuses.PAID) {
-    return "border-emerald-500/30 bg-emerald-950/20";
-  }
-
-  if (status === paymentStatuses.LATE) {
-    return "border-red-500/30 bg-red-950/20";
-  }
-
-  if (status === paymentStatuses.PARTIAL) {
-    return "border-blue-500/30 bg-blue-950/20";
-  }
-
-  if (status === paymentStatuses.RENEGOTIATED) {
-    return "border-purple-500/30 bg-purple-950/20";
-  }
-
-  if (status === paymentStatuses.CANCELED) {
-    return "border-zinc-700 bg-zinc-900/40 opacity-70";
-  }
-
-  return "border-zinc-800 bg-zinc-900";
+function getStatusLabel(status) {
+  if (status === paymentStatuses.PAID) return "Pago";
+  if (status === paymentStatuses.LATE) return "Atrasado";
+  if (status === paymentStatuses.PARTIAL) return "Parcial";
+  if (status === paymentStatuses.CANCELED) return "Cancelado";
+  return "Pendente";
 }
 
-function statusBadge(status) {
+function getStatusClasses(status) {
   if (status === paymentStatuses.PAID) {
-    return "bg-emerald-500/20 text-emerald-200";
+    return {
+      card: "border-emerald-500/25 bg-emerald-500/8",
+      badge: "border-emerald-500/25 bg-emerald-500/12 text-emerald-300",
+      dot: "bg-emerald-400",
+    };
   }
 
   if (status === paymentStatuses.LATE) {
-    return "bg-red-500/20 text-red-200";
+    return {
+      card: "border-rose-500/25 bg-rose-500/8",
+      badge: "border-rose-500/25 bg-rose-500/12 text-rose-300",
+      dot: "bg-rose-400",
+    };
   }
 
   if (status === paymentStatuses.PARTIAL) {
-    return "bg-blue-500/20 text-blue-200";
-  }
-
-  if (status === paymentStatuses.RENEGOTIATED) {
-    return "bg-purple-500/20 text-purple-200";
+    return {
+      card: "border-cyan-500/25 bg-cyan-500/8",
+      badge: "border-cyan-500/25 bg-cyan-500/12 text-cyan-300",
+      dot: "bg-cyan-400",
+    };
   }
 
   if (status === paymentStatuses.CANCELED) {
-    return "bg-zinc-500/20 text-zinc-300";
+    return {
+      card: "border-slate-600/25 bg-slate-600/8 opacity-70",
+      badge: "border-slate-500/25 bg-slate-500/12 text-slate-300",
+      dot: "bg-slate-400",
+    };
   }
 
-  return "bg-yellow-500/20 text-yellow-200";
+  return {
+    card: "border-orange-500/20 bg-orange-500/8",
+    badge: "border-orange-500/25 bg-orange-500/12 text-orange-300",
+    dot: "bg-orange-400",
+  };
+}
+
+function getEventKey(event) {
+  return event.paymentKey || event.eventKey || event.id || event.date;
+}
+
+function summarizeEvents(events = []) {
+  return {
+    total: events.reduce((sum, event) => sum + Number(event.valor || 0), 0),
+    count: events.length,
+    paid: events.filter((event) => event.statusPagamento === paymentStatuses.PAID).length,
+    pending: events.filter((event) => event.statusPagamento === paymentStatuses.PENDING).length,
+    late: events.filter((event) => event.statusPagamento === paymentStatuses.LATE).length,
+    partial: events.filter((event) => event.statusPagamento === paymentStatuses.PARTIAL).length,
+    canceled: events.filter((event) => event.statusPagamento === paymentStatuses.CANCELED).length,
+  };
+}
+
+function MiniSummary({ label, value, tone }) {
+  const tones = {
+    purple: "text-purple-300 bg-purple-500/10 border-purple-500/20",
+    green: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
+    orange: "text-orange-300 bg-orange-500/10 border-orange-500/20",
+    rose: "text-rose-300 bg-rose-500/10 border-rose-500/20",
+    cyan: "text-cyan-300 bg-cyan-500/10 border-cyan-500/20",
+  };
+
+  return (
+    <div className={`rounded-xl border p-3 ${tones[tone] || tones.purple}`}>
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className="mt-1 text-lg font-bold">{value}</p>
+    </div>
+  );
 }
 
 export default function CalendarView({
@@ -100,16 +136,19 @@ export default function CalendarView({
   const [noteInput, setNoteInput] = useState({});
   const [openAdvanced, setOpenAdvanced] = useState({});
 
+  const today = toISODate(new Date());
+
   const monthDays = useMemo(() => getMonthDays(currentMonth), [currentMonth]);
+
   const groupedEvents = useMemo(
-    () => groupEventsByDate(calendarEvents),
+    () => groupEventsByDate(calendarEvents || []),
     [calendarEvents]
   );
 
   const selectedEvents = groupedEvents[selectedDate] || [];
-  const today = toISODate(new Date());
+  const selectedSummary = summarizeEvents(selectedEvents);
 
-  const mobileMonthEvents = useMemo(() => {
+  const monthEvents = useMemo(() => {
     const month = currentMonth.getMonth();
     const year = currentMonth.getFullYear();
 
@@ -121,22 +160,15 @@ export default function CalendarView({
       .map(([date, events]) => ({
         date,
         events,
-        total: events.reduce((sum, event) => sum + Number(event.valor || 0), 0),
-        pending: events.filter(
-          (event) => event.statusPagamento === paymentStatuses.PENDING
-        ).length,
-        paid: events.filter(
-          (event) => event.statusPagamento === paymentStatuses.PAID
-        ).length,
-        late: events.filter(
-          (event) => event.statusPagamento === paymentStatuses.LATE
-        ).length,
-        partial: events.filter(
-          (event) => event.statusPagamento === paymentStatuses.PARTIAL
-        ).length,
+        ...summarizeEvents(events),
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [groupedEvents, currentMonth]);
+
+  const monthSummary = useMemo(() => {
+    const events = monthEvents.flatMap((item) => item.events);
+    return summarizeEvents(events);
+  }, [monthEvents]);
 
   function previousMonth() {
     setCurrentMonth(
@@ -150,39 +182,14 @@ export default function CalendarView({
     );
   }
 
-  function getDaySummary(dateString) {
-    const events = groupedEvents[dateString] || [];
-
-    const total = events.reduce((sum, event) => sum + Number(event.valor || 0), 0);
-
-    const paid = events.filter(
-      (event) => event.statusPagamento === paymentStatuses.PAID
-    ).length;
-
-    const late = events.filter(
-      (event) => event.statusPagamento === paymentStatuses.LATE
-    ).length;
-
-    const pending = events.filter(
-      (event) => event.statusPagamento === paymentStatuses.PENDING
-    ).length;
-
-    const partial = events.filter(
-      (event) => event.statusPagamento === paymentStatuses.PARTIAL
-    ).length;
-
-    return {
-      count: events.length,
-      total,
-      paid,
-      late,
-      pending,
-      partial,
-    };
+  function goToday() {
+    const now = new Date();
+    setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    setSelectedDate(toISODate(now));
   }
 
-  function getEventKey(event) {
-    return event.paymentKey || event.eventKey || event.id || event.date;
+  function getDaySummary(dateString) {
+    return summarizeEvents(groupedEvents[dateString] || []);
   }
 
   function toggleAdvanced(eventId) {
@@ -194,67 +201,58 @@ export default function CalendarView({
 
   function renderPaymentCard(event) {
     const eventKey = getEventKey(event);
+    const statusClasses = getStatusClasses(event.statusPagamento);
 
-    const fineValue =
-      fineInput[event.id] ?? event.multaPercentual ?? 0;
-
-    const partialValue =
-      partialInput[event.id] ?? event.valorPago ?? "";
-
-    const noteValue =
-      noteInput[event.id] ?? event.observacao ?? "";
-
+    const fineValue = fineInput[event.id] ?? event.multaPercentual ?? 0;
+    const partialValue = partialInput[event.id] ?? event.valorPago ?? "";
+    const noteValue = noteInput[event.id] ?? event.observacao ?? "";
     const isAdvancedOpen = openAdvanced[event.id];
 
     return (
       <div
         key={event.id}
-        className={`rounded-2xl border p-4 ${statusStyle(event.statusPagamento)}`}
+        className={`rounded-2xl border p-4 ${statusClasses.card}`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-bold break-words">{event.nome}</p>
+            <p className="truncate text-sm font-bold text-white">
+              {event.nome}
+            </p>
 
-            <div className="flex flex-wrap items-center gap-2 mt-1">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <span
-                className={`rounded-full px-2 py-1 text-xs ${statusBadge(
-                  event.statusPagamento
-                )}`}
+                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClasses.badge}`}
               >
-                {event.statusPagamento}
+                {getStatusLabel(event.statusPagamento)}
               </span>
 
-              <span className="text-xs text-zinc-500">
-                {event.tipo}
-              </span>
+              <span className="text-xs text-slate-500">{event.tipo}</span>
             </div>
 
             {event.descricao && (
-              <p className="text-xs text-zinc-400 mt-2">
-                {event.descricao}
-              </p>
+              <p className="mt-2 text-xs text-slate-400">{event.descricao}</p>
             )}
 
             {event.observacao && (
-              <p className="text-xs text-zinc-400 mt-2">
+              <p className="mt-2 text-xs text-slate-400">
                 Obs: {event.observacao}
               </p>
             )}
           </div>
 
-          <div className="text-right shrink-0">
-            <p className="font-bold text-purple-200">
+          <div className="shrink-0 text-right">
+            <p className="text-base font-bold text-white">
               {money.format(event.valor)}
             </p>
 
-            {event.valorPago > 0 && (
-              <p className="text-xs text-blue-200">
+            {Number(event.valorPago || 0) > 0 && (
+              <p className="text-xs text-cyan-300">
                 Pago: {money.format(event.valorPago)}
               </p>
             )}
 
             {event.statusPagamento === paymentStatuses.LATE && (
-              <p className="text-xs text-red-200">
+              <p className="text-xs text-rose-300">
                 Multa {event.multaPercentual || 0}%
               </p>
             )}
@@ -265,12 +263,12 @@ export default function CalendarView({
           <button
             type="button"
             onClick={() => onMarkPaymentPaid(event.recordId, eventKey)}
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-3 md:py-2 text-sm font-semibold transition"
+            className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700"
           >
             Marcar como pago
           </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr]">
             <input
               type="number"
               min="0"
@@ -283,7 +281,7 @@ export default function CalendarView({
                 }))
               }
               placeholder="Multa %"
-              className="rounded-xl bg-black border border-zinc-800 px-3 py-3 md:py-2 text-sm outline-none focus:border-red-500"
+              className="input-dark rounded-xl px-3 py-2.5 text-sm outline-none"
             />
 
             <button
@@ -291,7 +289,7 @@ export default function CalendarView({
               onClick={() =>
                 onMarkPaymentLate(event.recordId, eventKey, fineValue)
               }
-              className="rounded-xl bg-red-600 hover:bg-red-700 px-4 py-3 md:py-2 text-sm font-semibold transition"
+              className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-rose-700"
             >
               Marcar atraso
             </button>
@@ -300,14 +298,14 @@ export default function CalendarView({
           <button
             type="button"
             onClick={() => toggleAdvanced(event.id)}
-            className="rounded-xl border border-zinc-700 bg-black/30 px-4 py-3 md:py-2 text-sm font-semibold text-zinc-300 hover:text-white hover:border-purple-500 transition"
+            className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/[0.07] hover:text-white"
           >
             {isAdvancedOpen ? "Fechar opções" : "Opções avançadas"}
           </button>
 
           {isAdvancedOpen && (
-            <div className="rounded-2xl border border-zinc-800 bg-black/30 p-3 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="rounded-xl border border-white/[0.08] bg-[#090e1c] p-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr]">
                 <input
                   type="number"
                   min="0"
@@ -320,7 +318,7 @@ export default function CalendarView({
                     }))
                   }
                   placeholder="Valor pago parcial"
-                  className="rounded-xl bg-black border border-zinc-800 px-3 py-3 md:py-2 text-sm outline-none focus:border-blue-500"
+                  className="input-dark rounded-xl px-3 py-2.5 text-sm outline-none"
                 />
 
                 <button
@@ -333,7 +331,7 @@ export default function CalendarView({
                       noteValue
                     )
                   }
-                  className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-3 md:py-2 text-sm font-semibold transition"
+                  className="rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-cyan-700"
                 >
                   Marcar parcial
                 </button>
@@ -348,7 +346,7 @@ export default function CalendarView({
                   }))
                 }
                 placeholder="Observação da parcela"
-                className="w-full min-h-[80px] rounded-xl bg-black border border-zinc-800 px-3 py-3 text-sm outline-none focus:border-purple-500"
+                className="input-dark mt-2 min-h-[84px] w-full rounded-xl px-3 py-2.5 text-sm outline-none"
               />
 
               <button
@@ -356,7 +354,7 @@ export default function CalendarView({
                 onClick={() =>
                   onMarkPaymentCanceled(event.recordId, eventKey, noteValue)
                 }
-                className="w-full rounded-xl bg-zinc-700 hover:bg-zinc-600 px-4 py-3 md:py-2 text-sm font-semibold transition"
+                className="mt-2 w-full rounded-xl bg-slate-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-600"
               >
                 Cancelar parcela
               </button>
@@ -368,222 +366,286 @@ export default function CalendarView({
   }
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
-      <div className="xl:col-span-2 rounded-3xl border border-zinc-800 bg-zinc-950 p-4 md:p-5 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold">
-              Calendário de pagamentos
-            </h2>
-            <p className="text-sm text-zinc-500 mt-1">
-              No celular, os dias com pagamentos aparecem em lista.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={previousMonth}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 md:py-2 hover:border-purple-500 transition"
-            >
-              ←
-            </button>
-
-            <div className="flex-1 md:flex-none min-w-0 md:min-w-44 text-center rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 md:py-2 font-semibold capitalize text-sm md:text-base">
-              {getMonthName(currentMonth)}
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.45fr_0.75fr]">
+      <div className="space-y-4">
+        <div className="card-dark rounded-2xl p-4">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                Calendário de pagamentos
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Selecione um dia para ver, pagar, atrasar ou editar parcelas.
+              </p>
             </div>
 
-            <button
-              onClick={nextMonth}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 md:py-2 hover:border-purple-500 transition"
-            >
-              →
-            </button>
-          </div>
-        </div>
-
-        <div className="md:hidden space-y-3">
-          {mobileMonthEvents.map((group) => {
-            const isSelected = selectedDate === group.date;
-            const isToday = group.date === today;
-
-            return (
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                key={group.date}
-                type="button"
-                onClick={() => setSelectedDate(group.date)}
-                className={`w-full rounded-2xl border p-4 text-left transition ${
-                  isSelected
-                    ? "border-purple-500 bg-purple-600/20"
-                    : isToday
-                    ? "border-purple-500/40 bg-zinc-900"
-                    : "border-zinc-800 bg-zinc-900"
-                }`}
+                onClick={previousMonth}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/[0.07]"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-bold">{formatDateBR(group.date)}</p>
-                    <p className="text-sm text-zinc-500">
-                      {group.events.length} pagamento(s)
-                    </p>
-                  </div>
-
-                  <strong className="text-purple-200">
-                    {money.format(group.total)}
-                  </strong>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {group.pending > 0 && (
-                    <span className="rounded-full bg-yellow-500/20 text-yellow-200 px-2 py-1 text-xs">
-                      {group.pending} pend.
-                    </span>
-                  )}
-
-                  {group.partial > 0 && (
-                    <span className="rounded-full bg-blue-500/20 text-blue-200 px-2 py-1 text-xs">
-                      {group.partial} parcial
-                    </span>
-                  )}
-
-                  {group.paid > 0 && (
-                    <span className="rounded-full bg-emerald-500/20 text-emerald-200 px-2 py-1 text-xs">
-                      {group.paid} pago
-                    </span>
-                  )}
-
-                  {group.late > 0 && (
-                    <span className="rounded-full bg-red-500/20 text-red-200 px-2 py-1 text-xs">
-                      {group.late} atraso
-                    </span>
-                  )}
-                </div>
+                ←
               </button>
-            );
-          })}
 
-          {mobileMonthEvents.length === 0 && (
-            <div className="text-center text-zinc-500 py-12">
-              Nenhum pagamento neste mês.
+              <div className="min-w-[180px] rounded-xl border border-white/[0.08] bg-[#0a0f1f] px-4 py-2.5 text-center text-sm font-bold capitalize text-white">
+                {getMonthName(currentMonth)}
+              </div>
+
+              <button
+                onClick={nextMonth}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/[0.07]"
+              >
+                →
+              </button>
+
+              <button
+                onClick={goToday}
+                className="rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-purple-700"
+              >
+                Hoje
+              </button>
             </div>
-          )}
+          </div>
         </div>
 
-        <div className="hidden md:block">
-          <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold text-zinc-500">
-            <div>Dom</div>
-            <div>Seg</div>
-            <div>Ter</div>
-            <div>Qua</div>
-            <div>Qui</div>
-            <div>Sex</div>
-            <div>Sáb</div>
-          </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <MiniSummary
+            label="Total do mês"
+            value={money.format(monthSummary.total)}
+            tone="purple"
+          />
 
-          <div className="grid grid-cols-7 gap-2">
-            {monthDays.map((date, index) => {
-              if (!date) {
-                return (
-                  <div
-                    key={`empty-${index}`}
-                    className="min-h-24 rounded-2xl border border-transparent"
-                  />
-                );
-              }
+          <MiniSummary
+            label="Pagas"
+            value={monthSummary.paid}
+            tone="green"
+          />
 
-              const dateString = toISODate(date);
-              const summary = getDaySummary(dateString);
-              const isSelected = selectedDate === dateString;
-              const isToday = dateString === today;
+          <MiniSummary
+            label="Pendentes"
+            value={monthSummary.pending}
+            tone="orange"
+          />
+
+          <MiniSummary
+            label="Atrasadas"
+            value={monthSummary.late}
+            tone="rose"
+          />
+
+          <MiniSummary
+            label="Parciais"
+            value={monthSummary.partial}
+            tone="cyan"
+          />
+        </div>
+
+        <div className="card-dark rounded-2xl p-4">
+          {/* Mobile list */}
+          <div className="space-y-3 md:hidden">
+            {monthEvents.map((day) => {
+              const isSelected = selectedDate === day.date;
+              const isToday = day.date === today;
 
               return (
                 <button
-                  key={dateString}
-                  type="button"
-                  onClick={() => setSelectedDate(dateString)}
-                  className={`min-h-24 rounded-2xl border p-3 text-left transition hover:scale-[1.01] ${
+                  key={day.date}
+                  onClick={() => setSelectedDate(day.date)}
+                  className={`w-full rounded-2xl border p-4 text-left transition ${
                     isSelected
-                      ? "border-purple-500 bg-purple-600/20 shadow-lg shadow-purple-950/30"
+                      ? "border-purple-500/50 bg-purple-500/12"
                       : isToday
-                      ? "border-purple-500/30 bg-zinc-900"
-                      : "border-zinc-800 bg-zinc-900 hover:border-purple-500/60"
+                      ? "border-cyan-500/35 bg-cyan-500/8"
+                      : "border-white/[0.08] bg-white/[0.03]"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-lg font-bold ${
-                        isToday ? "text-purple-300" : "text-white"
-                      }`}
-                    >
-                      {date.getDate()}
-                    </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-white">
+                        {formatDateBR(day.date)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {day.count} parcela(s)
+                      </p>
+                    </div>
 
-                    {summary.count > 0 && (
-                      <span className="rounded-full bg-purple-600 px-2 py-0.5 text-xs">
-                        {summary.count}
+                    <strong className="text-sm text-purple-300">
+                      {money.format(day.total)}
+                    </strong>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {day.pending > 0 && (
+                      <span className="rounded-full bg-orange-500/12 px-2 py-1 text-xs text-orange-300">
+                        {day.pending} pend.
+                      </span>
+                    )}
+
+                    {day.paid > 0 && (
+                      <span className="rounded-full bg-emerald-500/12 px-2 py-1 text-xs text-emerald-300">
+                        {day.paid} pago
+                      </span>
+                    )}
+
+                    {day.late > 0 && (
+                      <span className="rounded-full bg-rose-500/12 px-2 py-1 text-xs text-rose-300">
+                        {day.late} atraso
+                      </span>
+                    )}
+
+                    {day.partial > 0 && (
+                      <span className="rounded-full bg-cyan-500/12 px-2 py-1 text-xs text-cyan-300">
+                        {day.partial} parcial
                       </span>
                     )}
                   </div>
-
-                  {summary.count > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <p className="text-xs text-zinc-400">
-                        {money.format(summary.total)}
-                      </p>
-
-                      <div className="flex flex-wrap gap-1">
-                        {summary.pending > 0 && (
-                          <span className="rounded-full bg-yellow-500/20 text-yellow-200 px-2 py-0.5 text-[10px]">
-                            {summary.pending} pend.
-                          </span>
-                        )}
-
-                        {summary.partial > 0 && (
-                          <span className="rounded-full bg-blue-500/20 text-blue-200 px-2 py-0.5 text-[10px]">
-                            {summary.partial} parcial
-                          </span>
-                        )}
-
-                        {summary.paid > 0 && (
-                          <span className="rounded-full bg-emerald-500/20 text-emerald-200 px-2 py-0.5 text-[10px]">
-                            {summary.paid} pago
-                          </span>
-                        )}
-
-                        {summary.late > 0 && (
-                          <span className="rounded-full bg-red-500/20 text-red-200 px-2 py-0.5 text-[10px]">
-                            {summary.late} atraso
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </button>
               );
             })}
+
+            {monthEvents.length === 0 && (
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-8 text-center text-sm text-slate-500">
+                Nenhum pagamento neste mês.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop calendar */}
+          <div className="hidden md:block">
+            <div className="mb-3 grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-500">
+              <div>Dom</div>
+              <div>Seg</div>
+              <div>Ter</div>
+              <div>Qua</div>
+              <div>Qui</div>
+              <div>Sex</div>
+              <div>Sáb</div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {monthDays.map((date, index) => {
+                if (!date) {
+                  return (
+                    <div
+                      key={`empty-${index}`}
+                      className="min-h-[105px] rounded-xl border border-transparent"
+                    />
+                  );
+                }
+
+                const dateString = toISODate(date);
+                const summary = getDaySummary(dateString);
+                const isSelected = selectedDate === dateString;
+                const isToday = today === dateString;
+
+                return (
+                  <button
+                    key={dateString}
+                    onClick={() => setSelectedDate(dateString)}
+                    className={`min-h-[105px] rounded-xl border p-3 text-left transition hover:border-purple-500/40 ${
+                      isSelected
+                        ? "border-purple-500/50 bg-purple-500/12"
+                        : isToday
+                        ? "border-cyan-500/35 bg-cyan-500/8"
+                        : "border-white/[0.08] bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-sm font-bold ${
+                          isToday ? "text-cyan-300" : "text-white"
+                        }`}
+                      >
+                        {date.getDate()}
+                      </span>
+
+                      {summary.count > 0 && (
+                        <span className="rounded-full bg-purple-600 px-2 py-0.5 text-xs font-bold text-white">
+                          {summary.count}
+                        </span>
+                      )}
+                    </div>
+
+                    {summary.count > 0 && (
+                      <div className="mt-3 space-y-2">
+                        <p className="text-xs font-semibold text-slate-400">
+                          {money.format(summary.total)}
+                        </p>
+
+                        <div className="flex flex-wrap gap-1">
+                          {summary.paid > 0 && (
+                            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                          )}
+                          {summary.pending > 0 && (
+                            <span className="h-2 w-2 rounded-full bg-orange-400" />
+                          )}
+                          {summary.late > 0 && (
+                            <span className="h-2 w-2 rounded-full bg-rose-400" />
+                          )}
+                          {summary.partial > 0 && (
+                            <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                          )}
+                        </div>
+
+                        <div className="text-[10px] text-slate-500">
+                          {summary.pending > 0 && `${summary.pending} pend. `}
+                          {summary.late > 0 && `${summary.late} atraso `}
+                          {summary.partial > 0 && `${summary.partial} parcial`}
+                        </div>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-4 md:p-5 h-fit xl:sticky xl:top-6">
-        <div className="mb-5">
-          <h2 className="text-lg md:text-xl font-bold">
-            {formatDateBR(selectedDate)}
-          </h2>
-          <p className="text-sm text-zinc-500 mt-1">
-            Pendências e pagamentos desse dia.
+      <aside className="card-dark h-fit rounded-2xl p-4 xl:sticky xl:top-5">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-300">
+            Dia selecionado
           </p>
+
+          <h3 className="mt-2 text-xl font-bold text-white">
+            {formatDateBR(selectedDate)}
+          </h3>
+
+          <p className="mt-1 text-sm text-slate-500">
+            {selectedSummary.count} parcela(s) neste dia.
+          </p>
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <MiniSummary
+            label="Total"
+            value={money.format(selectedSummary.total)}
+            tone="purple"
+          />
+
+          <MiniSummary
+            label="Atrasos"
+            value={selectedSummary.late}
+            tone="rose"
+          />
         </div>
 
         <div className="space-y-3">
           {selectedEvents.map(renderPaymentCard)}
 
           {selectedEvents.length === 0 && (
-            <div className="text-center text-zinc-500 py-12">
-              Nenhuma pendência nesse dia.
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-8 text-center">
+              <p className="text-sm font-semibold text-white">
+                Sem pendências
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Não existem pagamentos cadastrados para este dia.
+              </p>
             </div>
           )}
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

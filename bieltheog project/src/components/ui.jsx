@@ -1,18 +1,36 @@
-export function StatCard({ title, value, icon, subtitle }) {
+export function StatCard({ title, value, icon, subtitle, tone = "purple" }) {
+  const tones = {
+    purple: "geex-purple",
+    pink: "geex-pink",
+    cyan: "geex-cyan",
+    green: "geex-green",
+    orange: "geex-orange",
+  };
+
   return (
-    <div className="rounded-2xl shadow-sm border border-zinc-800 bg-zinc-950 text-white">
-      <div className="p-4 md:p-5 flex items-center justify-between gap-3 md:gap-4">
+    <div className="geex-soft-card geex-hover rounded-[1.6rem] p-4 md:p-5">
+      <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs md:text-sm text-zinc-400">{title}</p>
-          <h3 className="text-xl md:text-2xl font-bold mt-1 break-words">
+          <p className="text-xs font-semibold text-slate-400 md:text-sm">
+            {title}
+          </p>
+
+          <h3 className="mt-2 break-words text-xl font-black tracking-tight text-slate-900 md:text-2xl">
             {value}
           </h3>
+
           {subtitle && (
-            <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>
+            <p className="mt-2 text-xs font-medium text-emerald-500">
+              {subtitle}
+            </p>
           )}
         </div>
 
-        <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-purple-600/20 text-purple-300 flex items-center justify-center text-xl md:text-2xl shrink-0">
+        <div
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+            tones[tone] || tones.purple
+          } text-xl text-white shadow-lg`}
+        >
           {icon}
         </div>
       </div>
@@ -22,15 +40,15 @@ export function StatCard({ title, value, icon, subtitle }) {
 
 export function StatusBadge({ status }) {
   const classes = {
-    Ativo: "bg-purple-600/20 border-purple-500/30 text-purple-200",
-    Recebido: "bg-emerald-600/20 border-emerald-500/30 text-emerald-200",
-    Atrasado: "bg-red-600/20 border-red-500/30 text-red-200",
-    Quitado: "bg-emerald-600/20 border-emerald-500/30 text-emerald-200",
+    Ativo: "bg-cyan-50 border-cyan-200 text-cyan-700",
+    Recebido: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    Atrasado: "bg-rose-50 border-rose-200 text-rose-700",
+    Quitado: "bg-emerald-50 border-emerald-200 text-emerald-700",
   };
 
   return (
     <span
-      className={`px-3 py-1 rounded-full text-xs border ${
+      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${
         classes[status] || classes.Ativo
       }`}
     >
@@ -39,17 +57,24 @@ export function StatusBadge({ status }) {
   );
 }
 
-export function TabButton({ active, onClick, children }) {
+export function TabButton({ active, onClick, children, icon, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+      className={`flex shrink-0 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition ${
         active
-          ? "bg-purple-600 text-white"
-          : "bg-zinc-950 text-zinc-400 border border-zinc-800 hover:text-white"
+          ? "geex-purple text-white shadow-lg shadow-purple-200"
+          : "bg-white text-slate-500 hover:bg-purple-50 hover:text-purple-700"
       }`}
     >
-      {children}
+      {icon && <span className="text-lg">{icon}</span>}
+      <span>{children}</span>
+
+      {badge !== undefined && Number(badge) > 0 && (
+        <span className="ml-auto rounded-full bg-rose-500 px-2 py-0.5 text-xs text-white">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -57,7 +82,9 @@ export function TabButton({ active, onClick, children }) {
 export function Field({ label, children }) {
   return (
     <label className="block">
-      <span className="text-sm text-zinc-400 mb-1 block">{label}</span>
+      <span className="mb-1 block text-sm font-bold text-slate-500">
+        {label}
+      </span>
       {children}
     </label>
   );
@@ -65,11 +92,12 @@ export function Field({ label, children }) {
 
 export function Section({ title, description, children }) {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-black/30 p-4 md:p-5 space-y-4">
-      <div>
-        <h3 className="text-base md:text-lg font-bold">{title}</h3>
+    <div className="geex-card rounded-[1.7rem] p-4 md:p-5">
+      <div className="mb-4">
+        <h3 className="text-lg font-black text-slate-900">{title}</h3>
+
         {description && (
-          <p className="text-sm text-zinc-500 mt-1">{description}</p>
+          <p className="mt-1 text-sm text-slate-400">{description}</p>
         )}
       </div>
 
@@ -79,5 +107,13 @@ export function Section({ title, description, children }) {
 }
 
 export function inputClass() {
-  return "w-full rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-purple-500 text-sm md:text-base";
+  return "geex-input w-full rounded-2xl px-4 py-3 text-sm outline-none placeholder:text-slate-300 md:text-base";
+}
+
+export function PremiumCard({ children, className = "" }) {
+  return (
+    <div className={`geex-card rounded-[1.7rem] p-4 md:p-5 ${className}`}>
+      {children}
+    </div>
+  );
 }

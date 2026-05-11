@@ -9,7 +9,6 @@ import ClientsTable from "./components/ClientsTable";
 import LatePayments from "./components/LatePayments";
 import ClientProfile from "./components/ClientProfile";
 import HistoryView from "./components/HistoryView";
-import { TabButton } from "./components/ui";
 
 import { todayISO } from "./utils/helpers";
 import {
@@ -62,8 +61,13 @@ function mapDbRecord(row) {
     semanas: row.semanas || 4,
     diaPagamento: row.dia_pagamento ?? 5,
 
-    diasPagamentoFixos: row.dias_pagamento_fixos || [],
-    parcelasPersonalizadas: row.parcelas_personalizadas || [],
+    diasPagamentoFixos: Array.isArray(row.dias_pagamento_fixos)
+      ? row.dias_pagamento_fixos
+      : [],
+
+    parcelasPersonalizadas: Array.isArray(row.parcelas_personalizadas)
+      ? row.parcelas_personalizadas
+      : [],
 
     multaPercentual: toNumber(row.multa_percentual),
 
@@ -72,7 +76,9 @@ function mapDbRecord(row) {
 
     anexos: row.anexos || {},
     pagamentos: row.pagamentos || {},
-    historicoEmprestimos: row.historico_emprestimos || [],
+    historicoEmprestimos: Array.isArray(row.historico_emprestimos)
+      ? row.historico_emprestimos
+      : [],
 
     createdAt: row.created_at || "",
   };
@@ -195,6 +201,31 @@ function mapFormToDb(form) {
   };
 }
 
+function NavItem({ active, icon, label, badge, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
+        active
+          ? "bg-purple-600 text-white"
+          : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+      }`}
+    >
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg text-sm">
+        {icon}
+      </span>
+
+      <span className="flex-1">{label}</span>
+
+      {badge !== undefined && Number(badge) > 0 && (
+        <span className="rounded-full border border-rose-500/30 bg-rose-500/15 px-2 py-0.5 text-xs text-rose-300">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -224,15 +255,29 @@ export default function App() {
 
   const totals = useMemo(() => calculateTotals(records), [records]);
 
-  const calendarEvents = useMemo(
-    () => buildCalendarEvents(records),
-    [records]
-  );
+  const calendarEvents = useMemo(() => buildCalendarEvents(records), [records]);
 
   const delayedEvents = useMemo(
-    () => calendarEvents.filter((event) => event.statusPagamento === "Atrasado"),
+    () =>
+      calendarEvents.filter(
+        (event) => event.statusPagamento === paymentStatuses.LATE
+      ),
     [calendarEvents]
   );
+
+  const navItems = [
+    { id: "dashboard", label: "Dashboard", icon: "▦" },
+    { id: "clientes", label: "Clientes", icon: "◌" },
+    { id: "calendario", label: "Calendário", icon: "□" },
+    { id: "novo", label: "Novo Cliente", icon: "+" },
+    {
+      id: "atrasados",
+      label: "Atrasados",
+      icon: "!",
+      badge: delayedEvents.length,
+    },
+    { id: "historico", label: "Histórico", icon: "↺" },
+  ];
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -361,18 +406,12 @@ export default function App() {
         return;
       }
 
-      if (
-        form.frequencia === paymentTypes.DAILY &&
-        !form.dataTermino
-      ) {
+      if (form.frequencia === paymentTypes.DAILY && !form.dataTermino) {
         setError("Preencha a data de término da diária.");
         return;
       }
 
-      if (
-        form.frequencia === paymentTypes.FIXED_DATES &&
-        !form.dataTermino
-      ) {
+      if (form.frequencia === paymentTypes.FIXED_DATES && !form.dataTermino) {
         setError("Preencha a data de término das datas fixas.");
         return;
       }
@@ -773,7 +812,9 @@ export default function App() {
     setEditingId(id);
     setSelectedClientId(null);
     setActiveTab("novo");
-    setSuccess("Empréstimo anterior salvo no histórico. Cadastre os novos valores.");
+    setSuccess(
+      "Empréstimo anterior salvo no histórico. Cadastre os novos valores."
+    );
   }
 
   async function removeRecord(id) {
@@ -803,10 +844,20 @@ export default function App() {
     await supabase.auth.signOut();
   }
 
+  function goToTab(tab) {
+    setSelectedClientId(null);
+
+    if (tab === "novo") {
+      resetForm();
+    }
+
+    setActiveTab(tab);
+  }
+
   if (checkingSession) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-zinc-400">Carregando acesso...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#070b16] text-white">
+        <div className="text-slate-400">Carregando acesso...</div>
       </div>
     );
   }
@@ -816,140 +867,207 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white px-3 py-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <p className="text-purple-300 font-medium">Controle privado</p>
+    <div className="app-bg min-h-screen text-white">
+      <div className="flex min-h-screen">
+        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/[0.08] bg-[#080d1a]/95 p-4 lg:block">
+          <div className="flex h-full flex-col">
+            <div className="mb-8 flex items-center gap-3 px-2">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-700 to-purple-400 text-xl font-bold">
+                C
+              </div>
 
-            <h1 className="text-3xl md:text-5xl font-bold tracking-tight">
-              Painel de Clientes e Contas
-            </h1>
-
-            <p className="text-zinc-400 mt-2 max-w-2xl">
-              Cadastro completo, contas editáveis, anexos, multas e calendário
-              de recebimentos.
-            </p>
-          </div>
-
-          <div className="flex flex-col md:items-end gap-2">
-            <div className="px-4 py-2 rounded-full bg-purple-600/20 text-purple-200 border border-purple-500/30 text-sm w-fit">
-              Logado: {session.user.email}
+              <div>
+                <h1 className="text-xl font-bold">
+                  Client<span className="text-purple-400">Control</span>
+                </h1>
+                <p className="text-xs text-slate-500">Painel Administrativo</p>
+              </div>
             </div>
 
-            <button
-              onClick={logout}
-              className="text-sm text-zinc-400 hover:text-white transition w-fit"
-            >
-              Sair
-            </button>
+            <nav className="space-y-1">
+              {navItems.map((item) => (
+                <NavItem
+                  key={item.id}
+                  active={
+                    activeTab === item.id ||
+                    (item.id === "clientes" && activeTab === "ficha")
+                  }
+                  icon={item.icon}
+                  label={item.label}
+                  badge={item.badge}
+                  onClick={() => goToTab(item.id)}
+                />
+              ))}
+            </nav>
+
+            <div className="mt-auto rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-sm font-bold">
+                  A
+                </div>
+
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">
+                    Admin
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {session.user.email}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={logout}
+                className="mt-4 w-full rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                Sair
+              </button>
+            </div>
           </div>
-        </div>
+        </aside>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 md:flex-wrap md:gap-3">
-          <TabButton active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")}>
-            Dashboard
-          </TabButton>
+        <main className="min-w-0 flex-1 p-3 md:p-5">
+          <div className="mx-auto max-w-[1500px] space-y-4">
+            <header className="panel rounded-2xl p-4 lg:hidden">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h1 className="text-xl font-bold">
+                    Client<span className="text-purple-400">Control</span>
+                  </h1>
+                  <p className="text-xs text-slate-500">{session.user.email}</p>
+                </div>
 
-          <TabButton active={activeTab === "calendario"} onClick={() => setActiveTab("calendario")}>
-            Calendário
-          </TabButton>
+                <button
+                  onClick={logout}
+                  className="rounded-xl bg-white/[0.04] px-4 py-2 text-sm font-semibold"
+                >
+                  Sair
+                </button>
+              </div>
 
-          <TabButton
-            active={activeTab === "novo"}
-            onClick={() => {
-              resetForm();
-              setSelectedClientId(null);
-              setActiveTab("novo");
-            }}
-          >
-            Novo cliente
-          </TabButton>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {navItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => goToTab(item.id)}
+                    className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold ${
+                      activeTab === item.id ||
+                      (item.id === "clientes" && activeTab === "ficha")
+                        ? "bg-purple-600 text-white"
+                        : "bg-white/[0.04] text-slate-300"
+                    }`}
+                  >
+                    <span>{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </header>
 
-          <TabButton
-            active={activeTab === "clientes" || activeTab === "ficha"}
-            onClick={() => {
-              setSelectedClientId(null);
-              setActiveTab("clientes");
-            }}
-          >
-            Clientes
-          </TabButton>
+            <div className="panel hidden items-center justify-between rounded-2xl p-5 lg:flex">
+              <div>
+                <h2 className="text-3xl font-bold text-white">
+                  {activeTab === "dashboard" && "Dashboard"}
+                  {activeTab === "calendario" && "Calendário"}
+                  {activeTab === "novo" &&
+                    (editingId ? "Editar cliente" : "Novo cliente")}
+                  {activeTab === "clientes" && "Clientes"}
+                  {activeTab === "ficha" && "Ficha do cliente"}
+                  {activeTab === "atrasados" && "Atrasados"}
+                  {activeTab === "historico" && "Histórico"}
+                </h2>
 
-          <TabButton active={activeTab === "atrasados"} onClick={() => setActiveTab("atrasados")}>
-            Atrasados
-          </TabButton>
+                <p className="mt-1 text-sm text-slate-400">
+                  Bem-vindo de volta. Aqui está o resumo do seu negócio.
+                </p>
+              </div>
 
-          <TabButton active={activeTab === "historico"} onClick={() => setActiveTab("historico")}>
-            Histórico
-          </TabButton>
-        </div>
+              <div className="flex items-center gap-3">
+                <div className="hidden rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-slate-400 xl:block">
+                  Buscar...
+                </div>
 
-        {error && (
-          <div className="rounded-2xl border border-red-500/30 bg-red-600/10 p-4 text-sm text-red-200">
-            {error}
+                <div className="rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-slate-300">
+                  {new Date().toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-200">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+                {success}
+              </div>
+            )}
+
+            {activeTab === "dashboard" && (
+              <Dashboard
+                totals={totals}
+                calendarEvents={calendarEvents}
+                onGoToTab={goToTab}
+              />
+            )}
+
+            {activeTab === "calendario" && (
+              <CalendarView
+                calendarEvents={calendarEvents}
+                onMarkPaymentPaid={markPaymentPaid}
+                onMarkPaymentLate={markPaymentLate}
+                onMarkPaymentPartial={markPaymentPartial}
+                onMarkPaymentCanceled={markPaymentCanceled}
+              />
+            )}
+
+            {activeTab === "novo" && (
+              <ClientForm
+                form={form}
+                setForm={setForm}
+                editingId={editingId}
+                saving={saving}
+                onSubmit={saveRecord}
+                onCancelEdit={resetForm}
+              />
+            )}
+
+            {activeTab === "clientes" && (
+              <ClientsTable
+                filtered={filtered}
+                search={search}
+                setSearch={setSearch}
+                loading={loading}
+                onOpenProfile={openProfile}
+              />
+            )}
+
+            {activeTab === "ficha" && (
+              <ClientProfile
+                client={selectedClient}
+                onBack={closeProfile}
+                onEdit={startEdit}
+                onMarkRecordAsPaid={markRecordAsPaid}
+                onNewLoan={startNewLoan}
+                onRemove={removeRecord}
+              />
+            )}
+
+            {activeTab === "atrasados" && (
+              <LatePayments delayedEvents={delayedEvents} />
+            )}
+
+            {activeTab === "historico" && (
+              <HistoryView records={records} onOpenProfile={openProfile} />
+            )}
           </div>
-        )}
-
-        {success && (
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-600/10 p-4 text-sm text-emerald-200">
-            {success}
-          </div>
-        )}
-
-        {activeTab === "dashboard" && (
-          <Dashboard totals={totals} calendarEvents={calendarEvents} />
-        )}
-
-        {activeTab === "calendario" && (
-          <CalendarView
-            calendarEvents={calendarEvents}
-            onMarkPaymentPaid={markPaymentPaid}
-            onMarkPaymentLate={markPaymentLate}
-            onMarkPaymentPartial={markPaymentPartial}
-            onMarkPaymentCanceled={markPaymentCanceled}
-          />
-        )}
-
-        {activeTab === "novo" && (
-          <ClientForm
-            form={form}
-            setForm={setForm}
-            editingId={editingId}
-            saving={saving}
-            onSubmit={saveRecord}
-            onCancelEdit={resetForm}
-          />
-        )}
-
-        {activeTab === "clientes" && (
-          <ClientsTable
-            filtered={filtered}
-            search={search}
-            setSearch={setSearch}
-            loading={loading}
-            onOpenProfile={openProfile}
-          />
-        )}
-
-        {activeTab === "ficha" && (
-          <ClientProfile
-            client={selectedClient}
-            onBack={closeProfile}
-            onEdit={startEdit}
-            onMarkRecordAsPaid={markRecordAsPaid}
-            onNewLoan={startNewLoan}
-            onRemove={removeRecord}
-          />
-        )}
-
-        {activeTab === "atrasados" && (
-          <LatePayments delayedEvents={delayedEvents} />
-        )}
-
-        {activeTab === "historico" && (
-          <HistoryView records={records} onOpenProfile={openProfile} />
-        )}
+        </main>
       </div>
     </div>
   );
