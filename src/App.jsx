@@ -166,6 +166,7 @@ function mapDbRecord(row) {
       : [],
 
     createdAt: row.created_at || "",
+    updatedAt: row.updated_at || "",
   };
 }
 
@@ -756,50 +757,12 @@ export default function App() {
 
     setError("");
 
-    const previous = records;
-
-    setRecords((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: "Quitado",
-            }
-          : item
-      )
-    );
-
-    const { error } = await supabase
-      .from("registros")
-      .update({
-        status: "Quitado",
-      })
-      .eq("id", id);
-
-    if (error) {
-      setRecords(previous);
-      setError(`Erro ao encerrar ficha: ${error.message}`);
-      return;
-    }
-
-    setSuccess("Ficha marcada como totalmente paga e movida para o histórico.");
-  }
-
-  async function startNewLoan(id) {
-    const confirmed = window.confirm(
-      "Deseja iniciar um novo empréstimo para este cliente? O empréstimo anterior será salvo no histórico da ficha."
-    );
-
-    if (!confirmed) return;
-
-    setError("");
-
     const target = records.find((item) => item.id === id);
     if (!target) return;
 
     const previous = records;
 
-    const previousLoan = {
+    const paidLoan = {
       finalizadoEm: new Date().toISOString(),
       valorEnviado: target.valorEnviado,
       valorReceber: target.valorReceber,
@@ -817,10 +780,50 @@ export default function App() {
       observacao: target.observacao || "",
     };
 
-    const updatedHistory = [
-      ...(target.historicoEmprestimos || []),
-      previousLoan,
-    ];
+    const updatedHistory = [...(target.historicoEmprestimos || []), paidLoan];
+
+    setRecords((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "Quitado",
+              historicoEmprestimos: updatedHistory,
+            }
+          : item
+      )
+    );
+
+    const { error } = await supabase
+      .from("registros")
+      .update({
+        status: "Quitado",
+        historico_emprestimos: updatedHistory,
+      })
+      .eq("id", id);
+
+    if (error) {
+      setRecords(previous);
+      setError(`Erro ao encerrar ficha: ${error.message}`);
+      return;
+    }
+
+    setSuccess("Ficha marcada como totalmente paga e salva no histórico.");
+  }
+
+  async function startNewLoan(id) {
+    const confirmed = window.confirm(
+      "Deseja iniciar um novo empréstimo para este cliente? O empréstimo atual será limpo, mas só irá para o histórico quando for quitado."
+    );
+
+    if (!confirmed) return;
+
+    setError("");
+
+    const target = records.find((item) => item.id === id);
+    if (!target) return;
+
+    const previous = records;
 
     const cleanLoanData = {
       status: "Ativo",
@@ -836,7 +839,6 @@ export default function App() {
       parcelas_personalizadas: [],
       multa_percentual: 0,
       pagamentos: {},
-      historico_emprestimos: updatedHistory,
     };
 
     setRecords((prev) =>
@@ -857,7 +859,6 @@ export default function App() {
               parcelasPersonalizadas: [],
               multaPercentual: 0,
               pagamentos: {},
-              historicoEmprestimos: updatedHistory,
             }
           : item
       )
@@ -889,7 +890,6 @@ export default function App() {
       parcelasPersonalizadas: [],
       multaPercentual: 0,
       pagamentos: {},
-      historicoEmprestimos: updatedHistory,
     };
 
     setForm({
@@ -910,7 +910,7 @@ export default function App() {
     setSelectedClientId(null);
     setActiveTab("novo");
     setSuccess(
-      "Empréstimo anterior salvo no histórico. Cadastre os novos valores."
+      "Novo empréstimo iniciado. Ele só será salvo no histórico quando for quitado."
     );
   }
 
@@ -935,6 +935,51 @@ export default function App() {
       setRecords(previous);
       setError(`Erro ao excluir: ${error.message}`);
     }
+  }
+
+  async function removeHistoryLoan(clientId, loanIndex) {
+    const confirmed = window.confirm(
+      "Tem certeza que deseja apagar esta ficha do histórico? Essa ação não pode ser desfeita."
+    );
+
+    if (!confirmed) return;
+
+    setError("");
+
+    const target = records.find((item) => item.id === clientId);
+    if (!target) return;
+
+    const previous = records;
+
+    const updatedHistory = (target.historicoEmprestimos || []).filter(
+      (_loan, index) => index !== loanIndex
+    );
+
+    setRecords((prev) =>
+      prev.map((item) =>
+        item.id === clientId
+          ? {
+              ...item,
+              historicoEmprestimos: updatedHistory,
+            }
+          : item
+      )
+    );
+
+    const { error } = await supabase
+      .from("registros")
+      .update({
+        historico_emprestimos: updatedHistory,
+      })
+      .eq("id", clientId);
+
+    if (error) {
+      setRecords(previous);
+      setError(`Erro ao apagar ficha do histórico: ${error.message}`);
+      return;
+    }
+
+    setSuccess("Ficha apagada do histórico com sucesso.");
   }
 
   async function logout() {
@@ -1189,7 +1234,11 @@ export default function App() {
             )}
 
             {activeTab === "historico" && (
-              <HistoryView records={records} onOpenProfile={openProfile} />
+              <HistoryView
+                records={records}
+                onOpenProfile={openProfile}
+                onRemoveHistoryLoan={removeHistoryLoan}
+              />
             )}
           </div>
         </main>

@@ -12,9 +12,7 @@ function Field({ label, children, hint }) {
       <span className="mb-1.5 block text-sm font-semibold text-slate-300">
         {label}
       </span>
-
       {children}
-
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
   );
@@ -27,7 +25,6 @@ function Section({ title, subtitle, children }) {
         <h3 className="text-base font-bold text-white">{title}</h3>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
-
       {children}
     </div>
   );
@@ -148,10 +145,6 @@ export default function ClientForm({
     }));
   }
 
-  function updateAddressField(name, value) {
-    updateField(name, value);
-  }
-
   function setFrequency(frequency) {
     setForm((prev) => ({
       ...prev,
@@ -168,9 +161,7 @@ export default function ClientForm({
 
   function toggleFixedDay(day) {
     const dayString = String(day);
-
     const current = normalizeFixedDays(safeForm.diasPagamentoFixos);
-
     const exists = current.includes(dayString);
 
     const next = exists
@@ -352,7 +343,7 @@ export default function ClientForm({
           <Field label="CEP">
             <input
               value={safeForm.cep}
-              onChange={(e) => updateAddressField("cep", e.target.value)}
+              onChange={(e) => updateField("cep", e.target.value)}
               className={inputClass()}
               placeholder="00000-000"
             />
@@ -361,7 +352,7 @@ export default function ClientForm({
           <Field label="Endereço">
             <input
               value={safeForm.endereco}
-              onChange={(e) => updateAddressField("endereco", e.target.value)}
+              onChange={(e) => updateField("endereco", e.target.value)}
               className={inputClass()}
               placeholder="Rua, avenida..."
             />
@@ -370,7 +361,7 @@ export default function ClientForm({
           <Field label="Número">
             <input
               value={safeForm.numero}
-              onChange={(e) => updateAddressField("numero", e.target.value)}
+              onChange={(e) => updateField("numero", e.target.value)}
               className={inputClass()}
               placeholder="Nº"
             />
@@ -379,7 +370,7 @@ export default function ClientForm({
           <Field label="Complemento">
             <input
               value={safeForm.complemento}
-              onChange={(e) => updateAddressField("complemento", e.target.value)}
+              onChange={(e) => updateField("complemento", e.target.value)}
               className={inputClass()}
               placeholder="Casa, apto..."
             />
@@ -388,7 +379,7 @@ export default function ClientForm({
           <Field label="Bairro">
             <input
               value={safeForm.bairro}
-              onChange={(e) => updateAddressField("bairro", e.target.value)}
+              onChange={(e) => updateField("bairro", e.target.value)}
               className={inputClass()}
               placeholder="Bairro"
             />
@@ -397,7 +388,7 @@ export default function ClientForm({
           <Field label="Cidade">
             <input
               value={safeForm.cidade}
-              onChange={(e) => updateAddressField("cidade", e.target.value)}
+              onChange={(e) => updateField("cidade", e.target.value)}
               className={inputClass()}
               placeholder="Cidade"
             />
@@ -406,7 +397,7 @@ export default function ClientForm({
           <Field label="Estado">
             <input
               value={safeForm.estado}
-              onChange={(e) => updateAddressField("estado", e.target.value)}
+              onChange={(e) => updateField("estado", e.target.value)}
               className={inputClass()}
               placeholder="UF"
             />
@@ -440,39 +431,36 @@ export default function ClientForm({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Field label="Valor enviado/pedido">
               <input
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={safeForm.valorEnviado}
                 onChange={(e) => updateField("valorEnviado", e.target.value)}
                 className={inputClass()}
-                placeholder="Ex: 500"
+                placeholder="Ex: 500 ou 500,50"
               />
             </Field>
 
-            <Field label="% de retorno">
+            <Field label="% de retorno" hint="Agora aceita vírgula. Ex: 85,4">
               <input
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={safeForm.porcentagemRetorno}
                 onChange={(e) =>
                   updateField("porcentagemRetorno", e.target.value)
                 }
                 className={inputClass()}
-                placeholder="Ex: 30"
+                placeholder="Ex: 85,4"
               />
             </Field>
 
-            <Field label="Multa por atraso (%)">
+            <Field label="Multa por atraso (% ao dia)" hint="Ex: 7 ou 7,5">
               <input
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={safeForm.multaPercentual}
                 onChange={(e) => updateField("multaPercentual", e.target.value)}
                 className={inputClass()}
-                placeholder="Ex: 10"
+                placeholder="Ex: 7"
               />
             </Field>
 
@@ -656,9 +644,8 @@ export default function ClientForm({
                 />
 
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   value={customValue}
                   onChange={(e) => setCustomValue(e.target.value)}
                   className={inputClass()}
@@ -697,9 +684,8 @@ export default function ClientForm({
                     />
 
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={item.value}
                       onChange={(e) =>
                         updateCustomInstallment(item.id, "value", e.target.value)
