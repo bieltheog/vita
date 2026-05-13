@@ -13,6 +13,16 @@ export const paymentStatuses = {
   CANCELED: "Cancelado",
 };
 
+export const weekDays = [
+  { value: 0, label: "Domingo", short: "Dom" },
+  { value: 1, label: "Segunda-feira", short: "Seg" },
+  { value: 2, label: "Terça-feira", short: "Ter" },
+  { value: 3, label: "Quarta-feira", short: "Qua" },
+  { value: 4, label: "Quinta-feira", short: "Qui" },
+  { value: 5, label: "Sexta-feira", short: "Sex" },
+  { value: 6, label: "Sábado", short: "Sáb" },
+];
+
 export const emptyForm = {
   nome: "",
   whatsapp: "",
@@ -32,6 +42,7 @@ export const emptyForm = {
   dataTermino: "",
   semanas: "4",
   diaPagamento: "5",
+  diasFolgaDiario: [0],
   diasPagamentoFixos: ["15", "30"],
   parcelasPersonalizadas: [],
   multaPercentual: "0",
@@ -103,9 +114,7 @@ export function normalizePaymentType(value) {
     raw === "data fixa" ||
     raw === "fixed dates" ||
     raw === "fixed date" ||
-    raw === "fixed dates" ||
     raw === "fixeddates" ||
-    raw === "fixed dates" ||
     raw === "fixed" ||
     raw === "dias fixos" ||
     raw === "dia fixo"
@@ -123,6 +132,27 @@ export function normalizePaymentType(value) {
   }
 
   return value || paymentTypes.DAILY;
+}
+
+export function normalizeDailyOffDays(value) {
+  if (!Array.isArray(value)) return [0];
+
+  const days = value
+    .map((day) => Number(day))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+
+  return Array.from(new Set(days)).sort((a, b) => a - b);
+}
+
+export function getDailyOffDaysLabel(value) {
+  const days = normalizeDailyOffDays(value);
+
+  if (days.length === 0) return "Nenhum dia de folga";
+
+  return days
+    .map((day) => weekDays.find((item) => item.value === day)?.short)
+    .filter(Boolean)
+    .join(", ");
 }
 
 function parseISODate(dateString) {
@@ -149,10 +179,6 @@ function addDays(date, amount) {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + amount);
   return copy;
-}
-
-function isSunday(date) {
-  return date.getDay() === 0;
 }
 
 function enumerateDates(start, end) {
@@ -221,7 +247,12 @@ function buildDailyEntries(record) {
 
   if (!start || !end || end < start) return [];
 
-  const validDates = enumerateDates(start, end).filter((date) => !isSunday(date));
+  const offDays = normalizeDailyOffDays(record.diasFolgaDiario);
+
+  const validDates = enumerateDates(start, end).filter(
+    (date) => !offDays.includes(date.getDay())
+  );
+
   const amounts = distributeAmounts(toNumber(record.valorReceber), validDates.length);
 
   return validDates.map((date, index) => ({
@@ -229,6 +260,7 @@ function buildDailyEntries(record) {
     amount: roundMoney(amounts[index] || 0),
     index,
     label: "Diária",
+    diasFolgaDiario: offDays,
   }));
 }
 
@@ -453,6 +485,8 @@ export function buildCalendarEvents(records = []) {
         typeLabel: entry.label,
         descricao: entry.descricao || paymentState.observacao || "",
         observacao: paymentState.observacao || "",
+
+        diasFolgaDiario: entry.diasFolgaDiario || record.diasFolgaDiario || [],
 
         recordStatus: record.status || "Ativo",
         createdAt: record.createdAt || "",

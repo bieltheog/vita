@@ -9,6 +9,8 @@ import {
   paymentStatuses,
   getClientRisk,
   getClientMetrics,
+  getDailyOffDaysLabel,
+  normalizePaymentType,
 } from "../utils/calculations";
 
 function normalizeEvent(event) {
@@ -127,21 +129,17 @@ function getPaymentDescription(client) {
     return "Sem empréstimo atual";
   }
 
-  if (client.frequencia === paymentTypes.DAILY || client.frequencia === "Diario") {
-    return `Diário · ${formatDateBR(client.dataInicio)} até ${formatDateBR(
-      client.dataTermino
-    )}`;
+  const frequency = normalizePaymentType(client.frequencia);
+
+  if (frequency === paymentTypes.DAILY) {
+    return `Diário · folga: ${getDailyOffDaysLabel(client.diasFolgaDiario)}`;
   }
 
-  if (client.frequencia === paymentTypes.WEEKLY) {
+  if (frequency === paymentTypes.WEEKLY) {
     return `Semanal · ${client.semanas || 0} semana(s)`;
   }
 
-  if (
-    client.frequencia === paymentTypes.FIXED_DATES ||
-    String(client.frequencia || "").toLowerCase() === "datas fixas" ||
-    String(client.frequencia || "").toLowerCase() === "datas fixas"
-  ) {
+  if (frequency === paymentTypes.FIXED_DATES) {
     const dias = Array.isArray(client.diasPagamentoFixos)
       ? client.diasPagamentoFixos
       : [];
@@ -149,7 +147,7 @@ function getPaymentDescription(client) {
     return `Datas fixas · dias ${dias.join(", ") || "-"}`;
   }
 
-  if (client.frequencia === paymentTypes.CUSTOM) {
+  if (frequency === paymentTypes.CUSTOM) {
     const parcelas = Array.isArray(client.parcelasPersonalizadas)
       ? client.parcelasPersonalizadas
       : [];
@@ -161,11 +159,13 @@ function getPaymentDescription(client) {
 }
 
 function getLoanEndLabel(client) {
-  if (client.frequencia === paymentTypes.WEEKLY) {
+  const frequency = normalizePaymentType(client.frequencia);
+
+  if (frequency === paymentTypes.WEEKLY) {
     return `${client.semanas || 0} semana(s)`;
   }
 
-  if (client.frequencia === paymentTypes.CUSTOM) {
+  if (frequency === paymentTypes.CUSTOM) {
     const parcelas = Array.isArray(client.parcelasPersonalizadas)
       ? client.parcelasPersonalizadas
       : [];
@@ -244,6 +244,9 @@ export default function ClientProfile({
 
   const safeClient = {
     ...client,
+    diasFolgaDiario: Array.isArray(client.diasFolgaDiario)
+      ? client.diasFolgaDiario
+      : [0],
     diasPagamentoFixos: Array.isArray(client.diasPagamentoFixos)
       ? client.diasPagamentoFixos
       : [],
@@ -260,6 +263,8 @@ export default function ClientProfile({
     anexos:
       client.anexos && typeof client.anexos === "object" ? client.anexos : {},
   };
+
+  const frequency = normalizePaymentType(safeClient.frequencia);
 
   const eventos = useMemo(
     () => (buildCalendarEvents([safeClient]) || []).map(normalizeEvent),
@@ -482,21 +487,28 @@ export default function ClientProfile({
 
                 <DetailLine label="Término" value={getLoanEndLabel(safeClient)} />
 
-                {safeClient.frequencia === paymentTypes.FIXED_DATES && (
+                {frequency === paymentTypes.DAILY && (
+                  <DetailLine
+                    label="Folgas do diário"
+                    value={getDailyOffDaysLabel(safeClient.diasFolgaDiario)}
+                  />
+                )}
+
+                {frequency === paymentTypes.FIXED_DATES && (
                   <DetailLine
                     label="Dias fixos"
                     value={safeClient.diasPagamentoFixos.join(", ") || "-"}
                   />
                 )}
 
-                {safeClient.frequencia === paymentTypes.WEEKLY && (
+                {frequency === paymentTypes.WEEKLY && (
                   <DetailLine
                     label="Quantidade de semanas"
                     value={`${safeClient.semanas || 0} semana(s)`}
                   />
                 )}
 
-                {safeClient.frequencia !== paymentTypes.CUSTOM && (
+                {frequency !== paymentTypes.CUSTOM && (
                   <>
                     <DetailLine
                       label="Valor médio da parcela"
@@ -510,7 +522,7 @@ export default function ClientProfile({
                   </>
                 )}
 
-                {safeClient.frequencia === paymentTypes.CUSTOM && (
+                {frequency === paymentTypes.CUSTOM && (
                   <DetailLine
                     label="Parcelas personalizadas"
                     value={`${safeClient.parcelasPersonalizadas.length} parcela(s)`}
@@ -537,33 +549,10 @@ export default function ClientProfile({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <InfoCard
-                  title="Pagas"
-                  value={pagos.length}
-                  subtitle="quitadas"
-                  tone="green"
-                />
-
-                <InfoCard
-                  title="Pendentes"
-                  value={pendentes.length}
-                  subtitle="aguardando"
-                  tone="orange"
-                />
-
-                <InfoCard
-                  title="Parciais"
-                  value={parciais.length}
-                  subtitle="pagamento parcial"
-                  tone="amber"
-                />
-
-                <InfoCard
-                  title="Atrasadas"
-                  value={atrasados.length}
-                  subtitle={money.format(metrics.totalLateCurrent || 0)}
-                  tone="red"
-                />
+                <InfoCard title="Pagas" value={pagos.length} subtitle="quitadas" tone="green" />
+                <InfoCard title="Pendentes" value={pendentes.length} subtitle="aguardando" tone="orange" />
+                <InfoCard title="Parciais" value={parciais.length} subtitle="pagamento parcial" tone="amber" />
+                <InfoCard title="Atrasadas" value={atrasados.length} subtitle={money.format(metrics.totalLateCurrent || 0)} tone="red" />
               </div>
             </div>
           </SectionCard>
@@ -571,10 +560,7 @@ export default function ClientProfile({
       )}
 
       {activeSection === "dados" && (
-        <SectionCard
-          title="Dados pessoais"
-          subtitle="Informações de contato e endereço do cliente."
-        >
+        <SectionCard title="Dados pessoais" subtitle="Informações de contato e endereço do cliente.">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <DetailLine label="Nome" value={safeClient.nome} />
             <DetailLine label="WhatsApp" value={safeClient.whatsapp} />
@@ -682,30 +668,18 @@ export default function ClientProfile({
       )}
 
       {activeSection === "documentos" && (
-        <SectionCard
-          title="Documentos"
-          subtitle="Arquivos anexados na ficha do cliente."
-        >
+        <SectionCard title="Documentos" subtitle="Arquivos anexados na ficha do cliente.">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <DocumentCard label="Extrato" file={safeClient.anexos?.extrato} />
-            <DocumentCard
-              label="Comprovante de residência"
-              file={safeClient.anexos?.comprovanteResidencia}
-            />
-            <DocumentCard
-              label="Identidade"
-              file={safeClient.anexos?.identidade}
-            />
+            <DocumentCard label="Comprovante de residência" file={safeClient.anexos?.comprovanteResidencia} />
+            <DocumentCard label="Identidade" file={safeClient.anexos?.identidade} />
             <DocumentCard label="Outros" file={safeClient.anexos?.outros} />
           </div>
         </SectionCard>
       )}
 
       {activeSection === "historico" && (
-        <SectionCard
-          title="Histórico de empréstimos"
-          subtitle="Empréstimos anteriores salvos deste cliente."
-        >
+        <SectionCard title="Histórico de empréstimos" subtitle="Empréstimos anteriores salvos deste cliente.">
           <div className="space-y-3">
             {historicoEmprestimos.map((loan, index) => (
               <div
@@ -732,23 +706,18 @@ export default function ClientProfile({
                         ? ` · fim ${formatDateBR(loan.dataTermino)}`
                         : ""}
                     </p>
+
+                    {normalizePaymentType(loan?.frequencia) === paymentTypes.DAILY && (
+                      <p className="mt-1 text-sm text-orange-300">
+                        Folga: {getDailyOffDaysLabel(loan?.diasFolgaDiario || [0])}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
-                    <DetailLine
-                      label="Enviado"
-                      value={money.format(loan?.valorEnviado || 0)}
-                    />
-
-                    <DetailLine
-                      label="Recebido"
-                      value={money.format(loan?.valorReceber || 0)}
-                    />
-
-                    <DetailLine
-                      label="Lucro"
-                      value={money.format(loan?.lucro || 0)}
-                    />
+                    <DetailLine label="Enviado" value={money.format(loan?.valorEnviado || 0)} />
+                    <DetailLine label="Recebido" value={money.format(loan?.valorReceber || 0)} />
+                    <DetailLine label="Lucro" value={money.format(loan?.lucro || 0)} />
                   </div>
                 </div>
               </div>

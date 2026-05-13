@@ -4,6 +4,9 @@ import {
   calculateReceivable,
   paymentTypes,
   toNumber,
+  weekDays,
+  normalizeDailyOffDays,
+  getDailyOffDaysLabel,
 } from "../utils/calculations";
 
 function Field({ label, children, hint }) {
@@ -12,7 +15,9 @@ function Field({ label, children, hint }) {
       <span className="mb-1.5 block text-sm font-semibold text-slate-300">
         {label}
       </span>
+
       {children}
+
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
   );
@@ -25,6 +30,7 @@ function Section({ title, subtitle, children }) {
         <h3 className="text-base font-bold text-white">{title}</h3>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
+
       {children}
     </div>
   );
@@ -107,6 +113,7 @@ export default function ClientForm({
   const safeForm = {
     ...form,
     abrirConta: form.abrirConta !== false,
+    diasFolgaDiario: normalizeDailyOffDays(form.diasFolgaDiario || [0]),
     diasPagamentoFixos: Array.isArray(form.diasPagamentoFixos)
       ? form.diasPagamentoFixos
       : ["15", "30"],
@@ -149,6 +156,10 @@ export default function ClientForm({
     setForm((prev) => ({
       ...prev,
       frequencia: frequency,
+      diasFolgaDiario:
+        frequency === paymentTypes.DAILY
+          ? normalizeDailyOffDays(prev.diasFolgaDiario || [0])
+          : prev.diasFolgaDiario,
       diasPagamentoFixos:
         frequency === paymentTypes.FIXED_DATES
           ? normalizeFixedDays(prev.diasPagamentoFixos).length > 0
@@ -157,6 +168,27 @@ export default function ClientForm({
           : prev.diasPagamentoFixos,
       dataInicio: prev.dataInicio || todayISO(),
     }));
+  }
+
+  function toggleDailyOffDay(day) {
+    const dayNumber = Number(day);
+    const current = normalizeDailyOffDays(safeForm.diasFolgaDiario);
+    const exists = current.includes(dayNumber);
+
+    const next = exists
+      ? current.filter((item) => item !== dayNumber)
+      : [...current, dayNumber];
+
+    if (next.length >= 7) {
+      alert("Não é possível deixar todos os dias como folga.");
+      return;
+    }
+
+    updateField("diasFolgaDiario", normalizeDailyOffDays(next));
+  }
+
+  function setDailyPreset(days) {
+    updateField("diasFolgaDiario", normalizeDailyOffDays(days));
   }
 
   function toggleFixedDay(day) {
@@ -295,8 +327,8 @@ export default function ClientForm({
         />
 
         <SummaryCard
-          label="Parcelas personalizadas"
-          value={safeForm.parcelasPersonalizadas.length}
+          label="Folgas do diário"
+          value={getDailyOffDaysLabel(safeForm.diasFolgaDiario)}
           tone="slate"
         />
       </div>
@@ -440,7 +472,7 @@ export default function ClientForm({
               />
             </Field>
 
-            <Field label="% de retorno" hint="Agora aceita vírgula. Ex: 85,4">
+            <Field label="% de retorno" hint="Aceita vírgula. Ex: 85,4">
               <input
                 type="text"
                 inputMode="decimal"
@@ -484,7 +516,7 @@ export default function ClientForm({
       {safeForm.abrirConta && (
         <Section
           title="Plano de pagamento"
-          subtitle="Escolha como o cliente vai pagar. Para pagar dia 15 e 30, use Datas Fixas."
+          subtitle="Escolha como o cliente vai pagar. No Diário, agora você escolhe os dias de folga."
         >
           <div className="mb-5 grid grid-cols-2 gap-2 md:grid-cols-4">
             <ToggleButton
@@ -568,6 +600,73 @@ export default function ClientForm({
               </>
             )}
           </div>
+
+          {safeForm.frequencia === paymentTypes.DAILY && (
+            <div className="mt-5 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-4">
+              <div className="mb-4">
+                <h4 className="text-sm font-bold text-white">
+                  Dias de folga do diário
+                </h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  Escolha os dias em que não haverá cobrança diária. Antes o sistema ignorava só domingo; agora você escolhe.
+                </p>
+              </div>
+
+              <div className="mb-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDailyPreset([0])}
+                  className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/[0.08]"
+                >
+                  Só domingo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDailyPreset([0, 6])}
+                  className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/[0.08]"
+                >
+                  Sábado e domingo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDailyPreset([])}
+                  className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/[0.08]"
+                >
+                  Sem folga
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                {weekDays.map((day) => {
+                  const selected = safeForm.diasFolgaDiario.includes(day.value);
+
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => toggleDailyOffDay(day.value)}
+                      className={`rounded-xl px-3 py-3 text-sm font-bold transition ${
+                        selected
+                          ? "bg-orange-500 text-white"
+                          : "border border-white/[0.08] bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                      }`}
+                    >
+                      {day.short}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-white/[0.08] bg-[#0d1016] p-3">
+                <p className="text-xs text-slate-500">Folgas escolhidas</p>
+                <p className="mt-1 text-sm font-bold text-orange-300">
+                  {getDailyOffDaysLabel(safeForm.diasFolgaDiario)}
+                </p>
+              </div>
+            </div>
+          )}
 
           {safeForm.frequencia === paymentTypes.FIXED_DATES && (
             <div className="mt-5 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-4">

@@ -21,6 +21,7 @@ import {
   paymentTypes,
   paymentStatuses,
   isPaymentSettled,
+  normalizeDailyOffDays,
 } from "./utils/calculations";
 
 function NavIcon({ children, active = false }) {
@@ -146,6 +147,8 @@ function mapDbRecord(row) {
     semanas: row.semanas || 4,
     diaPagamento: row.dia_pagamento ?? 5,
 
+    diasFolgaDiario: normalizeDailyOffDays(row.dias_folga_diario || [0]),
+
     diasPagamentoFixos: Array.isArray(row.dias_pagamento_fixos)
       ? row.dias_pagamento_fixos
       : [],
@@ -193,6 +196,8 @@ function mapRecordToForm(record) {
     semanas: String(record.semanas || 4),
     diaPagamento: String(record.diaPagamento ?? 5),
 
+    diasFolgaDiario: normalizeDailyOffDays(record.diasFolgaDiario || [0]),
+
     diasPagamentoFixos:
       record.diasPagamentoFixos && record.diasPagamentoFixos.length > 0
         ? record.diasPagamentoFixos.map(String)
@@ -222,6 +227,8 @@ function mapFormToDb(form) {
   const diasPagamentoFixos = (form.diasPagamentoFixos || [])
     .map((day) => Math.floor(toNumber(day)))
     .filter((day) => day >= 1 && day <= 31);
+
+  const diasFolgaDiario = normalizeDailyOffDays(form.diasFolgaDiario || [0]);
 
   const parcelasPersonalizadas = (form.parcelasPersonalizadas || [])
     .map((item) => ({
@@ -270,6 +277,11 @@ function mapFormToDb(form) {
         ? toNumber(form.diaPagamento)
         : null,
 
+    dias_folga_diario:
+      abrirConta && form.frequencia === paymentTypes.DAILY
+        ? diasFolgaDiario
+        : [0],
+
     dias_pagamento_fixos:
       abrirConta && form.frequencia === paymentTypes.FIXED_DATES
         ? diasPagamentoFixos
@@ -286,7 +298,6 @@ function mapFormToDb(form) {
     observacao: form.observacao.trim(),
   };
 }
-
 function getPageTitle(activeTab, editingId) {
   if (activeTab === "dashboard") return "Dashboard";
   if (activeTab === "calendario") return "Calendário";
@@ -506,6 +517,14 @@ export default function App() {
 
       if (form.frequencia === paymentTypes.DAILY && !form.dataTermino) {
         setError("Preencha a data de término da diária.");
+        return;
+      }
+
+      if (
+        form.frequencia === paymentTypes.DAILY &&
+        normalizeDailyOffDays(form.diasFolgaDiario || []).length >= 7
+      ) {
+        setError("No diário, não é possível deixar todos os dias como folga.");
         return;
       }
 
@@ -773,6 +792,7 @@ export default function App() {
       dataTermino: target.dataTermino,
       semanas: target.semanas,
       diaPagamento: target.diaPagamento,
+      diasFolgaDiario: target.diasFolgaDiario || [0],
       diasPagamentoFixos: target.diasPagamentoFixos || [],
       parcelasPersonalizadas: target.parcelasPersonalizadas || [],
       multaPercentual: target.multaPercentual,
@@ -835,6 +855,7 @@ export default function App() {
       data_termino: null,
       semanas: null,
       dia_pagamento: null,
+      dias_folga_diario: [0],
       dias_pagamento_fixos: [],
       parcelas_personalizadas: [],
       multa_percentual: 0,
@@ -855,6 +876,7 @@ export default function App() {
               dataTermino: "",
               semanas: 4,
               diaPagamento: 5,
+              diasFolgaDiario: [0],
               diasPagamentoFixos: [],
               parcelasPersonalizadas: [],
               multaPercentual: 0,
@@ -886,6 +908,7 @@ export default function App() {
       dataTermino: "",
       semanas: 4,
       diaPagamento: 5,
+      diasFolgaDiario: [0],
       diasPagamentoFixos: ["15", "30"],
       parcelasPersonalizadas: [],
       multaPercentual: 0,
@@ -900,6 +923,7 @@ export default function App() {
       dataTermino: "",
       semanas: "4",
       diaPagamento: "5",
+      diasFolgaDiario: [0],
       diasPagamentoFixos: ["15", "30"],
       parcelasPersonalizadas: [],
       multaPercentual: "0",
