@@ -33,6 +33,59 @@ export async function createClientAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function updateClientAction(formData: FormData) {
+  const { supabase, user } = await authContext();
+  const clientId = text(formData, "client_id");
+  const name = text(formData, "name");
+  if (!clientId) throw new Error("Cliente não identificado.");
+  if (!name) throw new Error("Informe o nome do cliente.");
+
+  const { data: current, error: findError } = await supabase
+    .from("clients")
+    .select("id,name,cpf,phone,whatsapp,email,birth_date,address,city,state,zipcode,profession,notes")
+    .eq("id", clientId)
+    .eq("user_id", user.id)
+    .single();
+  if (findError || !current) throw findError || new Error("Cliente não encontrado.");
+
+  const updates = {
+    name,
+    cpf: nullable(text(formData, "cpf")),
+    phone: nullable(text(formData, "phone")),
+    whatsapp: nullable(text(formData, "whatsapp")),
+    email: nullable(text(formData, "email")),
+    birth_date: nullable(text(formData, "birth_date")),
+    address: nullable(text(formData, "address")),
+    city: nullable(text(formData, "city")),
+    state: nullable(text(formData, "state")).toUpperCase?.() || null,
+    zipcode: nullable(text(formData, "zipcode")),
+    profession: nullable(text(formData, "profession")),
+    notes: nullable(text(formData, "notes")),
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from("clients")
+    .update(updates)
+    .eq("id", clientId)
+    .eq("user_id", user.id);
+  if (error) throw error;
+
+  await supabase.from("activity_logs").insert({
+    user_id: user.id,
+    entity_type: "client",
+    entity_id: clientId,
+    action: "updated",
+    old_data: current,
+    new_data: updates,
+    description: `Cadastro de ${name} atualizado.`,
+  });
+
+  revalidatePath("/clientes");
+  revalidatePath(`/clientes/${clientId}`);
+  revalidatePath("/dashboard");
+}
+
 export async function createLoanAction(formData: FormData) {
   const { supabase, user } = await authContext();
   const clientId = text(formData, "client_id");
