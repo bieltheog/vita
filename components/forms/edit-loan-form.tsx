@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Pencil, X } from "lucide-react";
-import { updateLoanAction } from "@/app/actions";
+import { updateLoanAction } from "@/app/loan-actions";
 import { calculateLoan, money, splitInstallments } from "@/lib/finance";
 import type { Loan } from "@/lib/types";
 
