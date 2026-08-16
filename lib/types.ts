@@ -1,5 +1,7 @@
 export type PaymentStatus = "PENDENTE" | "PAGO" | "ATRASADO" | "PARCIAL" | "REAGENDADO" | "CANCELADO";
 export type LoanStatus = "ATIVO" | "FINALIZADO" | "CANCELADO";
+export type FixedScheduleRule = { type: "DAY_OF_MONTH" | "BUSINESS_DAY"; value: number };
+export type FixedSchedule = { rules: FixedScheduleRule[] };
 
 export interface Client {
   id: string;
@@ -35,6 +37,7 @@ export interface Loan {
   start_date: string;
   first_due_date: string;
   daily_off_days?: number[] | null;
+  fixed_schedule?: FixedSchedule | null;
   status: LoanStatus;
   created_at: string;
   client?: Pick<Client, "id" | "name"> | null;
