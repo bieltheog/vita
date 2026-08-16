@@ -57,7 +57,7 @@ export async function updateClientAction(formData: FormData) {
     birth_date: nullable(text(formData, "birth_date")),
     address: nullable(text(formData, "address")),
     city: nullable(text(formData, "city")),
-    state: nullable(text(formData, "state")).toUpperCase?.() || null,
+    state: nullable(text(formData, "state").toUpperCase()),
     zipcode: nullable(text(formData, "zipcode")),
     profession: nullable(text(formData, "profession")),
     notes: nullable(text(formData, "notes")),
