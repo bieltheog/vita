@@ -58,8 +58,9 @@ git push -u origin main
 
 1. Importe o repositório GitHub na Vercel.
 2. Configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `NEXT_PUBLIC_APP_URL`.
-3. Faça Deploy.
-4. No Supabase Auth, configure o domínio final da Vercel nas URLs permitidas para recuperação de senha.
+3. Aplique essas três variáveis aos ambientes **Production** e **Preview**.
+4. Faça Deploy.
+5. No Supabase Auth, configure o domínio final da Vercel nas URLs permitidas para recuperação de senha.
 
 Cada push na branch conectada pode gerar um novo deploy automaticamente.
 
