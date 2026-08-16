@@ -64,21 +64,12 @@ export async function updateClientAction(formData: FormData) {
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
-    .from("clients")
-    .update(updates)
-    .eq("id", clientId)
-    .eq("user_id", user.id);
+  const { error } = await supabase.from("clients").update(updates).eq("id", clientId).eq("user_id", user.id);
   if (error) throw error;
 
   await supabase.from("activity_logs").insert({
-    user_id: user.id,
-    entity_type: "client",
-    entity_id: clientId,
-    action: "updated",
-    old_data: current,
-    new_data: updates,
-    description: `Cadastro de ${name} atualizado.`,
+    user_id: user.id, entity_type: "client", entity_id: clientId, action: "updated",
+    old_data: current, new_data: updates, description: `Cadastro de ${name} atualizado.`,
   });
 
   revalidatePath("/clientes");
@@ -92,10 +83,20 @@ export async function createLoanAction(formData: FormData) {
   const principal = num(formData, "principal_amount");
   const calculationType = (text(formData, "calculation_type") || "percentage") as "percentage" | "fixed";
   const returnValue = num(formData, "return_value");
-  const installmentCount = Math.max(1, Math.floor(num(formData, "installment_count") || 1));
+  let installmentCount = Math.max(1, Math.floor(num(formData, "installment_count") || 1));
   const frequency = text(formData, "payment_frequency") || "MENSAL";
   const startDate = text(formData, "start_date");
-  const firstDueDate = text(formData, "first_due_date");
+  const customDate1 = text(formData, "custom_due_date_1");
+  const customDate2 = text(formData, "custom_due_date_2");
+  let firstDueDate = text(formData, "first_due_date");
+
+  if (!['UNICO','DIARIO','SEMANAL','QUINZENAL','MENSAL','PERSONALIZADO'].includes(frequency)) throw new Error("Forma de pagamento inválida.");
+  if (frequency === "PERSONALIZADO") {
+    installmentCount = 2;
+    firstDueDate = customDate1;
+    if (!customDate1 || !customDate2) throw new Error("Escolha a data das duas parcelas.");
+    if (customDate2 < customDate1) throw new Error("A segunda parcela não pode vencer antes da primeira.");
+  }
   if (!clientId || principal <= 0 || !startDate || !firstDueDate) throw new Error("Preencha os campos obrigatórios do empréstimo.");
 
   const calc = calculateLoan(principal, calculationType, returnValue);
@@ -107,7 +108,7 @@ export async function createLoanAction(formData: FormData) {
   }).select("id,loan_code").single();
   if (error) throw error;
 
-  const dates = generateDueDates(firstDueDate, frequency, installmentCount);
+  const dates = frequency === "PERSONALIZADO" ? [customDate1, customDate2] : generateDueDates(firstDueDate, frequency, installmentCount);
   const values = splitInstallments(calc.totalReceivable, installmentCount);
   const { error: installmentsError } = await supabase.from("installments").insert(dates.map((dueDate, index) => ({
     user_id: user.id, loan_id: loan.id, client_id: clientId, installment_number: index + 1,
@@ -116,7 +117,10 @@ export async function createLoanAction(formData: FormData) {
   })));
   if (installmentsError) throw installmentsError;
 
-  await supabase.from("activity_logs").insert({ user_id: user.id, entity_type: "loan", entity_id: loan.id, action: "created", description: `Empréstimo ${loan.loan_code} criado.` });
+  await supabase.from("activity_logs").insert({
+    user_id: user.id, entity_type: "loan", entity_id: loan.id, action: "created",
+    new_data: { frequency, dates, installmentCount }, description: `Empréstimo ${loan.loan_code} criado.`,
+  });
   ["/dashboard", "/emprestimos", "/pagamentos", "/calendario", `/clientes/${clientId}`].forEach((path) => revalidatePath(path));
 }
 
