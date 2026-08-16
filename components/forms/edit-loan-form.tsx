@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Pencil, X } from "lucide-react";
 import { updateLoanAction } from "@/app/loan-actions";
 import { calculateLoan, money, splitInstallments } from "@/lib/finance";
+import { DailyOffDays } from "@/components/forms/daily-off-days";
 import type { Installment, Loan } from "@/lib/types";
 
 export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installments?: Installment[] }) {
@@ -18,10 +19,12 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   const [type, setType] = useState<"percentage" | "fixed">(initialType);
   const [count, setCount] = useState(Number(loan.installment_count));
   const [frequency,setFrequency]=useState(loan.payment_frequency);
+  const [dailyOffDays,setDailyOffDays]=useState<number[]>((loan.daily_off_days || []).map(Number));
   const [firstDueDate,setFirstDueDate]=useState(loan.first_due_date);
   const [customDate1,setCustomDate1]=useState(sorted[0]?.due_date || loan.first_due_date || "");
   const [customDate2,setCustomDate2]=useState(sorted[1]?.due_date || "");
   const custom=frequency==="PERSONALIZADO";
+  const daily=frequency==="DIARIO";
   const displayCount=custom?2:count;
 
   const calc = useMemo(() => calculateLoan(principal || 0, type, returnValue || 0), [principal, type, returnValue]);
@@ -46,7 +49,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
         <div><h2>Editar empréstimo</h2><div className="muted" style={{fontSize:12}}>{loan.loan_code} · {loan.client?.name || "Cliente"}</div></div>
         <button className="icon-btn" onClick={() => setOpen(false)}><X size={17}/></button>
       </div>
-      <div className="alert" style={{marginTop:14}}>Ao salvar uma edição sem pagamentos, as parcelas e o calendário são sincronizados. Se já houver pagamento registrado, valores e datas ficam protegidos para preservar o histórico.</div>
+      <div className="alert" style={{marginTop:14}}>Ao salvar uma edição sem pagamentos, as parcelas e o calendário são sincronizados. Se já houver pagamento registrado, valores, datas e dias de folga ficam protegidos para preservar o histórico.</div>
       <form action={submit} className="form-grid" style={{marginTop:14}}>
         <input type="hidden" name="loan_id" value={loan.id}/>
         <div className="field"><label>Valor emprestado *</label><input className="input" name="principal_amount" type="number" min="0.01" step="0.01" value={principal} onChange={e=>setPrincipal(Number(e.target.value))} required/></div>
@@ -58,9 +61,11 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
           <div className="field"><label>Data da 1ª parcela *</label><input className="input" name="custom_due_date_1" type="date" value={customDate1} onChange={e=>setCustomDate1(e.target.value)} required/></div>
           <div className="field"><label>Data da 2ª parcela *</label><input className="input" name="custom_due_date_2" type="date" value={customDate2} onChange={e=>setCustomDate2(e.target.value)} required/></div>
         </>:<div className="field"><label>Número de parcelas</label><input className="input" name="installment_count" type="number" min="1" value={count} onChange={e=>setCount(Math.max(1, Number(e.target.value)))}/></div>}
+        {daily&&<DailyOffDays selected={dailyOffDays} onChange={setDailyOffDays}/>} 
         <div className="field"><label>Status</label><select className="select" name="status" defaultValue={loan.status}><option value="ATIVO">Ativo</option><option value="FINALIZADO">Finalizado</option><option value="CANCELADO">Cancelado</option></select></div>
         <div className="field"><label>Data do empréstimo *</label><input className="input" name="start_date" type="date" defaultValue={loan.start_date} required/></div>
         {!custom&&<div className="field"><label>Primeiro pagamento *</label><input className="input" name="first_due_date" type="date" value={firstDueDate} onChange={e=>setFirstDueDate(e.target.value)} required/></div>}
+        {daily&&<div className="field full"><div className="alert">Os dias de folga são retirados da sequência diária. As parcelas continuam existindo e os vencimentos seguintes avançam para os próximos dias permitidos.</div></div>}
         {custom&&<div className="field full"><div className="alert">As duas datas escolhidas serão exatamente os vencimentos mostrados no calendário.</div></div>}
         <div className="field full"><div className="card" style={{background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(calc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(calc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted" style={{fontSize:12}}>{displayCount}x de aproximadamente <strong style={{color:"white"}}>{money(values[0] || 0)}</strong></div></div></div>
         {error && <div className="field full"><div className="alert">{error}</div></div>}
