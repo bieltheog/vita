@@ -34,6 +34,7 @@ export interface Loan {
   installment_count: number;
   start_date: string;
   first_due_date: string;
+  daily_off_days?: number[] | null;
   status: LoanStatus;
   created_at: string;
   client?: Pick<Client, "id" | "name"> | null;
