@@ -64,7 +64,7 @@ export async function createLoanAction(formData: FormData) {
   if (installmentsError) throw installmentsError;
 
   await supabase.from("activity_logs").insert({ user_id: user.id, entity_type: "loan", entity_id: loan.id, action: "created", description: `Empréstimo ${loan.loan_code} criado.` });
-  ["/dashboard", "/emprestimos", "/pagamentos", "/calendario", `/clientes/${clientId}`].forEach(revalidatePath);
+  ["/dashboard", "/emprestimos", "/pagamentos", "/calendario", `/clientes/${clientId}`].forEach((path) => revalidatePath(path));
 }
 
 export async function registerPaymentAction(formData: FormData) {
@@ -85,7 +85,7 @@ export async function registerPaymentAction(formData: FormData) {
   }).select("id").single();
   if (error) throw error;
   await supabase.from("activity_logs").insert({ user_id: user.id, entity_type: "payment", entity_id: payment.id, action: "created", description: `Pagamento de R$ ${amount.toFixed(2)} registrado.` });
-  ["/dashboard", "/pagamentos", "/calendario", "/fluxo-caixa", "/relatorios", `/clientes/${installment.client_id}`].forEach(revalidatePath);
+  ["/dashboard", "/pagamentos", "/calendario", "/fluxo-caixa", "/relatorios", `/clientes/${installment.client_id}`].forEach((path) => revalidatePath(path));
 }
 
 export async function rescheduleInstallmentAction(formData: FormData) {
@@ -98,5 +98,5 @@ export async function rescheduleInstallmentAction(formData: FormData) {
   const { error } = await supabase.from("installments").update({ due_date: newDate, stored_status: "REAGENDADO" }).eq("id", id);
   if (error) throw error;
   await supabase.from("activity_logs").insert({ user_id: user.id, entity_type: "installment", entity_id: id, action: "rescheduled", old_data: { due_date: old.due_date }, new_data: { due_date: newDate, reason }, description: `Pagamento reagendado de ${old.due_date} para ${newDate}. ${reason}` });
-  ["/calendario", "/pagamentos", "/dashboard", `/clientes/${old.client_id}`].forEach(revalidatePath);
+  ["/calendario", "/pagamentos", "/dashboard", `/clientes/${old.client_id}`].forEach((path) => revalidatePath(path));
 }
