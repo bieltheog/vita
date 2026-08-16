@@ -91,3 +91,5 @@ npm run build
 ```
 
 Recomenda-se também adicionar testes automatizados para cálculos, pagamentos parciais, estornos e regras de vencimento antes de usar com dados financeiros reais.
+
+<!-- redeploy: validar variáveis Vercel após configuração -->
