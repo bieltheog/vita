@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calculateLoan, generateDueDates, generateFixedDueDates, splitInstallments } from "@/lib/finance";
-import type { FixedSchedule, FixedScheduleRule } from "@/lib/types";
+import { calculateLoan, generateDueDates, splitInstallments } from "@/lib/finance";
 
 async function authContext() {
   const supabase = await createClient();
@@ -23,28 +22,26 @@ const sameDays = (a: number[] | null | undefined, b: number[]) => {
   return left.length === b.length && left.every((day,index)=>day===b[index]);
 };
 
-function getFixedRules(form: FormData, frequency: string): FixedScheduleRule[] {
+type ManualFixedInstallment = { date: string; amount: number };
+function getManualFixedInstallments(form: FormData, frequency: string, count: number): ManualFixedInstallment[] {
   if (frequency !== "DATAS_FIXAS") return [];
-  const rules: FixedScheduleRule[] = [];
-  for (const index of [1,2]) {
-    const type = text(form, `fixed_rule_${index}_type`);
-    if (!type || type === "NONE") continue;
-    const value = Math.floor(num(form, `fixed_rule_${index}_value`));
-    if (type !== "DAY_OF_MONTH" && type !== "BUSINESS_DAY") throw new Error("Regra de data fixa inválida.");
-    if (type === "DAY_OF_MONTH" && (value < 1 || value > 31)) throw new Error("O dia do mês precisa estar entre 1 e 31.");
-    if (type === "BUSINESS_DAY" && (value < 1 || value > 23)) throw new Error("O dia útil precisa estar entre o 1º e o 23º dia útil do mês.");
-    rules.push({ type, value });
+  const rows=Array.from({length:count},(_,index)=>({
+    date:text(form,`fixed_due_date_${index}`),
+    amount:num(form,`fixed_amount_${index}`),
+  }));
+  rows.forEach((row,index)=>{
+    if(!row.date) throw new Error(`Informe a data da parcela ${index+1}.`);
+    if(row.amount<=0) throw new Error(`Informe um valor válido para a parcela ${index+1}.`);
+    if(index>0 && row.date<=rows[index-1].date) throw new Error("As datas das parcelas devem estar em ordem crescente e não podem se repetir.");
+  });
+  return rows;
+}
+function validateFixedTotal(rows: ManualFixedInstallment[], total: number) {
+  if (!rows.length) return;
+  const configured=rows.reduce((sum,row)=>sum+row.amount,0);
+  if (Math.round(configured*100)!==Math.round(total*100)) {
+    throw new Error(`A soma das parcelas precisa ser igual ao total a receber. Total esperado: R$ ${total.toFixed(2).replace(".",",")}.`);
   }
-  if (!rules.length) throw new Error("Configure pelo menos uma regra para as datas fixas.");
-  return rules;
-}
-
-function normalizeSchedule(schedule: FixedSchedule | null | undefined) {
-  const rules = Array.isArray(schedule?.rules) ? schedule!.rules : [];
-  return rules.map(rule => ({type:rule.type,value:Number(rule.value)}));
-}
-function sameSchedule(a: FixedSchedule | null | undefined, b: FixedScheduleRule[]) {
-  return JSON.stringify(normalizeSchedule(a)) === JSON.stringify(b.map(rule=>({type:rule.type,value:Number(rule.value)})));
 }
 
 export async function updateLoanAction(formData: FormData) {
@@ -56,7 +53,6 @@ export async function updateLoanAction(formData: FormData) {
   let installmentCount = Math.max(1, Math.floor(num(formData, "installment_count") || 1));
   const frequency = text(formData, "payment_frequency") || "MENSAL";
   const dailyOffDays = getDailyOffDays(formData, frequency);
-  const fixedRules = getFixedRules(formData, frequency);
   const startDate = text(formData, "start_date");
   const customDate1 = text(formData, "custom_due_date_1");
   const customDate2 = text(formData, "custom_due_date_2");
@@ -65,6 +61,8 @@ export async function updateLoanAction(formData: FormData) {
 
   if (!['UNICO','DIARIO','SEMANAL','QUINZENAL','MENSAL','DATAS_FIXAS','PERSONALIZADO'].includes(frequency)) throw new Error("Forma de pagamento inválida.");
   if (frequency === "DIARIO" && dailyOffDays.length >= 7) throw new Error("Escolha pelo menos um dia da semana com cobrança.");
+  const manualFixed=getManualFixedInstallments(formData,frequency,installmentCount);
+  if (frequency === "DATAS_FIXAS") firstDueDate=manualFixed[0]?.date || "";
   if (frequency === "PERSONALIZADO") {
     installmentCount = 2;
     firstDueDate = customDate1;
@@ -84,24 +82,28 @@ export async function updateLoanAction(formData: FormData) {
 
   const { data: existing, error: installmentsError } = await supabase
     .from("installments")
-    .select("id,installment_number,due_date")
+    .select("id,installment_number,due_date,amount")
     .eq("loan_id", loanId)
     .eq("user_id", user.id)
     .order("installment_number");
   if (installmentsError) throw installmentsError;
 
+  const calc = calculateLoan(principal, calculationType, returnValue);
+  validateFixedTotal(manualFixed,calc.totalReceivable);
   const currentType: "percentage" | "fixed" = current.fixed_return_amount != null ? "fixed" : "percentage";
   const currentReturn = currentType === "fixed" ? Number(current.fixed_return_amount || 0) : Number(current.return_percentage || 0);
   const requestedDates = frequency === "PERSONALIZADO"
     ? [customDate1, customDate2]
     : frequency === "DATAS_FIXAS"
-      ? generateFixedDueDates(firstDueDate, installmentCount, fixedRules)
+      ? manualFixed.map(row=>row.date)
       : generateDueDates(firstDueDate, frequency, installmentCount, dailyOffDays);
+  const requestedValues = frequency === "DATAS_FIXAS"
+    ? manualFixed.map(row=>row.amount)
+    : splitInstallments(calc.totalReceivable,installmentCount);
   const currentDates = (existing || []).map(row => row.due_date);
+  const currentValues = (existing || []).map(row => Number(row.amount));
   const datesChanged = requestedDates.length !== currentDates.length || requestedDates.some((date, index) => date !== currentDates[index]);
-  const fixedScheduleChanged = frequency === "DATAS_FIXAS"
-    ? !sameSchedule(current.fixed_schedule as FixedSchedule | null, fixedRules)
-    : normalizeSchedule(current.fixed_schedule as FixedSchedule | null).length > 0;
+  const valuesChanged = requestedValues.length !== currentValues.length || requestedValues.some((value,index)=>Math.abs(value-currentValues[index])>0.005);
   const structuralChanged =
     Math.abs(Number(current.principal_amount) - principal) > 0.0001 ||
     currentType !== calculationType ||
@@ -111,8 +113,7 @@ export async function updateLoanAction(formData: FormData) {
     current.start_date !== startDate ||
     current.first_due_date !== firstDueDate ||
     !sameDays(current.daily_off_days, dailyOffDays) ||
-    fixedScheduleChanged ||
-    datesChanged;
+    datesChanged || valuesChanged;
 
   const { data: paymentRows, error: paymentError } = await supabase
     .from("payments")
@@ -133,8 +134,6 @@ export async function updateLoanAction(formData: FormData) {
     const { error } = await supabase.from("loans").update({ status, updated_at: now }).eq("id", loanId).eq("user_id", user.id);
     if (error) throw error;
   } else {
-    const calc = calculateLoan(principal, calculationType, returnValue);
-    const fixedSchedule = frequency === "DATAS_FIXAS" ? {rules: fixedRules} : {};
     const updates = {
       principal_amount: calc.principal,
       return_percentage: calc.returnPercentage,
@@ -146,7 +145,7 @@ export async function updateLoanAction(formData: FormData) {
       start_date: startDate,
       first_due_date: firstDueDate,
       daily_off_days: dailyOffDays,
-      fixed_schedule: fixedSchedule,
+      fixed_schedule: {},
       status,
       updated_at: now,
     };
@@ -154,7 +153,6 @@ export async function updateLoanAction(formData: FormData) {
     const { error: updateError } = await supabase.from("loans").update(updates).eq("id", loanId).eq("user_id", user.id);
     if (updateError) throw updateError;
 
-    const values = splitInstallments(calc.totalReceivable, installmentCount);
     const byNumber = new Map((existing || []).map(row => [Number(row.installment_number), row.id]));
 
     for (let index = 0; index < installmentCount; index++) {
@@ -163,9 +161,9 @@ export async function updateLoanAction(formData: FormData) {
         client_id: current.client_id,
         due_date: requestedDates[index],
         original_due_date: requestedDates[index],
-        amount: values[index],
+        amount: requestedValues[index],
         amount_paid: 0,
-        remaining_amount: values[index],
+        remaining_amount: requestedValues[index],
         stored_status: status === "CANCELADO" ? "CANCELADO" : "PENDENTE",
         paid_at: null,
         updated_at: now,
@@ -182,9 +180,9 @@ export async function updateLoanAction(formData: FormData) {
           installment_number: installmentNumber,
           due_date: requestedDates[index],
           original_due_date: requestedDates[index],
-          amount: values[index],
+          amount: requestedValues[index],
           amount_paid: 0,
-          remaining_amount: values[index],
+          remaining_amount: requestedValues[index],
           stored_status: status === "CANCELADO" ? "CANCELADO" : "PENDENTE",
         });
         if (error) throw error;
@@ -206,7 +204,7 @@ export async function updateLoanAction(formData: FormData) {
     entity_id: loanId,
     action: "updated",
     old_data: current,
-    new_data: { principal, calculationType, returnValue, installmentCount, frequency, dailyOffDays, fixedRules, startDate, firstDueDate, customDate1, customDate2, status },
+    new_data: { principal, calculationType, returnValue, installmentCount, frequency, dailyOffDays, requestedDates, requestedValues, startDate, firstDueDate, status },
     description: `Empréstimo ${current.loan_code} atualizado e calendário sincronizado.`,
   });
 
