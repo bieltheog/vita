@@ -3,6 +3,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Plus, X } from "lucide-react";
 import { createLoanAction } from "@/app/actions";
 import { calculateLoan, money, splitInstallments } from "@/lib/finance";
+import { DailyOffDays } from "@/components/forms/daily-off-days";
 import type { Client } from "@/lib/types";
 
 export function LoanForm({ clients, demo=false }: { clients: Client[]; demo?: boolean }) {
@@ -14,9 +15,11 @@ export function LoanForm({ clients, demo=false }: { clients: Client[]; demo?: bo
   const [type,setType]=useState<"percentage"|"fixed">("percentage");
   const [count,setCount]=useState(5);
   const [frequency,setFrequency]=useState("MENSAL");
+  const [dailyOffDays,setDailyOffDays]=useState<number[]>([0]);
   const [customDate1,setCustomDate1]=useState("");
   const [customDate2,setCustomDate2]=useState("");
   const custom=frequency==="PERSONALIZADO";
+  const daily=frequency==="DIARIO";
   const displayCount=custom?2:count;
   const calc=useMemo(()=>calculateLoan(principal||0,type,returnValue||0),[principal,type,returnValue]);
   const installments=splitInstallments(calc.totalReceivable,displayCount||1);
@@ -41,11 +44,11 @@ export function LoanForm({ clients, demo=false }: { clients: Client[]; demo?: bo
           <input type="hidden" name="installment_count" value="2"/><input type="hidden" name="first_due_date" value={customDate1}/>
           <div className="field"><label>Data da 1ª parcela *</label><input className="input" name="custom_due_date_1" type="date" value={customDate1} onChange={e=>setCustomDate1(e.target.value)} required/></div>
           <div className="field"><label>Data da 2ª parcela *</label><input className="input" name="custom_due_date_2" type="date" value={customDate2} onChange={e=>setCustomDate2(e.target.value)} required/></div>
-        </>:<>
-          <div className="field"><label>Número de parcelas</label><input className="input" name="installment_count" type="number" min="1" value={count} onChange={e=>setCount(Math.max(1,Number(e.target.value)))}/></div>
-        </>}
+        </>:<div className="field"><label>Número de parcelas</label><input className="input" name="installment_count" type="number" min="1" value={count} onChange={e=>setCount(Math.max(1,Number(e.target.value)))}/></div>}
+        {daily&&<DailyOffDays selected={dailyOffDays} onChange={setDailyOffDays}/>} 
         <div className="field"><label>Data do empréstimo *</label><input className="input" name="start_date" type="date" required/></div>
         {!custom&&<div className="field"><label>Primeiro pagamento *</label><input className="input" name="first_due_date" type="date" required/></div>}
+        {daily&&<div className="field full"><div className="alert">No modo diário, os dias marcados acima são pulados. Ex.: se domingo estiver marcado, nenhuma parcela diária vence no domingo.</div></div>}
         {custom&&<div className="field full"><div className="alert">Datas fixas: o empréstimo terá exatamente 2 parcelas, nas duas datas escolhidas acima.</div></div>}
         <div className="field full"><div className="card" style={{background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(calc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(calc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted" style={{fontSize:12}}>{displayCount}x de aproximadamente <strong style={{color:"white"}}>{money(installments[0]||0)}</strong></div></div></div>
         {error&&<div className="field full"><div className="alert">{error}</div></div>}
