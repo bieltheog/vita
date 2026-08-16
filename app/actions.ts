@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calculateLoan, generateDueDates, splitInstallments } from "@/lib/finance";
+import { calculateLoan, generateDueDates, generateFixedDueDates, splitInstallments } from "@/lib/finance";
+import type { FixedScheduleRule } from "@/lib/types";
 
 async function authContext() {
   const supabase = await createClient();
@@ -18,6 +19,22 @@ const nullable = (value: string) => value || null;
 const getDailyOffDays = (form: FormData, frequency: string) => frequency === "DIARIO"
   ? Array.from(new Set(form.getAll("daily_off_days").map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6))).sort((a,b)=>a-b)
   : [];
+
+function getFixedRules(form: FormData, frequency: string): FixedScheduleRule[] {
+  if (frequency !== "DATAS_FIXAS") return [];
+  const rules: FixedScheduleRule[] = [];
+  for (const index of [1,2]) {
+    const type = text(form, `fixed_rule_${index}_type`);
+    if (!type || type === "NONE") continue;
+    const value = Math.floor(num(form, `fixed_rule_${index}_value`));
+    if (type !== "DAY_OF_MONTH" && type !== "BUSINESS_DAY") throw new Error("Regra de data fixa inválida.");
+    if (type === "DAY_OF_MONTH" && (value < 1 || value > 31)) throw new Error("O dia do mês precisa estar entre 1 e 31.");
+    if (type === "BUSINESS_DAY" && (value < 1 || value > 23)) throw new Error("O dia útil precisa estar entre o 1º e o 23º dia útil do mês.");
+    rules.push({ type, value });
+  }
+  if (!rules.length) throw new Error("Configure pelo menos uma regra para as datas fixas.");
+  return rules;
+}
 
 export async function createClientAction(formData: FormData) {
   const { supabase, user } = await authContext();
@@ -89,12 +106,13 @@ export async function createLoanAction(formData: FormData) {
   let installmentCount = Math.max(1, Math.floor(num(formData, "installment_count") || 1));
   const frequency = text(formData, "payment_frequency") || "MENSAL";
   const dailyOffDays = getDailyOffDays(formData, frequency);
+  const fixedRules = getFixedRules(formData, frequency);
   const startDate = text(formData, "start_date");
   const customDate1 = text(formData, "custom_due_date_1");
   const customDate2 = text(formData, "custom_due_date_2");
   let firstDueDate = text(formData, "first_due_date");
 
-  if (!['UNICO','DIARIO','SEMANAL','QUINZENAL','MENSAL','PERSONALIZADO'].includes(frequency)) throw new Error("Forma de pagamento inválida.");
+  if (!['UNICO','DIARIO','SEMANAL','QUINZENAL','MENSAL','DATAS_FIXAS','PERSONALIZADO'].includes(frequency)) throw new Error("Forma de pagamento inválida.");
   if (frequency === "DIARIO" && dailyOffDays.length >= 7) throw new Error("Escolha pelo menos um dia da semana com cobrança.");
   if (frequency === "PERSONALIZADO") {
     installmentCount = 2;
@@ -105,15 +123,21 @@ export async function createLoanAction(formData: FormData) {
   if (!clientId || principal <= 0 || !startDate || !firstDueDate) throw new Error("Preencha os campos obrigatórios do empréstimo.");
 
   const calc = calculateLoan(principal, calculationType, returnValue);
+  const fixedSchedule = frequency === "DATAS_FIXAS" ? { rules: fixedRules } : {};
   const { data: loan, error } = await supabase.from("loans").insert({
     user_id: user.id, client_id: clientId, principal_amount: calc.principal,
     return_percentage: calc.returnPercentage, fixed_return_amount: calculationType === "fixed" ? returnValue : null,
     expected_profit: calc.expectedProfit, total_receivable: calc.totalReceivable, payment_frequency: frequency,
-    installment_count: installmentCount, start_date: startDate, first_due_date: firstDueDate, daily_off_days: dailyOffDays, status: "ATIVO",
+    installment_count: installmentCount, start_date: startDate, first_due_date: firstDueDate, daily_off_days: dailyOffDays,
+    fixed_schedule: fixedSchedule, status: "ATIVO",
   }).select("id,loan_code").single();
   if (error) throw error;
 
-  const dates = frequency === "PERSONALIZADO" ? [customDate1, customDate2] : generateDueDates(firstDueDate, frequency, installmentCount, dailyOffDays);
+  const dates = frequency === "PERSONALIZADO"
+    ? [customDate1, customDate2]
+    : frequency === "DATAS_FIXAS"
+      ? generateFixedDueDates(firstDueDate, installmentCount, fixedRules)
+      : generateDueDates(firstDueDate, frequency, installmentCount, dailyOffDays);
   const values = splitInstallments(calc.totalReceivable, installmentCount);
   const { error: installmentsError } = await supabase.from("installments").insert(dates.map((dueDate, index) => ({
     user_id: user.id, loan_id: loan.id, client_id: clientId, installment_number: index + 1,
@@ -124,7 +148,7 @@ export async function createLoanAction(formData: FormData) {
 
   await supabase.from("activity_logs").insert({
     user_id: user.id, entity_type: "loan", entity_id: loan.id, action: "created",
-    new_data: { frequency, dates, installmentCount, dailyOffDays }, description: `Empréstimo ${loan.loan_code} criado.`,
+    new_data: { frequency, dates, installmentCount, dailyOffDays, fixedSchedule }, description: `Empréstimo ${loan.loan_code} criado.`,
   });
   ["/dashboard", "/emprestimos", "/pagamentos", "/calendario", `/clientes/${clientId}`].forEach((path) => revalidatePath(path));
 }
