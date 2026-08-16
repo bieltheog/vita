@@ -41,12 +41,26 @@ export function generateDueDates(
   firstDueDate: string,
   frequency: string,
   count: number,
+  dailyOffDays: number[] = [],
 ) {
   const first = parseISO(firstDueDate);
+
+  if (frequency === "DIARIO") {
+    const offDays = new Set(dailyOffDays.filter(day => Number.isInteger(day) && day >= 0 && day <= 6));
+    if (offDays.size >= 7) throw new Error("O pagamento diário precisa ter pelo menos um dia de cobrança na semana.");
+
+    const dates: string[] = [];
+    let date = first;
+    while (dates.length < count) {
+      if (!offDays.has(date.getDay())) dates.push(format(date, "yyyy-MM-dd"));
+      date = addDays(date, 1);
+    }
+    return dates;
+  }
+
   return Array.from({ length: count }, (_, i) => {
     let date = first;
-    if (frequency === "DIARIO") date = addDays(first, i);
-    else if (frequency === "SEMANAL") date = addWeeks(first, i);
+    if (frequency === "SEMANAL") date = addWeeks(first, i);
     else if (frequency === "QUINZENAL") date = addDays(first, i * 15);
     else if (frequency === "MENSAL") date = addMonths(first, i);
     else if (frequency === "UNICO") date = first;
