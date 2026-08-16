@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { Plus, X } from "lucide-react";
-import { createLoanAction } from "@/app/actions";
+import { createLoanFormAction } from "@/app/loan-form-actions";
 import { calculateLoan, money, splitInstallments } from "@/lib/finance";
 import { DailyOffDays } from "@/components/forms/daily-off-days";
 import { ManualFixedInstallments, type ManualFixedRow } from "@/components/forms/manual-fixed-installments";
@@ -44,7 +44,11 @@ export function LoanForm({ clients, demo=false }: { clients: Client[]; demo?: bo
 
   async function submit(formData:FormData){
     setError("");
-    start(async()=>{try{await createLoanAction(formData);setOpen(false)}catch(e){setError(e instanceof Error?e.message:"Erro ao criar empréstimo")}})
+    start(async()=>{
+      const result=await createLoanFormAction(formData);
+      if(!result.ok){setError(result.error);return;}
+      setOpen(false);
+    });
   }
 
   return <>
