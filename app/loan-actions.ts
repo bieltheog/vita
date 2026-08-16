@@ -14,6 +14,13 @@ async function authContext() {
 
 const text = (form: FormData, key: string) => String(form.get(key) || "").trim();
 const num = (form: FormData, key: string) => Number(String(form.get(key) || "0").replace(",", "."));
+const getDailyOffDays = (form: FormData, frequency: string) => frequency === "DIARIO"
+  ? Array.from(new Set(form.getAll("daily_off_days").map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6))).sort((a,b)=>a-b)
+  : [];
+const sameDays = (a: number[] | null | undefined, b: number[]) => {
+  const left = [...(a || [])].map(Number).sort((x,y)=>x-y);
+  return left.length === b.length && left.every((day,index)=>day===b[index]);
+};
 
 export async function updateLoanAction(formData: FormData) {
   const { supabase, user } = await authContext();
@@ -23,6 +30,7 @@ export async function updateLoanAction(formData: FormData) {
   const returnValue = num(formData, "return_value");
   let installmentCount = Math.max(1, Math.floor(num(formData, "installment_count") || 1));
   const frequency = text(formData, "payment_frequency") || "MENSAL";
+  const dailyOffDays = getDailyOffDays(formData, frequency);
   const startDate = text(formData, "start_date");
   const customDate1 = text(formData, "custom_due_date_1");
   const customDate2 = text(formData, "custom_due_date_2");
@@ -30,6 +38,7 @@ export async function updateLoanAction(formData: FormData) {
   const status = text(formData, "status") || "ATIVO";
 
   if (!['UNICO','DIARIO','SEMANAL','QUINZENAL','MENSAL','PERSONALIZADO'].includes(frequency)) throw new Error("Forma de pagamento inválida.");
+  if (frequency === "DIARIO" && dailyOffDays.length >= 7) throw new Error("Escolha pelo menos um dia da semana com cobrança.");
   if (frequency === "PERSONALIZADO") {
     installmentCount = 2;
     firstDueDate = customDate1;
@@ -41,7 +50,7 @@ export async function updateLoanAction(formData: FormData) {
 
   const { data: current, error: findError } = await supabase
     .from("loans")
-    .select("id,client_id,loan_code,principal_amount,return_percentage,fixed_return_amount,expected_profit,total_receivable,payment_frequency,installment_count,start_date,first_due_date,status")
+    .select("id,client_id,loan_code,principal_amount,return_percentage,fixed_return_amount,expected_profit,total_receivable,payment_frequency,installment_count,start_date,first_due_date,daily_off_days,status")
     .eq("id", loanId)
     .eq("user_id", user.id)
     .single();
@@ -57,7 +66,7 @@ export async function updateLoanAction(formData: FormData) {
 
   const currentType: "percentage" | "fixed" = current.fixed_return_amount != null ? "fixed" : "percentage";
   const currentReturn = currentType === "fixed" ? Number(current.fixed_return_amount || 0) : Number(current.return_percentage || 0);
-  const requestedDates = frequency === "PERSONALIZADO" ? [customDate1, customDate2] : generateDueDates(firstDueDate, frequency, installmentCount);
+  const requestedDates = frequency === "PERSONALIZADO" ? [customDate1, customDate2] : generateDueDates(firstDueDate, frequency, installmentCount, dailyOffDays);
   const currentDates = (existing || []).map(row => row.due_date);
   const datesChanged = requestedDates.length !== currentDates.length || requestedDates.some((date, index) => date !== currentDates[index]);
   const structuralChanged =
@@ -68,6 +77,7 @@ export async function updateLoanAction(formData: FormData) {
     current.payment_frequency !== frequency ||
     current.start_date !== startDate ||
     current.first_due_date !== firstDueDate ||
+    !sameDays(current.daily_off_days, dailyOffDays) ||
     datesChanged;
 
   const { data: paymentRows, error: paymentError } = await supabase
@@ -100,6 +110,7 @@ export async function updateLoanAction(formData: FormData) {
       installment_count: installmentCount,
       start_date: startDate,
       first_due_date: firstDueDate,
+      daily_off_days: dailyOffDays,
       status,
       updated_at: now,
     };
@@ -159,7 +170,7 @@ export async function updateLoanAction(formData: FormData) {
     entity_id: loanId,
     action: "updated",
     old_data: current,
-    new_data: { principal, calculationType, returnValue, installmentCount, frequency, startDate, firstDueDate, customDate1, customDate2, status },
+    new_data: { principal, calculationType, returnValue, installmentCount, frequency, dailyOffDays, startDate, firstDueDate, customDate1, customDate2, status },
     description: `Empréstimo ${current.loan_code} atualizado e calendário sincronizado.`,
   });
 
