@@ -1,0 +1,1 @@
+export default function Reset(){return <main className="login-panel" style={{minHeight:"100vh"}}><div className="login-form card"><h1>Redefinir senha</h1><p className="muted">Use o fluxo de recuperação do Supabase Auth configurado para seu domínio.</p></div></main>}

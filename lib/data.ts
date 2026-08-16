@@ -1,0 +1,87 @@
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { createClient } from "@/lib/supabase/server";
+import { demoClients, demoInstallments, demoLoans, demoPayments } from "@/lib/demo-data";
+import { effectiveInstallmentStatus } from "@/lib/finance";
+import type { Client, DashboardSummary, Installment, Loan, Payment } from "@/lib/types";
+
+export async function getCurrentProfile() {
+  const supabase = await createClient();
+  if (!supabase) return { id: "demo", full_name: "Usuário", email: "demo@jureminha.local", demo: true };
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: profile } = await supabase.from("profiles").select("id,full_name,email,avatar_url").eq("id", user.id).maybeSingle();
+  return { id: user.id, full_name: profile?.full_name || user.user_metadata?.full_name || "Usuário", email: profile?.email || user.email, avatar_url: profile?.avatar_url, demo: false };
+}
+
+export async function getClients(): Promise<Client[]> {
+  const supabase = await createClient();
+  if (!supabase) return demoClients;
+  const { data, error } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []) as Client[];
+}
+
+export async function getClient(id: string) {
+  const supabase = await createClient();
+  if (!supabase) return demoClients.find((item) => item.id === id) || null;
+  const { data, error } = await supabase.from("clients").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data as Client | null;
+}
+
+export async function getLoans(clientId?: string): Promise<Loan[]> {
+  const supabase = await createClient();
+  if (!supabase) return clientId ? demoLoans.filter((loan) => loan.client_id === clientId) : demoLoans;
+  let query = supabase.from("loans").select("*, client:clients(id,name)").order("created_at", { ascending: false });
+  if (clientId) query = query.eq("client_id", clientId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as unknown as Loan[];
+}
+
+export async function getInstallments(options?: { clientId?: string; from?: string; to?: string }): Promise<Installment[]> {
+  const supabase = await createClient();
+  if (!supabase) {
+    return demoInstallments.filter((row) => (!options?.clientId || row.client_id === options.clientId) && (!options?.from || row.due_date >= options.from) && (!options?.to || row.due_date <= options.to));
+  }
+  let query = supabase.from("installments").select("*, client:clients(id,name), loan:loans(id,loan_code,installment_count)").order("due_date", { ascending: true });
+  if (options?.clientId) query = query.eq("client_id", options.clientId);
+  if (options?.from) query = query.gte("due_date", options.from);
+  if (options?.to) query = query.lte("due_date", options.to);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as unknown as Installment[];
+}
+
+export async function getPayments(clientId?: string): Promise<Payment[]> {
+  const supabase = await createClient();
+  if (!supabase) return clientId ? demoPayments.filter((p) => p.client_id === clientId) : demoPayments;
+  let query = supabase.from("payments").select("*, client:clients(id,name), loan:loans(id,loan_code)").is("voided_at", null).order("payment_date", { ascending: false });
+  if (clientId) query = query.eq("client_id", clientId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as unknown as Payment[];
+}
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const [clients, loans, installments, payments] = await Promise.all([getClients(), getLoans(), getInstallments(), getPayments()]);
+  const today = format(new Date(), "yyyy-MM-dd");
+  const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  const activeLoans = loans.filter((l) => l.status === "ATIVO");
+  const activeClientIds = new Set(activeLoans.map((l) => l.client_id));
+  const totalReceived = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const outstanding = installments.reduce((sum, i) => sum + Number(i.remaining_amount), 0);
+  const capitalCirculation = activeLoans.reduce((sum, l) => sum + Number(l.principal_amount), 0);
+  const expectedProfit = activeLoans.reduce((sum, l) => sum + Number(l.expected_profit), 0);
+  const todayRows = installments.filter((i) => i.due_date === today);
+  const receiveToday = todayRows.reduce((sum, i) => sum + Number(i.amount), 0);
+  const pendingToday = todayRows.reduce((sum, i) => sum + Number(i.remaining_amount), 0);
+  const receivedToday = payments.filter((p) => p.payment_date.slice(0, 10) === today).reduce((sum, p) => sum + Number(p.amount), 0);
+  const overdue = installments.filter((i) => effectiveInstallmentStatus(i, today) === "ATRASADO").reduce((sum, i) => sum + Number(i.remaining_amount), 0);
+  const weekExpected = installments.filter((i) => i.due_date >= weekStart && i.due_date <= weekEnd).reduce((sum, i) => sum + Number(i.amount), 0);
+  const monthExpected = installments.filter((i) => i.due_date >= monthStart && i.due_date <= monthEnd).reduce((sum, i) => sum + Number(i.amount), 0);
+  return { capitalCirculation, totalReceivable: outstanding, expectedProfit, totalReceived, receiveToday, receivedToday, pendingToday, overdue, activeClients: activeClientIds.size || clients.length, weekExpected, monthExpected };
+}

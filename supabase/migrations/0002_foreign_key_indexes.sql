@@ -1,0 +1,10 @@
+create index if not exists attachments_user_idx on public.attachments(user_id);
+create index if not exists attachments_client_idx on public.attachments(client_id);
+create index if not exists attachments_loan_idx on public.attachments(loan_id);
+create index if not exists attachments_payment_idx on public.attachments(payment_id);
+create index if not exists client_notes_user_idx on public.client_notes(user_id);
+create index if not exists client_notes_client_idx on public.client_notes(client_id);
+create index if not exists loans_client_idx on public.loans(client_id);
+create index if not exists notifications_user_idx on public.notifications(user_id);
+create index if not exists payments_client_idx on public.payments(client_id);
+create index if not exists payments_loan_idx on public.payments(loan_id);

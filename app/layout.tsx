@@ -1,0 +1,11 @@
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Jureminha 2.0",
+  description: "Seu dinheiro. Seus clientes. Tudo sob controle.",
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <html lang="pt-BR"><body>{children}</body></html>;
+}
