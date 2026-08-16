@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Pencil, X } from "lucide-react";
-import { updateLoanAction } from "@/app/loan-actions";
+import { updateLoanFormAction } from "@/app/loan-form-actions";
 import { calculateLoan, money, splitInstallments } from "@/lib/finance";
 import { DailyOffDays } from "@/components/forms/daily-off-days";
 import { ManualFixedInstallments, type ManualFixedRow } from "@/components/forms/manual-fixed-installments";
@@ -52,12 +52,9 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   async function submit(formData: FormData) {
     setError("");
     start(async () => {
-      try {
-        await updateLoanAction(formData);
-        setOpen(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erro ao editar empréstimo.");
-      }
+      const result=await updateLoanFormAction(formData);
+      if(!result.ok){setError(result.error);return;}
+      setOpen(false);
     });
   }
 
