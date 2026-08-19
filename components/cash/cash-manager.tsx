@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDownCircle, ArrowUpCircle, PiggyBank, RotateCcw, Save } from "lucide-react";
-import { createCashEntryAction, saveCashAccountAction, voidCashEntryAction } from "@/app/cash-actions";
+import { ArrowDownCircle, ArrowUpCircle, CalendarClock, CheckCircle2, PiggyBank, RotateCcw, Save } from "lucide-react";
+import { createCashDebtAction, createCashEntryAction, payCashDebtAction, saveCashAccountAction, unpayCashDebtAction, voidCashEntryAction } from "@/app/cash-actions";
 import { money } from "@/lib/finance";
+import type { CashDebt } from "@/lib/types";
 
 export type CashMovement = {
   id: string;
@@ -27,13 +28,14 @@ export type CashSummary = {
   manualExpenses: number;
   loansGranted: number;
   totalReceivable: number;
+  pendingDebtAmount: number;
 };
 
 function dateBR(date:string){
   try{return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR");}catch{return date;}
 }
 
-export function CashManager({ summary, movements, configured, today }: { summary: CashSummary; movements: CashMovement[]; configured: boolean; today: string }) {
+export function CashManager({ summary, movements, debts, configured, today }: { summary: CashSummary; movements: CashMovement[]; debts: CashDebt[]; configured: boolean; today: string }) {
   const router=useRouter();
   const [pending,start]=useTransition();
   const [message,setMessage]=useState("");
@@ -52,6 +54,12 @@ export function CashManager({ summary, movements, configured, today }: { summary
 
   function saveConfig(formData:FormData){run(saveCashAccountAction,formData)}
   function addEntry(formData:FormData){run(createCashEntryAction,formData)}
+  function addDebt(formData:FormData){run(createCashDebtAction,formData)}
+  function payDebt(id:string,paymentDate:string){const fd=new FormData();fd.set("debt_id",id);fd.set("payment_date",paymentDate);run(payCashDebtAction,fd)}
+  function unpayDebt(id:string){
+    if(!window.confirm("Desfazer o pagamento desta dívida? O valor voltará ao caixa e o histórico será mantido."))return;
+    const fd=new FormData();fd.set("debt_id",id);run(unpayCashDebtAction,fd);
+  }
   function undo(id:string){
     if(!window.confirm("Estornar esta movimentação? Ela continuará no histórico."))return;
     const fd=new FormData();fd.set("entry_id",id);run(voidCashEntryAction,fd);
@@ -59,6 +67,10 @@ export function CashManager({ summary, movements, configured, today }: { summary
 
   const totalIncome=summary.manualIncome+summary.paymentsReceived;
   const totalOut=summary.manualExpenses+summary.loansGranted;
+  const sortedDebts=[...debts].sort((a,b)=>{
+    if(a.status!==b.status){if(a.status==="PENDENTE")return -1;if(b.status==="PENDENTE")return 1;}
+    return a.due_date.localeCompare(b.due_date);
+  });
 
   return <>
     {!configured&&<div className="alert" style={{marginBottom:16}}>
@@ -98,15 +110,42 @@ export function CashManager({ summary, movements, configured, today }: { summary
       </div>
     </div>
 
+    <div className="card" style={{marginTop:16}}>
+      <div className="section-title"><div><h2>Dívidas a pagar</h2><div className="muted" style={{fontSize:12}}>Agende compromissos futuros. A dívida só sai do saldo quando você marcar como paga.</div></div><span className="badge gray">Pendente: {money(summary.pendingDebtAmount)}</span></div>
+      <form action={addDebt} className="form-grid" style={{marginBottom:16}}>
+        <div className="field"><label>Descrição da dívida</label><input className="input" name="title" placeholder="Ex.: parcela do carro" required/></div>
+        <div className="field"><label>Valor</label><input className="input" type="number" min="0.01" step="0.01" name="amount" placeholder="1700,00" required/></div>
+        <div className="field"><label>Vencimento</label><input className="input" type="date" name="due_date" required/></div>
+        <div className="field"><label>Observação</label><input className="input" name="notes" placeholder="Opcional"/></div>
+        <div className="field full"><button className="btn" disabled={pending}><CalendarClock size={16}/>{pending?"Salvando...":"Adicionar dívida"}</button></div>
+      </form>
+      <div className="divider"/>
+      <div className="list">
+        {sortedDebts.length?sortedDebts.map(debt=>{
+          const overdue=debt.status==="PENDENTE"&&debt.due_date<today;
+          const label=debt.status==="PAGO"?"Pago":overdue?"Atrasada":debt.status==="CANCELADO"?"Cancelada":"Pendente";
+          const badgeClass=debt.status==="PAGO"?"green":overdue?"red":"yellow";
+          return <div className="list-row" key={debt.id}>
+            <div style={{minWidth:0,flex:1}}><strong>{debt.title}</strong><div className="person-meta">Vence em {dateBR(debt.due_date)}{debt.notes?` · ${debt.notes}`:""}{debt.payment_date?` · pago em ${dateBR(debt.payment_date)}`:""}</div></div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+              <span className={`badge ${badgeClass}`}>{label}</span><strong>{money(Number(debt.amount))}</strong>
+              {debt.status==="PENDENTE"&&<form action={(fd)=>{payDebt(debt.id,String(fd.get("payment_date")||today))}} style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}><input className="input" style={{width:145}} type="date" name="payment_date" defaultValue={today}/><button className="btn" disabled={pending}><CheckCircle2 size={15}/>Marcar pago</button></form>}
+              {debt.status==="PAGO"&&<button className="btn secondary" type="button" disabled={pending} onClick={()=>unpayDebt(debt.id)}><RotateCcw size={15}/>Desfazer</button>}
+            </div>
+          </div>;
+        }):<div className="empty">Nenhuma dívida cadastrada.</div>}
+      </div>
+    </div>
+
     <div className="stats" style={{marginTop:16}}>
       <div className="card"><div className="muted">A receber dos clientes</div><div className="stat-value">{money(summary.totalReceivable)}</div><div className="stat-meta">Saldo ainda aberto nas parcelas</div></div>
       <div className="card"><div className="muted">Empréstimos concedidos</div><div className="stat-value">{money(summary.loansGranted)}</div><div className="stat-meta">Desde {dateBR(summary.trackingStartDate)}</div></div>
       <div className="card"><div className="muted">Pagamentos que voltaram</div><div className="stat-value">{money(summary.paymentsReceived)}</div><div className="stat-meta">Desde {dateBR(summary.trackingStartDate)}</div></div>
-      <div className="card"><div className="muted">Gastos extras</div><div className="stat-value">{money(summary.manualExpenses)}</div><div className="stat-meta">Movimentações manuais de saída</div></div>
+      <div className="card"><div className="muted">Gastos extras</div><div className="stat-value">{money(summary.manualExpenses)}</div><div className="stat-meta">Inclui dívidas já pagas</div></div>
     </div>
 
     <div className="card" style={{marginTop:16}}>
-      <div className="section-title"><div><h2>Extrato do Meu Caixa</h2><div className="muted" style={{fontSize:12}}>Empréstimos e pagamentos entram automaticamente. Entradas e gastos manuais aparecem junto no mesmo extrato.</div></div><span className="badge gray">{movements.length}</span></div>
+      <div className="section-title"><div><h2>Extrato do Meu Caixa</h2><div className="muted" style={{fontSize:12}}>Empréstimos e pagamentos entram automaticamente. Entradas, gastos e dívidas pagas aparecem no mesmo extrato.</div></div><span className="badge gray">{movements.length}</span></div>
       <div className="list">
         {movements.length?movements.map(m=><div className="list-row" key={`${m.source}-${m.id}`} style={{opacity:m.voided?.55:1}}>
           <div style={{minWidth:0,flex:1}}><strong>{m.title}</strong><div className="person-meta">{dateBR(m.date)} · {m.description}{m.source!=="manual"?" · automático":""}{m.voided?" · estornado":""}</div></div>
