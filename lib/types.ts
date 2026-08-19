@@ -88,6 +88,27 @@ export interface ActivityLog {
   created_at: string;
 }
 
+export interface CashAccount {
+  user_id: string;
+  opening_balance: number;
+  reserve_amount: number;
+  tracking_start_date: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CashEntry {
+  id: string;
+  user_id?: string;
+  entry_type: "ENTRADA" | "GASTO";
+  category: string;
+  amount: number;
+  entry_date: string;
+  description?: string | null;
+  voided_at?: string | null;
+  created_at: string;
+}
+
 export interface DashboardSummary {
   capitalCirculation: number;
   totalReceivable: number;
