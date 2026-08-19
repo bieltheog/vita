@@ -5,11 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, Landmark, CreditCard, CalendarDays, BarChart3,
   Calculator, Bell, Settings, Search, LogOut, MoreHorizontal, Plus, WalletCards,
+  CircleDollarSign, CheckCircle2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/cobrancas-hoje", label: "Cobranças de hoje", icon: CircleDollarSign },
+  { href: "/fechamento-diario", label: "Fechamento diário", icon: CheckCircle2 },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
@@ -23,9 +26,9 @@ const nav = [
 
 const mobile = [
   { href: "/dashboard", label: "Início", icon: LayoutDashboard },
+  { href: "/cobrancas-hoje", label: "Cobrar", icon: CircleDollarSign },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/calendario", label: "Calendário", icon: CalendarDays },
-  { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/configuracoes", label: "Mais", icon: MoreHorizontal },
 ];
 
@@ -39,6 +42,13 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     try { await createClient().auth.signOut(); } catch {}
     router.push("/login");
     router.refresh();
+  }
+
+  function search(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const q=String(form.get("q")||"").trim();
+    if(q) router.push(`/clientes?q=${encodeURIComponent(q)}`);
   }
 
   return <div className="shell">
@@ -61,7 +71,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
 
     <main className="main">
       <header className="topbar">
-        <div className="search-box"><Search size={17}/><input aria-label="Busca global" placeholder="Buscar cliente, CPF ou empréstimo..." /></div>
+        <form className="search-box" onSubmit={search}><Search size={17}/><input name="q" aria-label="Busca global" placeholder="Buscar cliente, CPF, telefone..." /></form>
         <div className="top-actions">
           {profile.demo && <span className="badge blue">Demo</span>}
           <Link className="icon-btn" href="/notificacoes"><Bell size={17}/></Link>
