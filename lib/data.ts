@@ -2,7 +2,7 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-f
 import { createClient } from "@/lib/supabase/server";
 import { demoClients, demoInstallments, demoLoans, demoPayments } from "@/lib/demo-data";
 import { effectiveInstallmentStatus } from "@/lib/finance";
-import type { Client, DashboardSummary, Installment, Loan, Payment } from "@/lib/types";
+import type { ActivityLog, Client, DashboardSummary, Installment, Loan, Payment } from "@/lib/types";
 
 export async function getCurrentProfile() {
   const supabase = await createClient();
@@ -32,20 +32,29 @@ export async function getClient(id: string) {
 export async function getLoans(clientId?: string): Promise<Loan[]> {
   const supabase = await createClient();
   if (!supabase) return clientId ? demoLoans.filter((loan) => loan.client_id === clientId) : demoLoans;
-  let query = supabase.from("loans").select("*, client:clients(id,name)").order("created_at", { ascending: false });
+  let query = supabase.from("loans").select("*, client:clients(id,name,phone,whatsapp)").order("created_at", { ascending: false });
   if (clientId) query = query.eq("client_id", clientId);
   const { data, error } = await query;
   if (error) throw error;
   return (data || []) as unknown as Loan[];
 }
 
-export async function getInstallments(options?: { clientId?: string; from?: string; to?: string }): Promise<Installment[]> {
+export async function getLoan(id: string): Promise<Loan | null> {
+  const supabase = await createClient();
+  if (!supabase) return demoLoans.find((loan) => loan.id === id) || null;
+  const { data, error } = await supabase.from("loans").select("*, client:clients(id,name,phone,whatsapp)").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data as unknown as Loan | null;
+}
+
+export async function getInstallments(options?: { clientId?: string; loanId?: string; from?: string; to?: string }): Promise<Installment[]> {
   const supabase = await createClient();
   if (!supabase) {
-    return demoInstallments.filter((row) => (!options?.clientId || row.client_id === options.clientId) && (!options?.from || row.due_date >= options.from) && (!options?.to || row.due_date <= options.to));
+    return demoInstallments.filter((row) => (!options?.clientId || row.client_id === options.clientId) && (!options?.loanId || row.loan_id === options.loanId) && (!options?.from || row.due_date >= options.from) && (!options?.to || row.due_date <= options.to));
   }
-  let query = supabase.from("installments").select("*, client:clients(id,name), loan:loans(id,loan_code,installment_count)").order("due_date", { ascending: true });
+  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit)").order("due_date", { ascending: true });
   if (options?.clientId) query = query.eq("client_id", options.clientId);
+  if (options?.loanId) query = query.eq("loan_id", options.loanId);
   if (options?.from) query = query.gte("due_date", options.from);
   if (options?.to) query = query.lte("due_date", options.to);
   const { data, error } = await query;
@@ -53,14 +62,23 @@ export async function getInstallments(options?: { clientId?: string; from?: stri
   return (data || []) as unknown as Installment[];
 }
 
-export async function getPayments(clientId?: string): Promise<Payment[]> {
+export async function getPayments(clientId?: string, loanId?: string): Promise<Payment[]> {
   const supabase = await createClient();
-  if (!supabase) return clientId ? demoPayments.filter((p) => p.client_id === clientId) : demoPayments;
-  let query = supabase.from("payments").select("*, client:clients(id,name), loan:loans(id,loan_code)").is("voided_at", null).order("payment_date", { ascending: false });
+  if (!supabase) return demoPayments.filter((p) => (!clientId || p.client_id === clientId) && (!loanId || p.loan_id === loanId));
+  let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,total_receivable,expected_profit)").is("voided_at", null).order("payment_date", { ascending: false });
   if (clientId) query = query.eq("client_id", clientId);
+  if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
   if (error) throw error;
   return (data || []) as unknown as Payment[];
+}
+
+export async function getActivityLogs(limit = 200): Promise<ActivityLog[]> {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data, error } = await supabase.from("activity_logs").select("id,user_id,entity_type,entity_id,action,description,old_data,new_data,created_at").order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data || []) as ActivityLog[];
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
