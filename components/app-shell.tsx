@@ -6,7 +6,7 @@ import { useState } from "react";
 import {
   LayoutDashboard, Users, Landmark, CreditCard, CalendarDays, BarChart3,
   Calculator, Bell, Settings, Search, LogOut, MoreHorizontal, Plus, WalletCards,
-  CircleDollarSign, CheckCircle2, X,
+  CircleDollarSign, CheckCircle2, X, PiggyBank,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -18,6 +18,7 @@ const nav = [
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/calendario", label: "Calendário", icon: CalendarDays },
+  { href: "/meu-caixa", label: "Meu Caixa", icon: PiggyBank },
   { href: "/fluxo-caixa", label: "Fluxo de Caixa", icon: WalletCards },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/simulador", label: "Simulador", icon: Calculator },
@@ -33,6 +34,7 @@ const mobile = [
 ];
 
 const mobileMore = [
+  { href: "/meu-caixa", label: "Meu Caixa", icon: PiggyBank },
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/fechamento-diario", label: "Fechamento diário", icon: CheckCircle2 },
