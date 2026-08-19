@@ -1,10 +1,15 @@
+import { addDays, format } from "date-fns";
 import { getCashAccount, getCashDebts, getCashEntries } from "@/lib/cash-data";
 import { getInstallments, getLoans, getPayments } from "@/lib/data";
 import { brazilDateKey } from "@/lib/date";
-import { CashManager, type CashMovement, type CashSummary } from "@/components/cash/cash-manager";
+import {
+  CashManager, type CashForecast, type CashForecastDay,
+  type CashMovement, type CashSummary,
+} from "@/components/cash/cash-manager";
 
 export default async function MeuCaixaPage() {
   const today=brazilDateKey();
+  const horizon=format(addDays(new Date(`${today}T12:00:00`),30),"yyyy-MM-dd");
   const [account,entries,debts,loans,payments,installments]=await Promise.all([
     getCashAccount(),getCashEntries(),getCashDebts(),getLoans(),getPayments(),getInstallments(),
   ]);
@@ -13,13 +18,21 @@ export default async function MeuCaixaPage() {
   const openingBalance=Number(account?.opening_balance||0);
   const reserveAmount=Number(account?.reserve_amount||0);
 
-  const activeManual=entries.filter(e=>!e.voided_at&&e.entry_date>=trackingStart);
+  const activeManual=entries.filter(e=>!e.voided_at&&e.entry_date>=trackingStart&&e.entry_date<=today);
+  const futureManual=entries.filter(e=>!e.voided_at&&e.entry_date>today&&e.entry_date<=horizon);
   const manualIncome=activeManual.filter(e=>e.entry_type==="ENTRADA").reduce((s,e)=>s+Number(e.amount),0);
   const manualExpenses=activeManual.filter(e=>e.entry_type==="GASTO").reduce((s,e)=>s+Number(e.amount),0);
-  const loansSince=loans.filter(l=>l.status!=="CANCELADO"&&l.start_date>=trackingStart);
+
+  const loansSince=loans.filter(l=>l.status!=="CANCELADO"&&l.start_date>=trackingStart&&l.start_date<=today);
+  const futureLoans=loans.filter(l=>l.status!=="CANCELADO"&&l.start_date>today&&l.start_date<=horizon);
   const loansGranted=loansSince.reduce((s,l)=>s+Number(l.principal_amount),0);
-  const paymentsSince=payments.filter(p=>p.payment_date.slice(0,10)>=trackingStart);
+
+  const paymentsSince=payments.filter(p=>{
+    const date=p.payment_date.slice(0,10);
+    return date>=trackingStart&&date<=today;
+  });
   const paymentsReceived=paymentsSince.reduce((s,p)=>s+Number(p.amount),0);
+
   const available=openingBalance+manualIncome+paymentsReceived-manualExpenses-loansGranted;
   const lendable=Math.max(0,available-reserveAmount);
   const totalReceivable=installments.filter(i=>i.stored_status!=="CANCELADO").reduce((s,i)=>s+Number(i.remaining_amount),0);
@@ -27,7 +40,7 @@ export default async function MeuCaixaPage() {
   const pendingDebtAmount=pendingDebts.reduce((s,d)=>s+Number(d.amount),0);
 
   const manualMovements:CashMovement[]=entries
-    .filter(e=>e.entry_date>=trackingStart)
+    .filter(e=>e.entry_date>=trackingStart&&e.entry_date<=today)
     .map(e=>({
       id:e.id,
       date:e.entry_date,
@@ -56,6 +69,37 @@ export default async function MeuCaixaPage() {
   const movements=[...manualMovements,...loanMovements,...paymentMovements]
     .sort((a,b)=>b.date.localeCompare(a.date));
 
+  const installments30=installments.filter(i=>
+    i.stored_status!=="CANCELADO"&&Number(i.remaining_amount)>0&&i.due_date>=today&&i.due_date<=horizon
+  );
+  const debts30=pendingDebts.filter(d=>d.due_date<=horizon);
+  const receivable30=installments30.reduce((s,i)=>s+Number(i.remaining_amount),0);
+  const debt30=debts30.reduce((s,d)=>s+Number(d.amount),0);
+  const futureManualIncome=futureManual.filter(e=>e.entry_type==="ENTRADA").reduce((s,e)=>s+Number(e.amount),0);
+  const futureManualOut=futureManual.filter(e=>e.entry_type==="GASTO").reduce((s,e)=>s+Number(e.amount),0);
+  const futureLoanOut=futureLoans.reduce((s,l)=>s+Number(l.principal_amount),0);
+  const projectedBalance=available+receivable30+futureManualIncome-debt30-futureManualOut-futureLoanOut;
+  const safeLend=Math.max(0,available-reserveAmount-debt30);
+
+  type DraftDay=Omit<CashForecastDay,"balance">;
+  const eventMap=new Map<string,DraftDay>();
+  const event=(date:string)=>{
+    const key=date<today?today:date;
+    const current=eventMap.get(key)||{date:key,income:0,outflow:0,receivable:0,debts:0,otherIncome:0,otherOutflow:0};
+    eventMap.set(key,current);
+    return current;
+  };
+
+  installments30.forEach(i=>{const row=event(i.due_date);const value=Number(i.remaining_amount);row.income+=value;row.receivable+=value;});
+  debts30.forEach(d=>{const row=event(d.due_date);const value=Number(d.amount);row.outflow+=value;row.debts+=value;});
+  futureManual.forEach(e=>{const row=event(e.entry_date);const value=Number(e.amount);if(e.entry_type==="ENTRADA"){row.income+=value;row.otherIncome+=value;}else{row.outflow+=value;row.otherOutflow+=value;}});
+  futureLoans.forEach(l=>{const row=event(l.start_date);const value=Number(l.principal_amount);row.outflow+=value;row.otherOutflow+=value;});
+
+  let running=available;
+  const forecastDays:CashForecastDay[]=[...eventMap.values()]
+    .sort((a,b)=>a.date.localeCompare(b.date))
+    .map(day=>{running+=day.income-day.outflow;return {...day,balance:running};});
+
   const summary:CashSummary={
     openingBalance,
     reserveAmount,
@@ -70,8 +114,19 @@ export default async function MeuCaixaPage() {
     pendingDebtAmount,
   };
 
+  const forecast:CashForecast={
+    horizonDate:horizon,
+    projectedBalance,
+    safeLend,
+    receivable:receivable30,
+    debts:debt30,
+    otherIncome:futureManualIncome,
+    otherOutflow:futureManualOut+futureLoanOut,
+    days:forecastDays,
+  };
+
   return <>
-    <div className="page-head"><div><div className="eyebrow">Gestor financeiro</div><h1>Meu Caixa</h1><div className="muted">Seu dinheiro em um só lugar: saldo, entradas, gastos, empréstimos, recebimentos e dívidas.</div></div></div>
-    <CashManager summary={summary} movements={movements} debts={debts} configured={Boolean(account)} today={today}/>
+    <div className="page-head"><div><div className="eyebrow">Gestor financeiro</div><h1>Meu Caixa</h1><div className="muted">Saldo real de hoje, compromissos e uma visão clara de como o caixa pode evoluir.</div></div></div>
+    <CashManager summary={summary} forecast={forecast} movements={movements} debts={debts} configured={Boolean(account)} today={today}/>
   </>;
 }
