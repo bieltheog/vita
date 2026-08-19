@@ -1,2 +1,9 @@
-import Link from "next/link"; import { getClients,getLoans,getPayments,getCurrentProfile } from "@/lib/data"; import { money } from "@/lib/finance"; import { ClientForm } from "@/components/forms/client-form";
-export default async function Clients(){const [clients,loans,payments,profile]=await Promise.all([getClients(),getLoans(),getPayments(),getCurrentProfile()]);return <><div className="page-head"><div><div className="eyebrow">Cadastro</div><h1>Clientes</h1><div className="muted">Gerencie histórico, empréstimos e situação de cada cliente.</div></div><ClientForm demo={profile?.demo}/></div><div className="card"><div className="table-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Total emprestado</th><th>Total pago</th><th>Empréstimos</th><th></th></tr></thead><tbody>{clients.map(c=>{const cl=loans.filter(l=>l.client_id===c.id);const cp=payments.filter(p=>p.client_id===c.id);return <tr key={c.id}><td><strong>{c.name}</strong><div className="person-meta">{c.cpf||"CPF não informado"}</div></td><td>{c.phone||"—"}</td><td>{money(cl.reduce((s,l)=>s+Number(l.principal_amount),0))}</td><td>{money(cp.reduce((s,p)=>s+Number(p.amount),0))}</td><td>{cl.length}</td><td><Link className="btn secondary" href={`/clientes/${c.id}`}>Ver perfil</Link></td></tr>})}</tbody></table></div></div></>}
+import { getClients,getLoans,getPayments,getInstallments,getCurrentProfile } from "@/lib/data";
+import { ClientForm } from "@/components/forms/client-form";
+import { ClientList } from "@/components/collections/client-list";
+
+export default async function Clients({searchParams}:{searchParams:Promise<{q?:string}>}){
+  const params=await searchParams;
+  const [clients,loans,payments,installments,profile]=await Promise.all([getClients(),getLoans(),getPayments(),getInstallments(),getCurrentProfile()]);
+  return <><div className="page-head"><div><div className="eyebrow">Cadastro</div><h1>Clientes</h1><div className="muted">Gerencie histórico, empréstimos, saldo e situação de cada cliente.</div></div><ClientForm demo={profile?.demo}/></div><ClientList clients={clients} loans={loans} payments={payments} installments={installments} initialQuery={params.q||""}/></>
+}
