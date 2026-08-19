@@ -1,0 +1,15 @@
+@media print {
+  :root { color-scheme: light; }
+  html, body { background: #fff !important; color: #111 !important; }
+  .sidebar, .topbar, .mobile-nav, .fab, button, .btn, .icon-btn { display: none !important; }
+  .shell { display: block !important; }
+  .main { width: 100% !important; }
+  .content { max-width: none !important; padding: 0 !important; }
+  .card, .kpi-mini { background: #fff !important; color: #111 !important; border: 1px solid #d7d7d7 !important; box-shadow: none !important; break-inside: avoid; }
+  .muted, .person-meta, th { color: #555 !important; }
+  .stat-value, strong, h1, h2, h3, td { color: #111 !important; }
+  table { font-size: 11px !important; }
+  a { color: #111 !important; text-decoration: none !important; }
+  .page-head { margin-bottom: 14px !important; }
+  .stats { gap: 8px !important; }
+}
