@@ -70,7 +70,7 @@ export async function createCashEntryAction(formData: FormData): Promise<CashAct
     const amount = numberField(formData, "amount");
     const entryDate = String(formData.get("entry_date") || "").trim();
     const description = String(formData.get("description") || "").trim();
-    if (!['ENTRADA','GASTO'].includes(entryType)) return { ok: false, error: "Escolha se é uma entrada ou gasto." };
+    if (!["ENTRADA","GASTO"].includes(entryType)) return { ok: false, error: "Escolha se é uma entrada ou gasto." };
     if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Informe um valor maior que zero." };
     if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) return { ok: false, error: "Informe a data da movimentação." };
 
@@ -131,5 +131,99 @@ export async function voidCashEntryAction(formData: FormData): Promise<CashActio
     return { ok: true, message: "Movimentação estornada. O histórico foi preservado." };
   } catch (error) {
     return fail(error, "Não foi possível estornar a movimentação.");
+  }
+}
+
+export async function createCashDebtAction(formData: FormData): Promise<CashActionResult> {
+  try {
+    const { supabase, user } = await context();
+    const title = String(formData.get("title") || "").trim();
+    const amount = numberField(formData, "amount");
+    const dueDate = String(formData.get("due_date") || "").trim();
+    const notes = String(formData.get("notes") || "").trim();
+    if (!title) return { ok: false, error: "Informe a descrição da dívida." };
+    if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Informe um valor maior que zero." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return { ok: false, error: "Informe a data de vencimento." };
+
+    const { data, error } = await supabase.from("cash_debts").insert({
+      user_id: user.id,
+      title,
+      amount,
+      due_date: dueDate,
+      notes: notes || null,
+      status: "PENDENTE",
+    }).select("id").single();
+    if (error) return { ok: false, error: error.message };
+
+    await supabase.from("activity_logs").insert({
+      user_id: user.id,
+      entity_type: "cash_debt",
+      entity_id: data.id,
+      action: "created",
+      new_data: { title, amount, due_date: dueDate, notes },
+      description: `Dívida "${title}" registrada para ${dueDate}.`,
+    });
+    revalidateCash();
+    return { ok: true, message: "Dívida adicionada ao calendário financeiro." };
+  } catch (error) {
+    return fail(error, "Não foi possível registrar a dívida.");
+  }
+}
+
+export async function payCashDebtAction(formData: FormData): Promise<CashActionResult> {
+  try {
+    const { supabase, user } = await context();
+    const debtId = String(formData.get("debt_id") || "").trim();
+    const paymentDate = String(formData.get("payment_date") || "").trim();
+    if (!debtId) return { ok: false, error: "Dívida não identificada." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) return { ok: false, error: "Informe a data do pagamento." };
+
+    const { data: debt, error: debtError } = await supabase.from("cash_debts").select("id,title,amount,due_date,status").eq("id", debtId).eq("user_id", user.id).maybeSingle();
+    if (debtError || !debt) return { ok: false, error: debtError?.message || "Dívida não encontrada." };
+
+    const { error } = await supabase.rpc("pay_cash_debt", { p_debt_id: debtId, p_payment_date: paymentDate });
+    if (error) return { ok: false, error: error.message };
+
+    await supabase.from("activity_logs").insert({
+      user_id: user.id,
+      entity_type: "cash_debt",
+      entity_id: debtId,
+      action: "paid",
+      old_data: debt,
+      new_data: { status: "PAGO", payment_date: paymentDate },
+      description: `Dívida "${debt.title}" marcada como paga e descontada do Meu Caixa.`,
+    });
+    revalidateCash();
+    return { ok: true, message: "Dívida paga. O valor foi descontado do caixa." };
+  } catch (error) {
+    return fail(error, "Não foi possível pagar a dívida.");
+  }
+}
+
+export async function unpayCashDebtAction(formData: FormData): Promise<CashActionResult> {
+  try {
+    const { supabase, user } = await context();
+    const debtId = String(formData.get("debt_id") || "").trim();
+    if (!debtId) return { ok: false, error: "Dívida não identificada." };
+
+    const { data: debt, error: debtError } = await supabase.from("cash_debts").select("id,title,amount,due_date,status,payment_date,cash_entry_id").eq("id", debtId).eq("user_id", user.id).maybeSingle();
+    if (debtError || !debt) return { ok: false, error: debtError?.message || "Dívida não encontrada." };
+
+    const { error } = await supabase.rpc("unpay_cash_debt", { p_debt_id: debtId });
+    if (error) return { ok: false, error: error.message };
+
+    await supabase.from("activity_logs").insert({
+      user_id: user.id,
+      entity_type: "cash_debt",
+      entity_id: debtId,
+      action: "payment_voided",
+      old_data: debt,
+      new_data: { status: "PENDENTE" },
+      description: `Pagamento da dívida "${debt.title}" desfeito sem apagar o histórico.`,
+    });
+    revalidateCash();
+    return { ok: true, message: "Pagamento desfeito. A dívida voltou para pendente e o valor retornou ao caixa." };
+  } catch (error) {
+    return fail(error, "Não foi possível desfazer o pagamento da dívida.");
   }
 }
