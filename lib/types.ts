@@ -57,7 +57,7 @@ export interface Installment {
   stored_status: PaymentStatus;
   paid_at?: string | null;
   client?: Pick<Client, "id" | "name" | "phone" | "whatsapp"> | null;
-  loan?: Pick<Loan, "id" | "loan_code" | "installment_count" | "principal_amount" | "total_receivable" | "expected_profit"> | null;
+  loan?: { id: string; loan_code: string; installment_count: number; principal_amount?: number; total_receivable?: number; expected_profit?: number } | null;
 }
 
 export interface Payment {
@@ -73,7 +73,7 @@ export interface Payment {
   voided_at?: string | null;
   created_at: string;
   client?: Pick<Client, "id" | "name" | "phone" | "whatsapp"> | null;
-  loan?: Pick<Loan, "id" | "loan_code" | "total_receivable" | "expected_profit"> | null;
+  loan?: { id: string; loan_code: string; total_receivable?: number; expected_profit?: number } | null;
 }
 
 export interface ActivityLog {
