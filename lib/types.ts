@@ -109,6 +109,21 @@ export interface CashEntry {
   created_at: string;
 }
 
+export interface CashDebt {
+  id: string;
+  user_id?: string;
+  title: string;
+  amount: number;
+  due_date: string;
+  status: "PENDENTE" | "PAGO" | "CANCELADO";
+  notes?: string | null;
+  paid_at?: string | null;
+  payment_date?: string | null;
+  cash_entry_id?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface DashboardSummary {
   capitalCirculation: number;
   totalReceivable: number;
