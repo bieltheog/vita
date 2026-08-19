@@ -1,0 +1,63 @@
+@media (max-width:780px){
+  body{background:radial-gradient(circle at 85% -4%,rgba(124,92,255,.12),transparent 24rem),#07090d}
+  .content{padding-bottom:34px}
+  .page-head h1{font-size:24px}
+  .card{box-shadow:0 10px 28px rgba(0,0,0,.16)}
+  .premium-stat{min-height:118px}
+  .cash-primary-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .forecast-card{padding:14px}
+  .forecast-head{flex-direction:column;align-items:flex-start}
+  .forecast-chip{white-space:normal}
+  .forecast-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .forecast-metric{padding:12px}
+  .forecast-metric strong{font-size:17px}
+  .projection-row{grid-template-columns:1fr;gap:7px;padding:12px 0}
+  .projection-flows{justify-content:flex-start;gap:14px}
+  .projection-balance{text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .projection-balance strong{margin-top:0}
+  .cash-config-grid{gap:12px}
+
+  .debt-row{align-items:stretch}
+  .debt-info{flex:1 1 100%;width:100%}
+  .debt-actions{width:100%;justify-content:flex-start;padding-left:20px}
+  .debt-pay-form{width:100%;display:grid;grid-template-columns:1fr 1fr}
+  .debt-pay-form .input{width:100%}
+  .debt-pay-form .btn{width:100%}
+  .movement-value{width:100%;justify-content:space-between}
+
+  .financial-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .financial-legend{gap:9px 11px}
+  .calendar-legend{padding:11px 12px}
+  .calendar-shell-card{padding:13px}
+  .calendar-nav{width:100%;display:grid;grid-template-columns:1fr auto auto}
+  .calendar-nav .btn{width:100%}
+  .mobile-financial-list{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+  .financial-mobile-row{width:100%;border:0;text-align:left;background:transparent;border-bottom:1px solid rgba(255,255,255,.055);padding:12px 0}
+  .financial-mobile-row>.person{flex:1 1 175px}
+  .financial-row-value{min-width:105px}
+  .financial-day-modal .kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .debt-calendar-main{gap:18px}
+  .calendar-debt-pay{margin-top:12px}
+  .installment-financial-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .installment-financial-grid>div{padding:10px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.018)}
+
+  .section-title>span.badge{max-width:100%;white-space:normal}
+  .attention-card .list-row{padding-left:0;padding-right:0}
+}
+
+@media (max-width:480px){
+  .forecast-grid{grid-template-columns:1fr}
+  .cash-primary-stats{grid-template-columns:1fr 1fr}
+  .premium-stat{min-height:110px}
+  .financial-kpis{grid-template-columns:1fr 1fr}
+  .debt-pay-form{grid-template-columns:1fr}
+  .debt-actions{padding-left:0}
+  .financial-mobile-row{align-items:flex-start}
+  .financial-row-value{width:100%;align-items:flex-start;text-align:left;padding-left:44px}
+  .installment-financial-grid{grid-template-columns:1fr}
+}
+
+@media (max-width:360px){
+  .cash-primary-stats,.financial-kpis{grid-template-columns:1fr}
+  .premium-stat{min-height:auto}
+}
