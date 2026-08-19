@@ -1,12 +1,12 @@
-import { getCashAccount, getCashEntries } from "@/lib/cash-data";
+import { getCashAccount, getCashDebts, getCashEntries } from "@/lib/cash-data";
 import { getInstallments, getLoans, getPayments } from "@/lib/data";
 import { brazilDateKey } from "@/lib/date";
 import { CashManager, type CashMovement, type CashSummary } from "@/components/cash/cash-manager";
 
 export default async function MeuCaixaPage() {
   const today=brazilDateKey();
-  const [account,entries,loans,payments,installments]=await Promise.all([
-    getCashAccount(),getCashEntries(),getLoans(),getPayments(),getInstallments(),
+  const [account,entries,debts,loans,payments,installments]=await Promise.all([
+    getCashAccount(),getCashEntries(),getCashDebts(),getLoans(),getPayments(),getInstallments(),
   ]);
 
   const trackingStart=account?.tracking_start_date||today;
@@ -23,6 +23,8 @@ export default async function MeuCaixaPage() {
   const available=openingBalance+manualIncome+paymentsReceived-manualExpenses-loansGranted;
   const lendable=Math.max(0,available-reserveAmount);
   const totalReceivable=installments.filter(i=>i.stored_status!=="CANCELADO").reduce((s,i)=>s+Number(i.remaining_amount),0);
+  const pendingDebts=debts.filter(d=>d.status==="PENDENTE");
+  const pendingDebtAmount=pendingDebts.reduce((s,d)=>s+Number(d.amount),0);
 
   const manualMovements:CashMovement[]=entries
     .filter(e=>e.entry_date>=trackingStart)
@@ -65,10 +67,11 @@ export default async function MeuCaixaPage() {
     manualExpenses,
     loansGranted,
     totalReceivable,
+    pendingDebtAmount,
   };
 
   return <>
-    <div className="page-head"><div><div className="eyebrow">Gestor financeiro</div><h1>Meu Caixa</h1><div className="muted">Seu dinheiro em um só lugar: saldo, entradas, gastos, empréstimos e recebimentos.</div></div></div>
-    <CashManager summary={summary} movements={movements} configured={Boolean(account)} today={today}/>
+    <div className="page-head"><div><div className="eyebrow">Gestor financeiro</div><h1>Meu Caixa</h1><div className="muted">Seu dinheiro em um só lugar: saldo, entradas, gastos, empréstimos, recebimentos e dívidas.</div></div></div>
+    <CashManager summary={summary} movements={movements} debts={debts} configured={Boolean(account)} today={today}/>
   </>;
 }
