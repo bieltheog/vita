@@ -1,0 +1,23 @@
+import { notFound } from "next/navigation";
+import { getLoan,getInstallments,getPayments,getActivityLogs } from "@/lib/data";
+import { effectiveInstallmentStatus,money } from "@/lib/finance";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { RenegotiateInstallment } from "@/components/forms/renegotiate-installment";
+import { WhatsAppButton } from "@/components/ui/whatsapp-button";
+import { ReceiptButton } from "@/components/ui/receipt-button";
+
+export default async function LoanDetail({params}:{params:Promise<{id:string}>}){
+  const {id}=await params;
+  const [loan,installments,payments,logs]=await Promise.all([getLoan(id),getInstallments({loanId:id}),getPayments(undefined,id),getActivityLogs(300)]);
+  if(!loan)notFound();
+  const paid=payments.reduce((s,p)=>s+Number(p.amount),0),remaining=installments.reduce((s,i)=>s+Number(i.remaining_amount),0);
+  const entityIds=new Set([loan.id,...installments.map(i=>i.id),...payments.map(p=>p.id)]);
+  const history=logs.filter(l=>l.entity_id&&entityIds.has(l.entity_id));
+  const phone=loan.client?.whatsapp||loan.client?.phone;
+  return <>
+    <div className="page-head"><div><div className="eyebrow">Empréstimo</div><h1>{loan.loan_code}</h1><div className="muted">{loan.client?.name} · {loan.installment_count} parcelas · {loan.payment_frequency}</div></div><WhatsAppButton phone={phone} message={`Olá, ${loan.client?.name||""}! Estou entrando em contato sobre o empréstimo ${loan.loan_code}. O saldo atual é ${money(remaining)}.`}/></div>
+    <div className="stats"><div className="card"><div className="muted">Valor emprestado</div><div className="stat-value">{money(loan.principal_amount)}</div></div><div className="card"><div className="muted">Lucro previsto</div><div className="stat-value">{money(loan.expected_profit)}</div></div><div className="card"><div className="muted">Recebido</div><div className="stat-value">{money(paid)}</div></div><div className="card"><div className="muted">Saldo</div><div className="stat-value">{money(remaining)}</div></div></div>
+    <div className="card" style={{marginTop:16}}><div className="section-title"><div><h2>Parcelas</h2><div className="muted" style={{fontSize:12}}>Renegocie data e valor de uma parcela sem perder a data original nem o histórico.</div></div></div><div className="table-wrap"><table><thead><tr><th>Parcela</th><th>Original</th><th>Vencimento</th><th>Valor</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>{installments.map(i=><tr key={i.id}><td>{i.installment_number}/{i.loan?.installment_count}</td><td>{i.original_due_date}</td><td>{i.due_date}</td><td>{money(i.amount)}</td><td>{money(i.amount_paid)}</td><td>{money(i.remaining_amount)}</td><td><StatusBadge status={effectiveInstallmentStatus(i)}/></td><td><RenegotiateInstallment installment={i} compact/></td></tr>)}</tbody></table></div></div>
+    <div className="grid-equal" style={{marginTop:16}}><div className="card"><div className="section-title"><h2>Pagamentos</h2><span className="badge green">{payments.length}</span></div><div className="list">{payments.length?payments.map(p=><div className="list-row" key={p.id}><div><strong>{money(p.amount)}</strong><div className="person-meta">{p.payment_date} · {p.payment_method}</div></div><ReceiptButton clientName={p.client?.name||loan.client?.name||"Cliente"} loanCode={p.loan?.loan_code||loan.loan_code} amount={Number(p.amount)} paymentDate={p.payment_date} paymentMethod={p.payment_method}/></div>):<div className="empty">Nenhum pagamento registrado.</div>}</div></div><div className="card"><div className="section-title"><h2>Histórico de alterações</h2><span className="badge gray">{history.length}</span></div><div className="list">{history.length?history.map(log=><div className="list-row" key={log.id}><div><strong>{log.description||log.action}</strong><div className="person-meta">{new Date(log.created_at).toLocaleString("pt-BR")} · {log.action}</div></div></div>):<div className="empty">Nenhuma alteração registrada.</div>}</div></div></div>
+  </>;
+}
