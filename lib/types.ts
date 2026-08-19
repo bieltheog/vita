@@ -40,7 +40,7 @@ export interface Loan {
   fixed_schedule?: FixedSchedule | null;
   status: LoanStatus;
   created_at: string;
-  client?: Pick<Client, "id" | "name"> | null;
+  client?: Pick<Client, "id" | "name" | "phone" | "whatsapp"> | null;
 }
 
 export interface Installment {
@@ -56,8 +56,8 @@ export interface Installment {
   remaining_amount: number;
   stored_status: PaymentStatus;
   paid_at?: string | null;
-  client?: Pick<Client, "id" | "name"> | null;
-  loan?: Pick<Loan, "id" | "loan_code" | "installment_count"> | null;
+  client?: Pick<Client, "id" | "name" | "phone" | "whatsapp"> | null;
+  loan?: Pick<Loan, "id" | "loan_code" | "installment_count" | "principal_amount" | "total_receivable" | "expected_profit"> | null;
 }
 
 export interface Payment {
@@ -72,8 +72,20 @@ export interface Payment {
   notes?: string | null;
   voided_at?: string | null;
   created_at: string;
-  client?: Pick<Client, "id" | "name"> | null;
-  loan?: Pick<Loan, "id" | "loan_code"> | null;
+  client?: Pick<Client, "id" | "name" | "phone" | "whatsapp"> | null;
+  loan?: Pick<Loan, "id" | "loan_code" | "total_receivable" | "expected_profit"> | null;
+}
+
+export interface ActivityLog {
+  id: string;
+  user_id?: string;
+  entity_type: string;
+  entity_id: string | null;
+  action: string;
+  description?: string | null;
+  old_data?: unknown;
+  new_data?: unknown;
+  created_at: string;
 }
 
 export interface DashboardSummary {
