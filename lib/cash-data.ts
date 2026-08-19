@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { CashAccount, CashEntry } from "@/lib/types";
+import type { CashAccount, CashDebt, CashEntry } from "@/lib/types";
 
 export async function getCashAccount(): Promise<CashAccount | null> {
   const supabase = await createClient();
@@ -25,4 +25,16 @@ export async function getCashEntries(): Promise<CashEntry[]> {
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data || []) as CashEntry[];
+}
+
+export async function getCashDebts(): Promise<CashDebt[]> {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("cash_debts")
+    .select("id,user_id,title,amount,due_date,status,notes,paid_at,payment_date,cash_entry_id,created_at,updated_at")
+    .order("due_date", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data || []) as CashDebt[];
 }
