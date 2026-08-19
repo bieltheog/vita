@@ -26,6 +26,7 @@
   .content{padding:16px 12px 28px;max-width:100%;overflow:hidden}
   .page-head{align-items:flex-start;flex-direction:column;gap:12px;margin-bottom:18px}
   .page-head>div{max-width:100%}
+  .page-head>.btn{width:100%}
   .page-head>div:last-child:not(:first-child){width:100%;display:flex;gap:8px;flex-wrap:wrap}
   .page-head>div:last-child:not(:first-child)>.btn{flex:1 1 145px}
   .eyebrow{font-size:10px;letter-spacing:.1em}
@@ -91,7 +92,7 @@
     padding:18px 14px calc(18px + env(safe-area-inset-bottom));
     border-left:0;border-right:0;border-bottom:0;
   }
-  .modal .section-title{position:sticky;top:-18px;z-index:2;background:#0c1016;padding:16px 0 10px}
+  .modal>.section-title{position:sticky;top:-18px;z-index:2;background:#0c1016;padding:16px 0 10px}
 
   .calendar-grid{display:none}
   .calendar-day{min-height:auto}
