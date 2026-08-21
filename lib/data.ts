@@ -91,7 +91,12 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const activeLoans = loans.filter((l) => l.status === "ATIVO");
   const activeClientIds = new Set(activeLoans.map((l) => l.client_id));
   const totalReceived = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const outstanding = installments.reduce((sum, i) => sum + Number(i.remaining_amount), 0);
+
+  // Total a receber é sempre o saldo realmente aberto das parcelas.
+  // Portanto, cada pagamento reduz esse valor integralmente e parcelas canceladas não entram.
+  const outstanding = installments
+    .filter((i) => i.stored_status !== "CANCELADO")
+    .reduce((sum, i) => sum + Number(i.remaining_amount), 0);
 
   // Capital em circulação representa somente o principal que ainda está com os clientes.
   // Como cada recebimento mistura principal + lucro, o principal é amortizado na mesma
