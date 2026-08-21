@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { CashAccount, CashDebt, CashEntry } from "@/lib/types";
+import type { CashAccount, CashDebt, CashEntry, LoanTopup } from "@/lib/types";
 
 export async function getCashAccount(): Promise<CashAccount | null> {
   const supabase = await createClient();
@@ -37,4 +37,18 @@ export async function getCashDebts(): Promise<CashDebt[]> {
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data || []) as CashDebt[];
+}
+
+export async function getLoanTopups(loanId?: string): Promise<LoanTopup[]> {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  let query = supabase
+    .from("loan_topups")
+    .select("id,user_id,loan_id,client_id,amount,calculation_type,return_value,expected_profit,total_receivable_added,topup_date,previous_remaining,new_remaining,future_installment_count,payment_frequency,first_due_date,notes,created_at,client:clients(id,name),loan:loans(id,loan_code)")
+    .order("topup_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (loanId) query = query.eq("loan_id", loanId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as unknown as LoanTopup[];
 }
