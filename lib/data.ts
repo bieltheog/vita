@@ -92,7 +92,27 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const activeClientIds = new Set(activeLoans.map((l) => l.client_id));
   const totalReceived = payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = installments.reduce((sum, i) => sum + Number(i.remaining_amount), 0);
-  const capitalCirculation = activeLoans.reduce((sum, l) => sum + Number(l.principal_amount), 0);
+
+  // Capital em circulação representa somente o principal que ainda está com os clientes.
+  // Como cada recebimento mistura principal + lucro, o principal é amortizado na mesma
+  // proporção em que o saldo total do empréstimo é recebido.
+  const remainingByLoan = new Map<string, number>();
+  for (const installment of installments) {
+    if (installment.stored_status === "CANCELADO") continue;
+    remainingByLoan.set(
+      installment.loan_id,
+      (remainingByLoan.get(installment.loan_id) || 0) + Number(installment.remaining_amount),
+    );
+  }
+  const capitalCirculation = activeLoans.reduce((sum, loan) => {
+    const principal = Number(loan.principal_amount);
+    const totalReceivable = Number(loan.total_receivable);
+    const remainingReceivable = Math.max(0, remainingByLoan.get(loan.id) || 0);
+    if (principal <= 0 || totalReceivable <= 0) return sum;
+    const outstandingRatio = Math.max(0, Math.min(1, remainingReceivable / totalReceivable));
+    return sum + principal * outstandingRatio;
+  }, 0);
+
   const expectedProfit = activeLoans.reduce((sum, l) => sum + Number(l.expected_profit), 0);
   const todayRows = installments.filter((i) => i.due_date === today);
   const receiveToday = todayRows.reduce((sum, i) => sum + Number(i.amount), 0);
