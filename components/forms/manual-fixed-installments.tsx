@@ -32,7 +32,7 @@ export function ManualFixedInstallments({
         <button type="button" className="btn secondary" onClick={onSplitEqually}>Dividir igualmente</button>
       </div>
       <div style={{display:"grid",gap:10}}>
-        {rows.map((row,index)=><div key={index} style={{display:"grid",gridTemplateColumns:"90px minmax(150px,1fr) minmax(130px,1fr)",gap:10,alignItems:"end"}}>
+        {rows.map((row,index)=><div key={index} className="manual-fixed-row">
           <div className="muted" style={{fontSize:12,paddingBottom:11}}>Parcela {index+1}</div>
           <div className="field"><label>Data *</label><input className="input" name={`fixed_due_date_${index}`} type="date" value={row.date} onChange={e=>update(index,{date:e.target.value})} required/></div>
           <div className="field"><label>Valor *</label><input className="input" name={`fixed_amount_${index}`} type="number" min="0.01" step="0.01" value={row.amount} onChange={e=>update(index,{amount:e.target.value})} required/></div>
