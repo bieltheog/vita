@@ -76,6 +76,28 @@ export interface Payment {
   loan?: { id: string; loan_code: string; total_receivable?: number; expected_profit?: number } | null;
 }
 
+export interface LoanTopup {
+  id: string;
+  user_id?: string;
+  loan_id: string;
+  client_id: string;
+  amount: number;
+  calculation_type: "percentage" | "fixed";
+  return_value: number;
+  expected_profit: number;
+  total_receivable_added: number;
+  topup_date: string;
+  previous_remaining: number;
+  new_remaining: number;
+  future_installment_count: number;
+  payment_frequency: string;
+  first_due_date: string;
+  notes?: string | null;
+  created_at: string;
+  client?: Pick<Client, "id" | "name"> | null;
+  loan?: { id: string; loan_code: string } | null;
+}
+
 export interface ActivityLog {
   id: string;
   user_id?: string;
