@@ -23,8 +23,6 @@ export default async function MeuCaixaPage() {
   const manualIncome=activeManual.filter(e=>e.entry_type==="ENTRADA").reduce((s,e)=>s+Number(e.amount),0);
   const manualExpenses=activeManual.filter(e=>e.entry_type==="GASTO").reduce((s,e)=>s+Number(e.amount),0);
 
-  // O principal atual do empréstimo inclui os adicionais. Para o caixa, separamos
-  // o valor original (na data inicial) de cada adicional (na data em que realmente saiu).
   const topupByLoan=new Map<string,number>();
   topups.forEach(t=>topupByLoan.set(t.loan_id,(topupByLoan.get(t.loan_id)||0)+Number(t.amount)));
   const basePrincipal=(loanId:string,currentPrincipal:number)=>Math.max(0,Number(currentPrincipal)-(topupByLoan.get(loanId)||0));
@@ -56,7 +54,7 @@ export default async function MeuCaixaPage() {
       title:e.description||e.category.replaceAll("_"," "),
       description:`${e.entry_type==="ENTRADA"?"Entrada":"Gasto"} · ${e.category.replaceAll("_"," ")}`,
       amount:(e.entry_type==="ENTRADA"?1:-1)*Number(e.amount),
-      source:"manual",
+      source:"manual" as const,
       voided:Boolean(e.voided_at),
     }));
   const loanMovements:CashMovement[]=loansSince.map(l=>({
@@ -65,7 +63,7 @@ export default async function MeuCaixaPage() {
     title:l.client?.name||"Cliente",
     description:`Empréstimo ${l.loan_code} · valor original`,
     amount:-basePrincipal(l.id,Number(l.principal_amount)),
-    source:"loan",
+    source:"loan" as const,
   })).filter(m=>Math.abs(m.amount)>0.001);
   const topupMovements:CashMovement[]=topupsSince.map(t=>({
     id:t.id,
@@ -73,7 +71,7 @@ export default async function MeuCaixaPage() {
     title:t.client?.name||"Cliente",
     description:`Adicional no empréstimo ${t.loan?.loan_code||""}`,
     amount:-Number(t.amount),
-    source:"loan",
+    source:"loan" as const,
   }));
   const paymentMovements:CashMovement[]=paymentsSince.map(p=>({
     id:p.id,
@@ -81,7 +79,7 @@ export default async function MeuCaixaPage() {
     title:p.client?.name||"Cliente",
     description:`Pagamento recebido · ${p.loan?.loan_code||"empréstimo"}`,
     amount:Number(p.amount),
-    source:"payment",
+    source:"payment" as const,
   }));
   const movements=[...manualMovements,...loanMovements,...topupMovements,...paymentMovements]
     .sort((a,b)=>b.date.localeCompare(a.date));
