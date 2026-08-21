@@ -1,62 +1,128 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { Pencil, X } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { CirclePlus, Pencil, X } from "lucide-react";
 import { updateLoanFormAction } from "@/app/loan-form-actions";
-import { calculateLoan, money, splitInstallments } from "@/lib/finance";
+import { addLoanTopupAction } from "@/app/loan-topup-actions";
+import { brazilDateKey } from "@/lib/date";
+import { calculateLoan, money, roundMoney, splitInstallments } from "@/lib/finance";
 import { DailyOffDays } from "@/components/forms/daily-off-days";
 import { ManualFixedInstallments, type ManualFixedRow } from "@/components/forms/manual-fixed-installments";
 import type { Installment, Loan } from "@/lib/types";
 
-function resizeFixedRows(rows: ManualFixedRow[], count: number, total: number) {
+function buildFixedRows(rows: ManualFixedRow[], count: number, total: number, keepAmounts = true) {
   const values=splitInstallments(total,count);
-  return Array.from({length:count},(_,index)=>rows[index]||{date:"",amount:(values[index]||0).toFixed(2)});
+  return Array.from({length:count},(_,index)=>({
+    date:rows[index]?.date||"",
+    amount:keepAmounts&&rows[index]?.amount ? rows[index].amount : (values[index]||0).toFixed(2),
+  }));
 }
 
 export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installments?: Installment[] }) {
   const sorted=[...installments].sort((a,b)=>a.installment_number-b.installment_number);
+  const hasPayments=sorted.some(row=>Number(row.amount_paid)>0||row.stored_status==="PAGO"||row.stored_status==="PARCIAL");
+  const lockedMax=sorted
+    .filter(row=>Number(row.amount_paid)>0||row.stored_status==="PAGO"||row.stored_status==="PARCIAL")
+    .reduce((max,row)=>Math.max(max,Number(row.installment_number)),0);
+  const currentRemaining=roundMoney(sorted
+    .filter(row=>row.stored_status!=="CANCELADO")
+    .reduce((sum,row)=>sum+Number(row.remaining_amount),0));
+  const editableRows=hasPayments
+    ? sorted.filter(row=>row.stored_status!=="CANCELADO"&&Number(row.remaining_amount)>0)
+    : sorted;
+
   const initialType: "percentage" | "fixed" = loan.fixed_return_amount != null ? "fixed" : "percentage";
   const initialReturn = initialType === "fixed" ? Number(loan.fixed_return_amount || 0) : Number(loan.return_percentage || 0);
-  const initialFixedRows: ManualFixedRow[]=sorted.map(row=>({date:row.due_date,amount:Number(row.amount).toFixed(2)}));
+  const initialFixedRows: ManualFixedRow[]=editableRows.map(row=>({date:row.due_date,amount:Number(hasPayments?row.remaining_amount:row.amount).toFixed(2)}));
+  const originalPrincipal=Number(loan.principal_amount);
+
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [error, setError] = useState("");
-  const [principal, setPrincipal] = useState(Number(loan.principal_amount));
+  const [principal, setPrincipal] = useState(originalPrincipal);
   const [returnValue, setReturnValue] = useState(initialReturn);
   const [type, setType] = useState<"percentage" | "fixed">(initialType);
   const [count, setCount] = useState(Number(loan.installment_count));
   const [frequency,setFrequency]=useState(loan.payment_frequency==="PERSONALIZADO"?"DATAS_FIXAS":loan.payment_frequency);
   const [dailyOffDays,setDailyOffDays]=useState<number[]>((loan.daily_off_days || []).map(Number));
-  const [firstDueDate,setFirstDueDate]=useState(loan.first_due_date);
+  const [firstDueDate,setFirstDueDate]=useState(editableRows[0]?.due_date||loan.first_due_date);
   const [fixedRows,setFixedRows]=useState<ManualFixedRow[]>(initialFixedRows);
+  const [fixedTouched,setFixedTouched]=useState(false);
+  const [topupDate,setTopupDate]=useState(brazilDateKey());
+
   const daily=frequency==="DIARIO";
   const fixed=frequency==="DATAS_FIXAS";
+  const topupPrincipal=roundMoney(Math.max(0,principal-originalPrincipal));
+  const topupMode=hasPayments&&topupPrincipal>0.005;
+  const reducingPrincipal=hasPayments&&principal<originalPrincipal-0.005;
 
-  const calc = useMemo(() => calculateLoan(principal || 0, type, returnValue || 0), [principal, type, returnValue]);
-  const values = splitInstallments(calc.totalReceivable, count || 1);
+  const normalCalc = useMemo(() => calculateLoan(principal || 0, type, returnValue || 0), [principal, type, returnValue]);
+  const additionCalc = useMemo(() => calculateLoan(topupPrincipal || 0, type, returnValue || 0), [topupPrincipal, type, returnValue]);
+  const newContractedTotal=roundMoney(Number(loan.total_receivable)+additionCalc.totalReceivable);
+  const newRemaining=roundMoney(currentRemaining+additionCalc.totalReceivable);
+  const futureCount=topupMode
+    ? (frequency==="UNICO"?1:Math.max(1,count-lockedMax))
+    : count;
+  const targetTotal=topupMode?newRemaining:normalCalc.totalReceivable;
+  const targetCount=topupMode?futureCount:count;
+  const values = splitInstallments(targetTotal, targetCount || 1);
 
+  useEffect(()=>{
+    if(fixed&&topupMode&&!fixedTouched){
+      setFixedRows(rows=>buildFixedRows(rows,targetCount,targetTotal,false));
+    }
+  },[fixed,topupMode,fixedTouched,targetCount,targetTotal]);
+
+  function changePrincipal(next:number){
+    setPrincipal(next);
+    if(fixed&&hasPayments)setFixedTouched(false);
+  }
   function changeFrequency(next:string){
     setFrequency(next);
-    if(next==="DATAS_FIXAS") setFixedRows(rows=>resizeFixedRows(rows,count,calc.totalReceivable));
+    if(next==="UNICO") setCount(hasPayments?Math.max(1,lockedMax+1):1);
+    if(next==="DATAS_FIXAS") setFixedTouched(false);
   }
   function changeCount(next:number){
-    const safe=Math.max(1,next||1);
+    const minimum=topupMode?lockedMax+1:1;
+    const safe=Math.max(minimum,next||minimum);
     setCount(safe);
-    if(fixed) setFixedRows(rows=>resizeFixedRows(rows,safe,calc.totalReceivable));
+    if(fixed) setFixedTouched(false);
   }
   function splitFixedEqually(){
-    const split=splitInstallments(calc.totalReceivable,count);
-    setFixedRows(rows=>resizeFixedRows(rows,count,calc.totalReceivable).map((row,index)=>({...row,amount:(split[index]||0).toFixed(2)})));
+    setFixedRows(rows=>buildFixedRows(rows,targetCount,targetTotal,false));
+    setFixedTouched(false);
   }
 
   async function submit(formData: FormData) {
     setError("");
     start(async () => {
+      if(reducingPrincipal){
+        setError(`Este empréstimo já possui pagamento. O principal original de ${money(originalPrincipal)} não pode ser reduzido; para corrigir um lançamento antigo, use o histórico/estorno.`);
+        return;
+      }
+
+      if(topupMode){
+        if(!topupDate){setError("Informe a data em que o valor adicional foi entregue.");return;}
+        if(frequency!=="UNICO"&&count<=lockedMax){
+          setError(`Como já existem ${lockedMax} parcelas no histórico, o total final precisa ser maior que ${lockedMax}.`);
+          return;
+        }
+        formData.set("additional_principal",String(topupPrincipal));
+        formData.set("topup_date",topupDate);
+        formData.set("future_installment_count",String(futureCount));
+        const result=await addLoanTopupAction(formData);
+        if(!result.ok){setError(result.error);return;}
+        setOpen(false);
+        return;
+      }
+
       const result=await updateLoanFormAction(formData);
       if(!result.ok){setError(result.error);return;}
       setOpen(false);
     });
   }
+
+  const renderedFixedRows=buildFixedRows(fixedRows,targetCount,targetTotal,!(topupMode&&!fixedTouched));
 
   return <>
     <button className="icon-btn" title="Editar empréstimo" onClick={() => setOpen(true)}><Pencil size={15}/></button>
@@ -65,24 +131,52 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
         <div><h2>Editar empréstimo</h2><div className="muted" style={{fontSize:12}}>{loan.loan_code} · {loan.client?.name || "Cliente"}</div></div>
         <button className="icon-btn" onClick={() => setOpen(false)}><X size={17}/></button>
       </div>
-      <div className="alert" style={{marginTop:14}}>Ao salvar uma edição sem pagamentos, as parcelas e o calendário são sincronizados. Se já houver pagamento registrado, valores e datas ficam protegidos para preservar o histórico.</div>
+
+      {hasPayments&&!topupMode&&!reducingPrincipal&&<div className="alert" style={{marginTop:14}}>
+        <strong>Este empréstimo já possui pagamento.</strong> Se você aumentar o valor emprestado, a diferença será registrada automaticamente como um adicional de capital e as parcelas futuras poderão ser refeitas sem apagar o que já foi pago. Sem aumentar o valor, somente o status pode ser alterado.
+      </div>}
+      {topupMode&&<div className="alert" style={{marginTop:14,borderColor:"rgba(105,78,255,.45)"}}>
+        <strong>Adicional detectado: {money(topupPrincipal)}.</strong> Ao salvar, os pagamentos anteriores serão preservados e apenas o saldo/parcelas futuras serão reorganizados. O valor original de {money(originalPrincipal)} não será regravado no passado.
+      </div>}
+      {reducingPrincipal&&<div className="alert" style={{marginTop:14,borderColor:"rgba(255,98,109,.35)",color:"#ff9aa2"}}>
+        O empréstimo já tem pagamentos. Para preservar o histórico, o valor original não pode ser reduzido por esta tela.
+      </div>}
+
       <form action={submit} className="form-grid" style={{marginTop:14}}>
         <input type="hidden" name="loan_id" value={loan.id}/>
-        <div className="field"><label>Valor emprestado *</label><input className="input" name="principal_amount" type="number" min="0.01" step="0.01" value={principal} onChange={e=>setPrincipal(Number(e.target.value))} required/></div>
-        <div className="field"><label>Tipo de cálculo</label><select className="select" name="calculation_type" value={type} onChange={e=>setType(e.target.value as "percentage"|"fixed")}><option value="percentage">Porcentagem de retorno</option><option value="fixed">Valor fixo de retorno</option></select></div>
-        <div className="field"><label>{type === "percentage" ? "Retorno (%)" : "Lucro fixo (R$)"}</label><input className="input" name="return_value" type="number" min="0" step="0.01" value={returnValue} onChange={e=>setReturnValue(Number(e.target.value))}/></div>
-        <div className="field"><label>Forma de pagamento</label><select className="select" name="payment_frequency" value={frequency} onChange={e=>changeFrequency(e.target.value)}><option value="UNICO">Pagamento único</option><option value="DIARIO">Diário</option><option value="SEMANAL">Semanal</option><option value="QUINZENAL">Quinzenal</option><option value="MENSAL">Mensal</option><option value="DATAS_FIXAS">Datas fixas</option></select></div>
-        <div className="field"><label>Número de parcelas</label><input className="input" name="installment_count" type="number" min="1" value={count} onChange={e=>changeCount(Number(e.target.value))}/></div>
+        <div className="field"><label>{hasPayments?"Novo total emprestado *":"Valor emprestado *"}</label><input className="input" name="principal_amount" type="number" min={hasPayments?originalPrincipal:0.01} step="0.01" value={principal} onChange={e=>changePrincipal(Number(e.target.value))} required/>{hasPayments&&<div className="muted" style={{fontSize:11}}>Original: {money(originalPrincipal)}{topupMode?` · adicional: ${money(topupPrincipal)}`:""}</div>}</div>
+        <div className="field"><label>Tipo de cálculo</label><select className="select" name="calculation_type" value={type} onChange={e=>{setType(e.target.value as "percentage"|"fixed");if(fixed&&hasPayments)setFixedTouched(false)}}><option value="percentage">Porcentagem de retorno</option><option value="fixed">Valor fixo de retorno</option></select></div>
+        <div className="field"><label>{topupMode?(type === "percentage" ? "Retorno sobre o adicional (%)" : "Lucro sobre o adicional (R$)"):(type === "percentage" ? "Retorno (%)" : "Lucro fixo (R$)")}</label><input className="input" name="return_value" type="number" min="0" step="0.01" value={returnValue} onChange={e=>{setReturnValue(Number(e.target.value));if(fixed&&topupMode)setFixedTouched(false)}}/></div>
+        <div className="field"><label>{topupMode?"Forma das parcelas futuras":"Forma de pagamento"}</label><select className="select" name="payment_frequency" value={frequency} onChange={e=>changeFrequency(e.target.value)}><option value="UNICO">Pagamento único</option><option value="DIARIO">Diário</option><option value="SEMANAL">Semanal</option><option value="QUINZENAL">Quinzenal</option><option value="MENSAL">Mensal</option><option value="DATAS_FIXAS">Datas fixas</option></select></div>
+        <div className="field"><label>{topupMode?"Número total de parcelas após ajuste":"Número de parcelas"}</label><input className="input" name="installment_count" type="number" min={topupMode?lockedMax+1:1} value={count} disabled={topupMode&&frequency==="UNICO"} onChange={e=>changeCount(Number(e.target.value))}/>{topupMode&&<div className="muted" style={{fontSize:11}}>{lockedMax} parcela(s) permanecem no histórico · {futureCount} parcela(s) futuras serão criadas</div>}</div>
         {daily&&<DailyOffDays selected={dailyOffDays} onChange={setDailyOffDays}/>} 
-        {fixed&&<ManualFixedInstallments rows={resizeFixedRows(fixedRows,count,calc.totalReceivable)} total={calc.totalReceivable} onChange={setFixedRows} onSplitEqually={splitFixedEqually}/>} 
-        <div className="field"><label>Status</label><select className="select" name="status" defaultValue={loan.status}><option value="ATIVO">Ativo</option><option value="FINALIZADO">Finalizado</option><option value="CANCELADO">Cancelado</option></select></div>
-        <div className="field"><label>Data do empréstimo *</label><input className="input" name="start_date" type="date" defaultValue={loan.start_date} required/></div>
-        {!fixed&&<div className="field"><label>Primeiro pagamento *</label><input className="input" name="first_due_date" type="date" value={firstDueDate} onChange={e=>setFirstDueDate(e.target.value)} required/></div>}
+        {fixed&&<ManualFixedInstallments rows={renderedFixedRows} total={targetTotal} onChange={rows=>{setFixedRows(rows);setFixedTouched(true)}} onSplitEqually={splitFixedEqually}/>} 
+
+        {topupMode?<>
+          <div className="field"><label>Data do valor adicional *</label><input className="input" name="topup_date" type="date" max={brazilDateKey()} value={topupDate} onChange={e=>setTopupDate(e.target.value)} required/></div>
+          <div className="field"><label>Data original do empréstimo</label><input className="input" type="date" value={loan.start_date} disabled/></div>
+        </>:<>
+          <div className="field"><label>Status</label><select className="select" name="status" defaultValue={loan.status}><option value="ATIVO">Ativo</option><option value="FINALIZADO">Finalizado</option><option value="CANCELADO">Cancelado</option></select></div>
+          <div className="field"><label>Data do empréstimo *</label><input className="input" name="start_date" type="date" defaultValue={loan.start_date} required/></div>
+        </>}
+
+        {!fixed&&<div className="field"><label>{topupMode?"Primeiro vencimento do novo calendário *":"Primeiro pagamento *"}</label><input className="input" name="first_due_date" type="date" value={firstDueDate} onChange={e=>setFirstDueDate(e.target.value)} required/></div>}
         {daily&&<div className="field full"><div className="alert">Os dias de folga são retirados da sequência diária. As parcelas continuam existindo e os vencimentos seguintes avançam para os próximos dias permitidos.</div></div>}
-        {fixed&&<div className="field full"><div className="alert">Cada parcela pode ter uma data e um valor diferentes. A soma precisa fechar exatamente o total a receber.</div></div>}
-        <div className="field full"><div className="card" style={{background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(calc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(calc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted" style={{fontSize:12}}>{fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(values[0] || 0)}</strong></>}</div></div></div>
-        {error && <div className="field full"><div className="alert">{error}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending}>{pending ? "Salvando..." : "Salvar alterações"}</button></div>
+        {fixed&&<div className="field full"><div className="alert">Cada parcela futura pode ter uma data e um valor diferentes. A soma precisa fechar exatamente o saldo futuro.</div></div>}
+
+        <div className="field full"><div className="card" style={{background:"#090c11"}}>
+          {topupMode?<>
+            <div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Saldo antes do adicional</div><strong>{money(currentRemaining)}</strong></div><div><div className="muted" style={{fontSize:11}}>Novo principal entregue</div><strong>{money(topupPrincipal)}</strong></div><div><div className="muted" style={{fontSize:11}}>Lucro do adicional</div><strong>{money(additionCalc.expectedProfit)}</strong></div></div>
+            <div className="divider"/>
+            <div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Total contratado após adicional</div><strong>{money(newContractedTotal)}</strong></div><div><div className="muted" style={{fontSize:11}}>Saldo futuro após pagamentos já feitos</div><strong style={{color:"var(--green)"}}>{money(newRemaining)}</strong></div></div>
+            <div className="divider"/><div className="muted" style={{fontSize:12}}>{futureCount} parcela(s) futura(s) de aproximadamente <strong style={{color:"white"}}>{money(values[0] || 0)}</strong></div>
+          </>:<>
+            <div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(normalCalc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(normalCalc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted" style={{fontSize:12}}>{fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(values[0] || 0)}</strong></>}</div>
+          </>}
+        </div></div>
+
+        {error && <div className="field full"><div className="alert" style={{borderColor:"rgba(255,98,109,.35)",color:"#ff9aa2"}}>{error}</div></div>}
+        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end",flexWrap:"wrap"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||reducingPrincipal}>{topupMode&&<CirclePlus size={16}/>} {pending ? "Salvando..." : topupMode ? `Adicionar ${money(topupPrincipal)} e salvar` : "Salvar alterações"}</button></div>
       </form>
     </div></div>}
   </>;
