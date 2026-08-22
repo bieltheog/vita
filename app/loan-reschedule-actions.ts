@@ -18,6 +18,13 @@ function readableError(error: unknown) {
   return "Não foi possível corrigir o calendário do empréstimo.";
 }
 
+function revalidateLoanPaths(loanId: string, clientId: string) {
+  [
+    "/dashboard", "/emprestimos", `/emprestimos/${loanId}`, "/pagamentos", "/calendario", "/cobrancas-hoje",
+    "/fluxo-caixa", "/meu-caixa", "/relatorios", `/clientes/${clientId}`,
+  ].forEach(path => revalidatePath(path));
+}
+
 export async function reschedulePaidLoanAction(formData: FormData): Promise<LoanRescheduleResult> {
   try {
     const supabase = await createClient();
@@ -87,10 +94,7 @@ export async function reschedulePaidLoanAction(formData: FormData): Promise<Loan
     });
     if (rpcError) throw rpcError;
 
-    [
-      "/dashboard", "/emprestimos", `/emprestimos/${loanId}`, "/pagamentos", "/calendario", "/cobrancas-hoje",
-      "/fluxo-caixa", "/meu-caixa", "/relatorios", `/clientes/${loan.client_id}`,
-    ].forEach(path => revalidatePath(path));
+    revalidateLoanPaths(loanId, loan.client_id);
 
     return {
       ok: true,
@@ -98,6 +102,51 @@ export async function reschedulePaidLoanAction(formData: FormData): Promise<Loan
     };
   } catch (error) {
     console.error("reschedulePaidLoanAction", error);
+    return { ok: false, error: readableError(error) };
+  }
+}
+
+export async function updatePaidLoanStatusAction(formData: FormData): Promise<LoanRescheduleResult> {
+  try {
+    const supabase = await createClient();
+    if (!supabase) throw new Error("Ação indisponível. Configure o Supabase.");
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error("Sessão inválida.");
+
+    const loanId = text(formData, "loan_id");
+    const status = text(formData, "status") || "ATIVO";
+    if (!loanId) throw new Error("Empréstimo não encontrado.");
+    if (!["ATIVO","FINALIZADO","CANCELADO"].includes(status)) throw new Error("Status inválido.");
+
+    const { data: loan, error: findError } = await supabase
+      .from("loans")
+      .select("id,client_id,loan_code,status")
+      .eq("id", loanId)
+      .eq("user_id", user.id)
+      .single();
+    if (findError || !loan) throw findError || new Error("Empréstimo não encontrado.");
+
+    const { error: updateError } = await supabase
+      .from("loans")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", loanId)
+      .eq("user_id", user.id);
+    if (updateError) throw updateError;
+
+    await supabase.from("activity_logs").insert({
+      user_id: user.id,
+      entity_type: "loan",
+      entity_id: loanId,
+      action: "status_updated",
+      old_data: { status: loan.status },
+      new_data: { status },
+      description: `Status do empréstimo ${loan.loan_code} alterado de ${loan.status} para ${status}.`,
+    });
+
+    revalidateLoanPaths(loanId, loan.client_id);
+    return { ok: true, message: `Status do ${loan.loan_code} atualizado.` };
+  } catch (error) {
+    console.error("updatePaidLoanStatusAction", error);
     return { ok: false, error: readableError(error) };
   }
 }
