@@ -50,27 +50,50 @@ export async function getLoan(id: string): Promise<Loan | null> {
 export async function getInstallments(options?: { clientId?: string; loanId?: string; from?: string; to?: string }): Promise<Installment[]> {
   const supabase = await createClient();
   if (!supabase) {
-    return demoInstallments.filter((row) => (!options?.clientId || row.client_id === options.clientId) && (!options?.loanId || row.loan_id === options.loanId) && (!options?.from || row.due_date >= options.from) && (!options?.to || row.due_date <= options.to));
+    const cancelledIds = new Set(demoLoans.filter((loan) => loan.status === "CANCELADO").map((loan) => loan.id));
+    return demoInstallments.filter((row) =>
+      (!options?.clientId || row.client_id === options.clientId) &&
+      (!options?.loanId || row.loan_id === options.loanId) &&
+      (!options?.from || row.due_date >= options.from) &&
+      (!options?.to || row.due_date <= options.to) &&
+      (Boolean(options?.loanId) || !cancelledIds.has(row.loan_id))
+    );
   }
-  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit)").order("due_date", { ascending: true });
+  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit,status)").order("due_date", { ascending: true });
   if (options?.clientId) query = query.eq("client_id", options.clientId);
   if (options?.loanId) query = query.eq("loan_id", options.loanId);
   if (options?.from) query = query.gte("due_date", options.from);
   if (options?.to) query = query.lte("due_date", options.to);
   const { data, error } = await query;
   if (error) throw error;
-  return (data || []) as unknown as Installment[];
+  const rows = (data || []) as unknown as Installment[];
+  // Um empréstimo cancelado foi uma operação que deu errado e não deve participar
+  // de nenhuma conta, cobrança, calendário ou relatório. Ao abrir diretamente o
+  // empréstimo pelo ID, mantemos o histórico visível para consulta.
+  if (options?.loanId) return rows;
+  return rows.filter((row) => (row.loan as unknown as { status?: string } | undefined)?.status !== "CANCELADO");
 }
 
 export async function getPayments(clientId?: string, loanId?: string): Promise<Payment[]> {
   const supabase = await createClient();
-  if (!supabase) return demoPayments.filter((p) => (!clientId || p.client_id === clientId) && (!loanId || p.loan_id === loanId));
-  let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,total_receivable,expected_profit)").is("voided_at", null).order("payment_date", { ascending: false });
+  if (!supabase) {
+    const cancelledIds = new Set(demoLoans.filter((loan) => loan.status === "CANCELADO").map((loan) => loan.id));
+    return demoPayments.filter((p) =>
+      (!clientId || p.client_id === clientId) &&
+      (!loanId || p.loan_id === loanId) &&
+      (Boolean(loanId) || !cancelledIds.has(p.loan_id))
+    );
+  }
+  let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,total_receivable,expected_profit,status)").is("voided_at", null).order("payment_date", { ascending: false });
   if (clientId) query = query.eq("client_id", clientId);
   if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
   if (error) throw error;
-  return (data || []) as unknown as Payment[];
+  const rows = (data || []) as unknown as Payment[];
+  // Pagamentos de empréstimos cancelados também ficam fora das contas. Quando
+  // consultamos um empréstimo específico, o histórico dele continua acessível.
+  if (loanId) return rows;
+  return rows.filter((row) => (row.loan as unknown as { status?: string } | undefined)?.status !== "CANCELADO");
 }
 
 export async function getActivityLogs(limit = 200): Promise<ActivityLog[]> {
@@ -92,8 +115,8 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const activeClientIds = new Set(activeLoans.map((l) => l.client_id));
   const totalReceived = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-  // Total a receber é sempre o saldo realmente aberto das parcelas.
-  // Portanto, cada pagamento reduz esse valor integralmente e parcelas canceladas não entram.
+  // getInstallments() já remove empréstimos cancelados. Aqui também retiramos
+  // parcelas individualmente canceladas.
   const outstanding = installments
     .filter((i) => i.stored_status !== "CANCELADO")
     .reduce((sum, i) => sum + Number(i.remaining_amount), 0);
@@ -119,12 +142,12 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   }, 0);
 
   const expectedProfit = activeLoans.reduce((sum, l) => sum + Number(l.expected_profit), 0);
-  const todayRows = installments.filter((i) => i.due_date === today);
+  const todayRows = installments.filter((i) => i.due_date === today && i.stored_status !== "CANCELADO");
   const receiveToday = todayRows.reduce((sum, i) => sum + Number(i.amount), 0);
   const pendingToday = todayRows.reduce((sum, i) => sum + Number(i.remaining_amount), 0);
   const receivedToday = payments.filter((p) => p.payment_date.slice(0, 10) === today).reduce((sum, p) => sum + Number(p.amount), 0);
-  const overdue = installments.filter((i) => effectiveInstallmentStatus(i, today) === "ATRASADO").reduce((sum, i) => sum + Number(i.remaining_amount), 0);
-  const weekExpected = installments.filter((i) => i.due_date >= weekStart && i.due_date <= weekEnd).reduce((sum, i) => sum + Number(i.amount), 0);
-  const monthExpected = installments.filter((i) => i.due_date >= monthStart && i.due_date <= monthEnd).reduce((sum, i) => sum + Number(i.amount), 0);
-  return { capitalCirculation, totalReceivable: outstanding, expectedProfit, totalReceived, receiveToday, receivedToday, pendingToday, overdue, activeClients: activeClientIds.size || clients.length, weekExpected, monthExpected };
+  const overdue = installments.filter((i) => i.stored_status !== "CANCELADO" && effectiveInstallmentStatus(i, today) === "ATRASADO").reduce((sum, i) => sum + Number(i.remaining_amount), 0);
+  const weekExpected = installments.filter((i) => i.stored_status !== "CANCELADO" && i.due_date >= weekStart && i.due_date <= weekEnd).reduce((sum, i) => sum + Number(i.amount), 0);
+  const monthExpected = installments.filter((i) => i.stored_status !== "CANCELADO" && i.due_date >= monthStart && i.due_date <= monthEnd).reduce((sum, i) => sum + Number(i.amount), 0);
+  return { capitalCirculation, totalReceivable: outstanding, expectedProfit, totalReceived, receiveToday, receivedToday, pendingToday, overdue, activeClients: activeClientIds.size, weekExpected, monthExpected };
 }
