@@ -44,11 +44,15 @@ export async function getLoanTopups(loanId?: string): Promise<LoanTopup[]> {
   if (!supabase) return [];
   let query = supabase
     .from("loan_topups")
-    .select("id,user_id,loan_id,client_id,amount,calculation_type,return_value,expected_profit,total_receivable_added,topup_date,previous_remaining,new_remaining,future_installment_count,payment_frequency,first_due_date,notes,created_at,client:clients(id,name),loan:loans(id,loan_code)")
+    .select("id,user_id,loan_id,client_id,amount,calculation_type,return_value,expected_profit,total_receivable_added,topup_date,previous_remaining,new_remaining,future_installment_count,payment_frequency,first_due_date,notes,created_at,client:clients(id,name),loan:loans(id,loan_code,status)")
     .order("topup_date", { ascending: false })
     .order("created_at", { ascending: false });
   if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
   if (error) throw error;
-  return (data || []) as unknown as LoanTopup[];
+  const rows=(data || []) as unknown as LoanTopup[];
+  // Adicionais de um empréstimo cancelado também deixam de existir para o caixa.
+  // Ao abrir o empréstimo específico, mantemos esses registros visíveis no histórico.
+  if(loanId) return rows;
+  return rows.filter((row)=>(row.loan as unknown as {status?:string}|undefined)?.status!=="CANCELADO");
 }
