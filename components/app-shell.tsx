@@ -5,23 +5,20 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, Users, Landmark, CreditCard, CalendarDays, BarChart3,
-  Calculator, Bell, Settings, Search, LogOut, MoreHorizontal, Plus, WalletCards,
-  CircleDollarSign, CheckCircle2, X,
+  Calculator, Bell, Settings, Search, LogOut, MoreHorizontal, Plus,
+  CircleDollarSign, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cobrancas-hoje", label: "Cobranças", icon: CircleDollarSign },
-  { href: "/fechamento-diario", label: "Fechamento diário", icon: CheckCircle2 },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/calendario", label: "Calendário", icon: CalendarDays },
-  { href: "/fluxo-caixa", label: "Fluxo de Caixa", icon: WalletCards },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/simulador", label: "Simulador", icon: Calculator },
-  { href: "/notificacoes", label: "Notificações", icon: Bell },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
@@ -35,11 +32,8 @@ const mobile = [
 const mobileMore = [
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
-  { href: "/fechamento-diario", label: "Fechamento diário", icon: CheckCircle2 },
-  { href: "/fluxo-caixa", label: "Fluxo de Caixa", icon: WalletCards },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/simulador", label: "Simulador", icon: Calculator },
-  { href: "/notificacoes", label: "Notificações", icon: Bell },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
@@ -87,7 +81,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
         <form className="search-box" onSubmit={search}><Search size={17}/><input name="q" aria-label="Busca global" placeholder="Buscar cliente..." /></form>
         <div className="top-actions">
           {profile.demo && <span className="badge blue">Demo</span>}
-          <Link className="icon-btn" href="/notificacoes"><Bell size={17}/></Link>
+          <Link className="icon-btn" href="/notificacoes" title="Notificações"><Bell size={17}/></Link>
           <Link className="icon-btn desktop-settings" href="/configuracoes"><Settings size={17}/></Link>
         </div>
       </header>
