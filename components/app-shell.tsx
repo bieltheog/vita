@@ -6,19 +6,18 @@ import { useState } from "react";
 import {
   LayoutDashboard, Users, Landmark, CreditCard, CalendarDays, BarChart3,
   Calculator, Bell, Settings, Search, LogOut, MoreHorizontal, Plus, WalletCards,
-  CircleDollarSign, CheckCircle2, X, PiggyBank,
+  CircleDollarSign, CheckCircle2, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/cobrancas-hoje", label: "Cobranças de hoje", icon: CircleDollarSign },
+  { href: "/cobrancas-hoje", label: "Cobranças", icon: CircleDollarSign },
   { href: "/fechamento-diario", label: "Fechamento diário", icon: CheckCircle2 },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/calendario", label: "Calendário", icon: CalendarDays },
-  { href: "/meu-caixa", label: "Meu Caixa", icon: PiggyBank },
   { href: "/fluxo-caixa", label: "Fluxo de Caixa", icon: WalletCards },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/simulador", label: "Simulador", icon: Calculator },
@@ -34,7 +33,6 @@ const mobile = [
 ];
 
 const mobileMore = [
-  { href: "/meu-caixa", label: "Meu Caixa", icon: PiggyBank },
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/fechamento-diario", label: "Fechamento diário", icon: CheckCircle2 },
@@ -70,7 +68,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
     <aside className="sidebar">
       <Link className="brand" href="/dashboard">
         <div className="brand-mark">J</div>
-        <div><div className="brand-name">Jureminha 2.0</div><div className="brand-sub">Controle financeiro premium</div></div>
+        <div><div className="brand-name">Jureminha 2.0</div><div className="brand-sub">Empréstimos e cobranças</div></div>
       </Link>
       <nav className="nav">
         {nav.map(({href,label,icon:Icon}) => <Link key={href} href={href} className={`nav-link ${active(href) ? "active" : ""}`}><Icon size={17}/>{label}</Link>)}
