@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Wallet, CircleDollarSign, TrendingUp, CheckCircle2, CalendarClock, Clock3, AlertTriangle, Users, CalendarDays, BadgeDollarSign } from "lucide-react";
+import { Wallet, CircleDollarSign, TrendingUp, CheckCircle2, AlertTriangle, Users, CalendarDays, BadgeDollarSign } from "lucide-react";
 import { getDashboardSummary,getInstallments,getPayments,getCurrentProfile,getLoans } from "@/lib/data";
 import { money,effectiveInstallmentStatus,daysOverdue } from "@/lib/finance";
 import { brazilDateKey } from "@/lib/date";
@@ -13,12 +13,52 @@ export default async function Dashboard(){
   const today=brazilDateKey(),month=today.slice(0,7);
   const next=i.filter(x=>Number(x.remaining_amount)>0).sort((a,b)=>a.due_date.localeCompare(b.due_date)).slice(0,6);
   const late=i.filter(x=>effectiveInstallmentStatus(x,today)==="ATRASADO").slice(0,4);
+  const todayRows=i.filter(x=>x.due_date===today);
+  const pendingTodayRows=todayRows.filter(x=>Number(x.remaining_amount)>0);
+  const completeToday=todayRows.filter(x=>Number(x.remaining_amount)<=0).length;
   const receivedMonth=p.filter(x=>x.payment_date.startsWith(month)).reduce((sum,x)=>sum+Number(x.amount),0);
   const loanMap=new Map(loans.map(l=>[l.id,l]));
   const realizedProfit=p.reduce((sum,payment)=>{const loan=loanMap.get(payment.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(payment.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
   const monthProfit=i.filter(x=>x.due_date.startsWith(month)).reduce((sum,row)=>{const loan=loanMap.get(row.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(row.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
-  return <><div className="page-head"><div><div className="eyebrow">Jureminha 2.0</div><h1>Olá, {profile?.full_name} 👋</h1><div className="muted">Resumo da carteira e atalhos para a rotina de cobrança.</div></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Link className="btn" href="/cobrancas-hoje"><CircleDollarSign size={16}/> Cobranças de hoje</Link><PaymentForm installments={i} demo={profile?.demo}/></div></div>
-  <div className="stats"><StatCard label="Capital em circulação" value={money(s.capitalCirculation)} meta="Principal atualmente emprestado" icon={Wallet} href="/emprestimos"/><StatCard label="Total a receber" value={money(s.totalReceivable)} meta="Saldo pendente total" icon={CircleDollarSign} href="/pagamentos"/><StatCard label="Lucro contratado" value={money(s.expectedProfit)} icon={TrendingUp} href="/relatorios"/><StatCard label="Lucro realizado estimado" value={money(realizedProfit)} icon={BadgeDollarSign} href="/relatorios"/><StatCard label="Receber hoje" value={money(s.receiveToday)} meta="Pagamentos previstos hoje" icon={CalendarClock} href="/cobrancas-hoje"/><StatCard label="Recebido hoje" value={money(s.receivedToday)} icon={CheckCircle2} href="/fechamento-diario"/><StatCard label="Pendente hoje" value={money(s.pendingToday)} icon={Clock3} href="/cobrancas-hoje"/><StatCard label="Atrasado" value={money(s.overdue)} icon={AlertTriangle} href="/cobrancas-hoje"/><StatCard label="Recebido no mês" value={money(receivedMonth)} icon={CalendarDays} href="/fluxo-caixa"/><StatCard label="Lucro previsto no mês" value={money(monthProfit)} icon={TrendingUp} href="/relatorios"/><StatCard label="Clientes ativos" value={String(s.activeClients)} icon={Users} href="/clientes"/></div>
-  <DashboardCharts installments={i} payments={p}/>
-  <div className="grid-equal" style={{marginTop:16}}><div className="card"><div className="section-title"><h2>Próximos recebimentos</h2><Link href="/calendario" className="muted">Ver todos</Link></div><div className="list">{next.map(x=><div className="list-row" key={x.id}><div className="person"><div className="avatar">{x.client?.name?.[0]}</div><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.due_date} · {x.loan?.loan_code}</div></div></div><div style={{textAlign:"right"}}><strong>{money(x.remaining_amount)}</strong><div style={{marginTop:4}}><StatusBadge status={effectiveInstallmentStatus(x,today)}/></div></div></div>)}</div></div><div className="card"><div className="section-title"><h2>🚨 Requer atenção</h2><Link href="/cobrancas-hoje" className="muted">Abrir central</Link></div><div className="list">{late.length?late.map(x=><div className="list-row" key={x.id}><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.loan?.loan_code} · {daysOverdue(x.due_date,x.remaining_amount)} dias em atraso</div></div><strong style={{color:"var(--red)"}}>{money(x.remaining_amount)}</strong></div>):<div className="empty">Nenhuma cobrança atrasada 🎉</div>}</div></div></div></>
+
+  return <>
+    <div className="page-head">
+      <div><div className="eyebrow">Jureminha 2.0</div><h1>Olá, {profile?.full_name} 👋</h1><div className="muted">Resumo da carteira e atalhos para a rotina de cobrança.</div></div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Link className="btn" href="/cobrancas-hoje"><CircleDollarSign size={16}/> Cobranças</Link><PaymentForm installments={i} demo={profile?.demo}/></div>
+    </div>
+
+    <div className="stats">
+      <StatCard label="Capital em circulação" value={money(s.capitalCirculation)} meta="Principal atualmente emprestado" icon={Wallet} href="/emprestimos"/>
+      <StatCard label="Total a receber" value={money(s.totalReceivable)} meta="Saldo pendente total" icon={CircleDollarSign} href="/pagamentos"/>
+      <StatCard label="Lucro contratado" value={money(s.expectedProfit)} icon={TrendingUp} href="/relatorios"/>
+      <StatCard label="Lucro realizado estimado" value={money(realizedProfit)} icon={BadgeDollarSign} href="/relatorios"/>
+      <StatCard label="Atrasado" value={money(s.overdue)} icon={AlertTriangle} href="/cobrancas-hoje"/>
+      <StatCard label="Recebido no mês" value={money(receivedMonth)} icon={CalendarDays} href="/relatorios"/>
+      <StatCard label="Lucro previsto no mês" value={money(monthProfit)} icon={TrendingUp} href="/relatorios"/>
+      <StatCard label="Clientes ativos" value={String(s.activeClients)} icon={Users} href="/clientes"/>
+    </div>
+
+    <div className="card" style={{marginTop:16}}>
+      <div className="section-title">
+        <div><h2>Fechamento de hoje</h2><div className="person-meta">{completeToday}/{todayRows.length} cobranças do dia quitadas</div></div>
+        <Link href="/cobrancas-hoje" className="muted">Abrir cobranças</Link>
+      </div>
+      <div className="grid-equal" style={{marginTop:10}}>
+        <div className="list-row"><span>Previsto hoje</span><strong>{money(s.receiveToday)}</strong></div>
+        <div className="list-row"><span>Recebido hoje</span><strong style={{color:"var(--green)"}}>{money(s.receivedToday)}</strong></div>
+        <div className="list-row"><span>Pendente de hoje</span><strong style={{color:s.pendingToday>0?"var(--orange)":undefined}}>{money(s.pendingToday)}</strong></div>
+        <div className="list-row"><span>Quitadas</span><strong><CheckCircle2 size={15} style={{verticalAlign:"-2px",marginRight:5}}/>{completeToday}/{todayRows.length}</strong></div>
+      </div>
+      {pendingTodayRows.length>0&&<div className="list" style={{marginTop:10}}>{pendingTodayRows.slice(0,4).map(x=><div className="list-row" key={x.id}><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.loan?.loan_code} · ainda falta hoje</div></div><strong>{money(x.remaining_amount)}</strong></div>)}</div>}
+      {todayRows.length===0&&<div className="empty" style={{marginTop:10}}>Nenhuma cobrança prevista para hoje.</div>}
+      {todayRows.length>0&&pendingTodayRows.length===0&&<div className="empty" style={{marginTop:10}}>Todas as cobranças previstas para hoje estão quitadas. 🎉</div>}
+    </div>
+
+    <DashboardCharts installments={i} payments={p}/>
+
+    <div className="grid-equal" style={{marginTop:16}}>
+      <div className="card"><div className="section-title"><h2>Próximos recebimentos</h2><Link href="/calendario" className="muted">Ver todos</Link></div><div className="list">{next.map(x=><div className="list-row" key={x.id}><div className="person"><div className="avatar">{x.client?.name?.[0]}</div><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.due_date} · {x.loan?.loan_code}</div></div></div><div style={{textAlign:"right"}}><strong>{money(x.remaining_amount)}</strong><div style={{marginTop:4}}><StatusBadge status={effectiveInstallmentStatus(x,today)}/></div></div></div>)}</div></div>
+      <div className="card"><div className="section-title"><h2>🚨 Requer atenção</h2><Link href="/cobrancas-hoje" className="muted">Abrir central</Link></div><div className="list">{late.length?late.map(x=><div className="list-row" key={x.id}><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.loan?.loan_code} · {daysOverdue(x.due_date,x.remaining_amount)} dias em atraso</div></div><strong style={{color:"var(--red)"}}>{money(x.remaining_amount)}</strong></div>):<div className="empty">Nenhuma cobrança atrasada 🎉</div>}</div></div>
+    </div>
+  </>;
 }
