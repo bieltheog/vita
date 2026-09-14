@@ -178,8 +178,31 @@ export async function registerPaymentAction(formData: FormData) {
     amount, payment_date: paymentDate, payment_method: method, notes: nullable(text(formData, "notes")),
   }).select("id").single();
   if (error) throw error;
+
+  // Se o pagamento quitou a última parcela pendente do empréstimo,
+  // finaliza o empréstimo automaticamente sem alterar nenhum pagamento/histórico.
+  const { data: loanInstallments, error: loanInstallmentsError } = await supabase
+    .from("installments")
+    .select("remaining_amount,stored_status")
+    .eq("loan_id", installment.loan_id)
+    .eq("user_id", user.id);
+  if (loanInstallmentsError) throw loanInstallmentsError;
+
+  const hasOpenInstallment = (loanInstallments || []).some(row =>
+    row.stored_status !== "CANCELADO" && Number(row.remaining_amount || 0) > 0.005
+  );
+  if (!hasOpenInstallment) {
+    const { error: finalizeError } = await supabase
+      .from("loans")
+      .update({ status: "FINALIZADO", updated_at: new Date().toISOString() })
+      .eq("id", installment.loan_id)
+      .eq("user_id", user.id)
+      .neq("status", "CANCELADO");
+    if (finalizeError) throw finalizeError;
+  }
+
   await supabase.from("activity_logs").insert({ user_id: user.id, entity_type: "payment", entity_id: payment.id, action: "created", description: `Pagamento de R$ ${amount.toFixed(2)} registrado.` });
-  ["/dashboard", "/pagamentos", "/calendario", "/fluxo-caixa", "/relatorios", `/clientes/${installment.client_id}`].forEach((path) => revalidatePath(path));
+  ["/dashboard", "/pagamentos", "/calendario", "/fluxo-caixa", "/relatorios", "/emprestimos", `/clientes/${installment.client_id}`].forEach((path) => revalidatePath(path));
 }
 
 export async function rescheduleInstallmentAction(formData: FormData) {
