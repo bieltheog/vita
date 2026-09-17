@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { addDays, format, parseISO } from "date-fns";
 import { Wallet, CircleDollarSign, TrendingUp, CheckCircle2, AlertTriangle, Users, CalendarDays, BadgeDollarSign } from "lucide-react";
 import { getDashboardSummary,getInstallments,getPayments,getCurrentProfile,getLoans } from "@/lib/data";
 import { money,effectiveInstallmentStatus,daysOverdue } from "@/lib/finance";
@@ -37,6 +38,25 @@ export default async function Dashboard(){
     return {...bucket,count:rows.length,amount:rows.reduce((sum,row)=>sum+Number(row.remaining_amount),0)};
   });
 
+  const weekEnd=format(addDays(parseISO(today),6),"yyyy-MM-dd");
+  const weekRows=i.filter(row=>row.stored_status!=="CANCELADO"&&row.due_date>=today&&row.due_date<=weekEnd);
+  const weekExpected=weekRows.reduce((sum,row)=>sum+Number(row.amount),0);
+  const weekReceived=weekRows.reduce((sum,row)=>sum+Number(row.amount_paid),0);
+  const weekPending=weekRows.reduce((sum,row)=>sum+Number(row.remaining_amount),0);
+  const weekOpenCount=weekRows.filter(row=>Number(row.remaining_amount)>0).length;
+  const weekDays=Array.from({length:7},(_,index)=>{
+    const date=format(addDays(parseISO(today),index),"yyyy-MM-dd");
+    const rows=weekRows.filter(row=>row.due_date===date);
+    return {
+      date,
+      label:index===0?"Hoje":format(parseISO(date),"dd/MM"),
+      expected:rows.reduce((sum,row)=>sum+Number(row.amount),0),
+      received:rows.reduce((sum,row)=>sum+Number(row.amount_paid),0),
+      pending:rows.reduce((sum,row)=>sum+Number(row.remaining_amount),0),
+      count:rows.filter(row=>Number(row.remaining_amount)>0).length,
+    };
+  });
+
   return <>
     <div className="page-head">
       <div><div className="eyebrow">Jureminha 2.0</div><h1>Olá, {profile?.full_name} 👋</h1><div className="muted">Resumo da carteira e atalhos para a rotina de cobrança.</div></div>
@@ -63,6 +83,22 @@ export default async function Dashboard(){
       <StatCard label="Recebido no mês" value={money(receivedMonth)} icon={CalendarDays} href="/relatorios"/>
       <StatCard label="Lucro previsto no mês" value={money(monthProfit)} icon={TrendingUp} href="/relatorios"/>
       <StatCard label="Clientes ativos" value={String(s.activeClients)} icon={Users} href="/clientes"/>
+    </div>
+
+    <div className="card" style={{marginTop:16}}>
+      <div className="section-title">
+        <div><h2>Recebimentos — próximos 7 dias</h2><div className="person-meta">De {format(parseISO(today),"dd/MM")} até {format(parseISO(weekEnd),"dd/MM")} · somente empréstimos ativos</div></div>
+        <Link href="/calendario" className="muted">Abrir calendário</Link>
+      </div>
+      <div className="grid-equal" style={{marginTop:10}}>
+        <div className="list-row"><span>Previsto</span><strong>{money(weekExpected)}</strong></div>
+        <div className="list-row"><span>Já recebido</span><strong style={{color:"var(--green)"}}>{money(weekReceived)}</strong></div>
+        <div className="list-row"><span>Pendente</span><strong style={{color:weekPending>0?"var(--orange)":undefined}}>{money(weekPending)}</strong></div>
+        <div className="list-row"><span>Cobranças pendentes</span><strong>{weekOpenCount}</strong></div>
+      </div>
+      <div className="list" style={{marginTop:10}}>
+        {weekDays.map(day=><div className="list-row" key={day.date}><div><div className="person-name">{day.label}</div><div className="person-meta">{day.count} cobrança{day.count===1?"":"s"} pendente{day.count===1?"":"s"} · previsto {money(day.expected)}</div></div><div style={{textAlign:"right"}}><strong style={{color:day.pending>0?"var(--orange)":undefined}}>{money(day.pending)}</strong>{day.received>0&&<div className="person-meta">{money(day.received)} recebido</div>}</div></div>)}
+      </div>
     </div>
 
     <div className="card" style={{marginTop:16}}>
