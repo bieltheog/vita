@@ -12,7 +12,8 @@ export default async function Dashboard(){
   const [s,i,p,profile,loans]=await Promise.all([getDashboardSummary(),getInstallments(),getPayments(),getCurrentProfile(),getLoans()]);
   const today=brazilDateKey(),month=today.slice(0,7);
   const next=i.filter(x=>Number(x.remaining_amount)>0).sort((a,b)=>a.due_date.localeCompare(b.due_date)).slice(0,6);
-  const late=i.filter(x=>effectiveInstallmentStatus(x,today)==="ATRASADO").slice(0,4);
+  const overdueRows=i.filter(x=>x.stored_status!=="CANCELADO"&&Number(x.remaining_amount)>0&&x.due_date<today);
+  const late=overdueRows.slice(0,4);
   const todayRows=i.filter(x=>x.due_date===today);
   const pendingTodayRows=todayRows.filter(x=>Number(x.remaining_amount)>0);
   const completeToday=todayRows.filter(x=>Number(x.remaining_amount)<=0).length;
@@ -20,6 +21,21 @@ export default async function Dashboard(){
   const loanMap=new Map(loans.map(l=>[l.id,l]));
   const realizedProfit=p.reduce((sum,payment)=>{const loan=loanMap.get(payment.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(payment.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
   const monthProfit=i.filter(x=>x.due_date.startsWith(month)).reduce((sum,row)=>{const loan=loanMap.get(row.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(row.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
+  const delinquencyAmount=overdueRows.reduce((sum,row)=>sum+Number(row.remaining_amount),0);
+  const delinquencyRate=s.totalReceivable>0?(delinquencyAmount/s.totalReceivable)*100:0;
+  const delinquencyLabel=delinquencyRate.toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})+"%";
+  const delinquencyColor=delinquencyRate>25?"var(--red)":delinquencyRate>=15?"var(--orange)":"var(--green)";
+  const bucketDefinitions=[
+    {label:"1–7 dias",min:1,max:7},
+    {label:"8–15 dias",min:8,max:15},
+    {label:"16–30 dias",min:16,max:30},
+    {label:"31–60 dias",min:31,max:60},
+    {label:"+60 dias",min:61,max:Number.POSITIVE_INFINITY},
+  ];
+  const delinquencyBuckets=bucketDefinitions.map(bucket=>{
+    const rows=overdueRows.filter(row=>{const days=daysOverdue(row.due_date,Number(row.remaining_amount));return days>=bucket.min&&days<=bucket.max;});
+    return {...bucket,count:rows.length,amount:rows.reduce((sum,row)=>sum+Number(row.remaining_amount),0)};
+  });
 
   return <>
     <div className="page-head">
@@ -33,6 +49,17 @@ export default async function Dashboard(){
       <StatCard label="Lucro contratado" value={money(s.expectedProfit)} icon={TrendingUp} href="/relatorios"/>
       <StatCard label="Lucro realizado estimado" value={money(realizedProfit)} icon={BadgeDollarSign} href="/relatorios"/>
       <StatCard label="Atrasado" value={money(s.overdue)} icon={AlertTriangle} href="/cobrancas-hoje"/>
+      <details className="card card-click" style={{cursor:"pointer"}}>
+        <summary style={{listStyle:"none"}}>
+          <div className="stat-label"><span>Inadimplência</span><span className="stat-icon"><AlertTriangle size={17}/></span></div>
+          <div className="stat-value" style={{color:delinquencyColor}}>{delinquencyLabel}</div>
+          <div className="stat-meta">{money(delinquencyAmount)} vencidos · toque para detalhar</div>
+        </summary>
+        <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--border)"}}>
+          {delinquencyBuckets.map(bucket=><div className="list-row" key={bucket.label} style={{padding:"8px 0"}}><div><strong>{bucket.label}</strong><div className="person-meta">{bucket.count} parcela{bucket.count===1?"":"s"}</div></div><strong>{money(bucket.amount)}</strong></div>)}
+          <div className="person-meta" style={{marginTop:8}}>Percentual calculado sobre o saldo total ainda a receber dos empréstimos ativos.</div>
+        </div>
+      </details>
       <StatCard label="Recebido no mês" value={money(receivedMonth)} icon={CalendarDays} href="/relatorios"/>
       <StatCard label="Lucro previsto no mês" value={money(monthProfit)} icon={TrendingUp} href="/relatorios"/>
       <StatCard label="Clientes ativos" value={String(s.activeClients)} icon={Users} href="/clientes"/>
