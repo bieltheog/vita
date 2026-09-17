@@ -145,7 +145,11 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const receiveToday = todayRows.reduce((sum, i) => sum + Number(i.amount), 0);
   const pendingToday = todayRows.reduce((sum, i) => sum + Number(i.remaining_amount), 0);
   const receivedToday = payments.filter((p) => p.payment_date.slice(0, 10) === today).reduce((sum, p) => sum + Number(p.amount), 0);
-  const overdue = installments.filter((i) => i.stored_status !== "CANCELADO" && effectiveInstallmentStatus(i, today) === "ATRASADO").reduce((sum, i) => sum + Number(i.remaining_amount), 0);
+  // Qualquer saldo remanescente com vencimento anterior a hoje conta como atrasado,
+  // inclusive parcelas parcialmente pagas.
+  const overdue = installments
+    .filter((i) => i.stored_status !== "CANCELADO" && Number(i.remaining_amount) > 0 && i.due_date < today)
+    .reduce((sum, i) => sum + Number(i.remaining_amount), 0);
   const weekExpected = installments.filter((i) => i.stored_status !== "CANCELADO" && i.due_date >= weekStart && i.due_date <= weekEnd).reduce((sum, i) => sum + Number(i.amount), 0);
   const monthExpected = installments.filter((i) => i.stored_status !== "CANCELADO" && i.due_date >= monthStart && i.due_date <= monthEnd).reduce((sum, i) => sum + Number(i.amount), 0);
   return { capitalCirculation, totalReceivable: outstanding, expectedProfit, totalReceived, receiveToday, receivedToday, pendingToday, overdue, activeClients: activeClientIds.size, weekExpected, monthExpected };
