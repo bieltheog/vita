@@ -47,16 +47,16 @@ export async function getLoan(id: string): Promise<Loan | null> {
   return data as unknown as Loan | null;
 }
 
-export async function getInstallments(options?: { clientId?: string; loanId?: string; from?: string; to?: string }): Promise<Installment[]> {
+export async function getInstallments(options?: { clientId?: string; loanId?: string; from?: string; to?: string; includeInactive?: boolean }): Promise<Installment[]> {
   const supabase = await createClient();
   if (!supabase) {
-    const cancelledIds = new Set(demoLoans.filter((loan) => loan.status === "CANCELADO").map((loan) => loan.id));
+    const inactiveIds = new Set(demoLoans.filter((loan) => loan.status !== "ATIVO").map((loan) => loan.id));
     return demoInstallments.filter((row) =>
       (!options?.clientId || row.client_id === options.clientId) &&
       (!options?.loanId || row.loan_id === options.loanId) &&
       (!options?.from || row.due_date >= options.from) &&
       (!options?.to || row.due_date <= options.to) &&
-      (Boolean(options?.loanId) || !cancelledIds.has(row.loan_id))
+      (Boolean(options?.loanId) || Boolean(options?.includeInactive) || !inactiveIds.has(row.loan_id))
     );
   }
   let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit,status)").order("due_date", { ascending: true });
@@ -67,11 +67,10 @@ export async function getInstallments(options?: { clientId?: string; loanId?: st
   const { data, error } = await query;
   if (error) throw error;
   const rows = (data || []) as unknown as Installment[];
-  // Um empréstimo cancelado foi uma operação que deu errado e não deve participar
-  // de nenhuma conta, cobrança, calendário ou relatório. Ao abrir diretamente o
-  // empréstimo pelo ID, mantemos o histórico visível para consulta.
-  if (options?.loanId) return rows;
-  return rows.filter((row) => (row.loan as unknown as { status?: string } | undefined)?.status !== "CANCELADO");
+  // Somente operações ativas participam de saldo, cobrança e calendário. Ao abrir
+  // diretamente um empréstimo finalizado/cancelado, o histórico continua visível.
+  if (options?.loanId || options?.includeInactive) return rows;
+  return rows.filter((row) => (row.loan as unknown as { status?: string } | undefined)?.status === "ATIVO");
 }
 
 export async function getPayments(clientId?: string, loanId?: string): Promise<Payment[]> {
@@ -105,7 +104,7 @@ export async function getActivityLogs(limit = 200): Promise<ActivityLog[]> {
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const [clients, loans, installments, payments] = await Promise.all([getClients(), getLoans(), getInstallments(), getPayments()]);
+  const [loans, installments, payments] = await Promise.all([getLoans(), getInstallments(), getPayments()]);
   const today = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -115,7 +114,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const activeClientIds = new Set(activeLoans.map((l) => l.client_id));
   const totalReceived = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-  // getInstallments() já remove empréstimos cancelados. Aqui também retiramos
+  // getInstallments() já mantém apenas empréstimos ativos. Aqui também retiramos
   // parcelas individualmente canceladas.
   const outstanding = installments
     .filter((i) => i.stored_status !== "CANCELADO")
