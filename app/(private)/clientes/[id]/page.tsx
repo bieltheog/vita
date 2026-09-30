@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getClient, getLoans, getPayments, getInstallments, getActivityLogs, getCurrentProfile } from "@/lib/data";
+import { getClient, getLoans, getPayments, getHistoricalInstallments, getActivityLogs, getCurrentProfile } from "@/lib/data";
 import { money, effectiveInstallmentStatus } from "@/lib/finance";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EditClientForm } from "@/components/forms/edit-client-form";
@@ -11,13 +11,14 @@ import { ReceiptButton } from "@/components/ui/receipt-button";
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [c, loans, payments, inst, logs, profile] = await Promise.all([
-    getClient(id), getLoans(id), getPayments(id), getInstallments({ clientId: id }), getActivityLogs(400), getCurrentProfile(),
+    getClient(id), getLoans(id), getPayments(id), getHistoricalInstallments({ clientId: id }), getActivityLogs(400), getCurrentProfile(),
   ]);
   if (!c) notFound();
 
-  const principal = loans.reduce((s,l)=>s+Number(l.principal_amount),0);
-  const contracted = loans.reduce((s,l)=>s+Number(l.total_receivable),0);
-  const expectedProfit = loans.reduce((s,l)=>s+Number(l.expected_profit),0);
+  const validLoans = loans.filter(l=>l.status!=="CANCELADO");
+  const principal = validLoans.reduce((s,l)=>s+Number(l.principal_amount),0);
+  const contracted = validLoans.reduce((s,l)=>s+Number(l.total_receivable),0);
+  const expectedProfit = validLoans.reduce((s,l)=>s+Number(l.expected_profit),0);
   const paid = payments.reduce((s,p)=>s+Number(p.amount),0);
   const outstanding = inst.reduce((s,i)=>s+Number(i.remaining_amount),0);
   const overdue = inst.filter(i=>effectiveInstallmentStatus(i)==="ATRASADO").reduce((s,i)=>s+Number(i.remaining_amount),0);
