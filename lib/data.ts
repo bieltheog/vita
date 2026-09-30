@@ -1,8 +1,9 @@
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { demoClients, demoInstallments, demoLoans, demoPayments } from "@/lib/demo-data";
 import { effectiveInstallmentStatus } from "@/lib/finance";
-import type { ActivityLog, Client, DashboardSummary, Installment, Loan, Payment } from "@/lib/types";
+import { brazilDateKey } from "@/lib/date";
+import type { ActivityLog, Client, DashboardSummary, Installment, Loan, LoanTopup, Payment } from "@/lib/types";
 
 export async function getCurrentProfile() {
   const supabase = await createClient();
@@ -73,14 +74,21 @@ export async function getInstallments(options?: { clientId?: string; loanId?: st
   return rows.filter((row) => (row.loan as unknown as { status?: string } | undefined)?.status === "ATIVO");
 }
 
+export async function getHistoricalInstallments(options?: { clientId?: string; from?: string; to?: string }): Promise<Installment[]> {
+  const [rows, loans] = await Promise.all([
+    getInstallments({ ...options, includeInactive: true }),
+    getLoans(options?.clientId),
+  ]);
+  const validLoanIds = new Set(loans.filter((loan) => loan.status !== "CANCELADO").map((loan) => loan.id));
+  return rows.filter((row) => row.stored_status !== "CANCELADO" && validLoanIds.has(row.loan_id));
+}
+
 export async function getPayments(clientId?: string, loanId?: string): Promise<Payment[]> {
   const supabase = await createClient();
   if (!supabase) {
-    const cancelledIds = new Set(demoLoans.filter((loan) => loan.status === "CANCELADO").map((loan) => loan.id));
     return demoPayments.filter((p) =>
       (!clientId || p.client_id === clientId) &&
-      (!loanId || p.loan_id === loanId) &&
-      (Boolean(loanId) || !cancelledIds.has(p.loan_id))
+      (!loanId || p.loan_id === loanId)
     );
   }
   let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,total_receivable,expected_profit,status)").is("voided_at", null).order("payment_date", { ascending: false });
@@ -88,11 +96,23 @@ export async function getPayments(clientId?: string, loanId?: string): Promise<P
   if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
   if (error) throw error;
-  const rows = (data || []) as unknown as Payment[];
-  // Pagamentos de empréstimos cancelados também ficam fora das contas. Quando
-  // consultamos um empréstimo específico, o histórico dele continua acessível.
-  if (loanId) return rows;
-  return rows.filter((row) => (row.loan as unknown as { status?: string } | undefined)?.status !== "CANCELADO");
+  // Pagamento recebido continua sendo histórico financeiro mesmo que o contrato
+  // original seja cancelado depois por renegociação. Somente estornos (voided_at)
+  // deixam de participar dos totais.
+  return (data || []) as unknown as Payment[];
+}
+
+export async function getLoanTopups(loanId?: string): Promise<LoanTopup[]> {
+  const supabase = await createClient();
+  if (!supabase) return [];
+  let query = supabase.from("loan_topups")
+    .select("*, client:clients(id,name), loan:loans(id,loan_code)")
+    .order("topup_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (loanId) query = query.eq("loan_id", loanId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as unknown as LoanTopup[];
 }
 
 export async function getActivityLogs(limit = 200): Promise<ActivityLog[]> {
@@ -104,18 +124,23 @@ export async function getActivityLogs(limit = 200): Promise<ActivityLog[]> {
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const [loans, installments, payments] = await Promise.all([getLoans(), getInstallments(), getPayments()]);
-  const today = format(new Date(), "yyyy-MM-dd");
-  const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
-  const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
-  const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
-  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  const [loans, installments, historicalInstallments, payments] = await Promise.all([
+    getLoans(),
+    getInstallments(),
+    getHistoricalInstallments(),
+    getPayments(),
+  ]);
+  const today = brazilDateKey();
+  const todayDate = parseISO(today);
+  const weekStart = format(startOfWeek(todayDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const weekEnd = format(endOfWeek(todayDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const monthStart = format(startOfMonth(todayDate), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(todayDate), "yyyy-MM-dd");
   const activeLoans = loans.filter((l) => l.status === "ATIVO");
   const activeClientIds = new Set(activeLoans.map((l) => l.client_id));
   const totalReceived = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-  // getInstallments() já mantém apenas empréstimos ativos. Aqui também retiramos
-  // parcelas individualmente canceladas.
+  // Saldo atual considera somente empréstimos ativos.
   const outstanding = installments
     .filter((i) => i.stored_status !== "CANCELADO")
     .reduce((sum, i) => sum + Number(i.remaining_amount), 0);
@@ -141,16 +166,39 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   }, 0);
 
   const expectedProfit = activeLoans.reduce((sum, l) => sum + Number(l.expected_profit), 0);
-  const todayRows = installments.filter((i) => i.due_date === today && i.stored_status !== "CANCELADO");
+
+  // Previsto/quitado é histórico de agenda: contratos finalizados continuam aparecendo,
+  // enquanto contratos/parcelas cancelados por renegociação não voltam para a conta.
+  const todayRows = historicalInstallments.filter((i) => i.due_date === today);
   const receiveToday = todayRows.reduce((sum, i) => sum + Number(i.amount), 0);
   const pendingToday = todayRows.reduce((sum, i) => sum + Number(i.remaining_amount), 0);
-  const receivedToday = payments.filter((p) => p.payment_date.slice(0, 10) === today).reduce((sum, p) => sum + Number(p.amount), 0);
-  // Qualquer saldo remanescente com vencimento anterior a hoje conta como atrasado,
-  // inclusive parcelas parcialmente pagas.
+  const receivedToday = payments
+    .filter((p) => p.payment_date.slice(0, 10) === today)
+    .reduce((sum, p) => sum + Number(p.amount), 0);
+
+  // Atraso é sempre posição atual: apenas saldo remanescente de empréstimos ativos.
   const overdue = installments
     .filter((i) => i.stored_status !== "CANCELADO" && Number(i.remaining_amount) > 0 && i.due_date < today)
     .reduce((sum, i) => sum + Number(i.remaining_amount), 0);
-  const weekExpected = installments.filter((i) => i.stored_status !== "CANCELADO" && i.due_date >= weekStart && i.due_date <= weekEnd).reduce((sum, i) => sum + Number(i.amount), 0);
-  const monthExpected = installments.filter((i) => i.stored_status !== "CANCELADO" && i.due_date >= monthStart && i.due_date <= monthEnd).reduce((sum, i) => sum + Number(i.amount), 0);
-  return { capitalCirculation, totalReceivable: outstanding, expectedProfit, totalReceived, receiveToday, receivedToday, pendingToday, overdue, activeClients: activeClientIds.size, weekExpected, monthExpected };
+
+  const weekExpected = historicalInstallments
+    .filter((i) => i.due_date >= weekStart && i.due_date <= weekEnd)
+    .reduce((sum, i) => sum + Number(i.amount), 0);
+  const monthExpected = historicalInstallments
+    .filter((i) => i.due_date >= monthStart && i.due_date <= monthEnd)
+    .reduce((sum, i) => sum + Number(i.amount), 0);
+
+  return {
+    capitalCirculation,
+    totalReceivable: outstanding,
+    expectedProfit,
+    totalReceived,
+    receiveToday,
+    receivedToday,
+    pendingToday,
+    overdue,
+    activeClients: activeClientIds.size,
+    weekExpected,
+    monthExpected,
+  };
 }

@@ -1,24 +1,27 @@
 "use client";
 import { useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from "recharts";
-import { format, subMonths } from "date-fns";
+import { format, parseISO, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { effectiveInstallmentStatus, money } from "@/lib/finance";
+import { brazilDateKey } from "@/lib/date";
 import type { Installment, Payment } from "@/lib/types";
 
-export function DashboardCharts({ installments, payments }: { installments: Installment[]; payments: Payment[] }) {
+export function DashboardCharts({ installments, historicalInstallments, payments }: { installments: Installment[]; historicalInstallments: Installment[]; payments: Payment[] }) {
   const receivedData = useMemo(() => {
-    return Array.from({length:6},(_,idx)=>subMonths(new Date(),5-idx)).map(date=>{
+    const anchor=parseISO(brazilDateKey());
+    return Array.from({length:6},(_,idx)=>subMonths(anchor,5-idx)).map(date=>{
       const key=format(date,"yyyy-MM");
-      const previsto=installments.filter(i=>i.due_date.startsWith(key)).reduce((s,i)=>s+Number(i.amount),0);
+      const previsto=historicalInstallments.filter(i=>i.due_date.startsWith(key)).reduce((s,i)=>s+Number(i.amount),0);
       const recebido=payments.filter(p=>p.payment_date.startsWith(key)).reduce((s,p)=>s+Number(p.amount),0);
       return { name: format(date,"MMM",{locale:ptBR}).toUpperCase(), previsto, recebido };
     });
-  },[installments,payments]);
+  },[historicalInstallments,payments]);
 
   const situation = useMemo(()=>{
     const counts={PAGO:0,PENDENTE:0,ATRASADO:0,PARCIAL:0};
-    installments.forEach(i=>{const s=effectiveInstallmentStatus(i); if(s in counts) counts[s as keyof typeof counts]++;});
+    const today=brazilDateKey();
+    installments.forEach(i=>{const s=effectiveInstallmentStatus(i,today); if(s in counts) counts[s as keyof typeof counts]++;});
     return [
       {name:"Pago",value:counts.PAGO,fill:"#2bd889"},
       {name:"Pendente",value:counts.PENDENTE,fill:"#f8c451"},

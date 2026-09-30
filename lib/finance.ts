@@ -1,5 +1,6 @@
 import { addDays, addMonths, addWeeks, differenceInCalendarDays, format, parseISO } from "date-fns";
 import type { FixedScheduleRule, Installment, PaymentStatus } from "@/lib/types";
+import { brazilDateKey } from "@/lib/date";
 
 export const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -137,7 +138,7 @@ export function generateDueDates(
 
 export function effectiveInstallmentStatus(
   installment: Pick<Installment, "amount" | "amount_paid" | "remaining_amount" | "due_date" | "stored_status">,
-  today = format(new Date(), "yyyy-MM-dd"),
+  today = brazilDateKey(),
 ): PaymentStatus {
   if (installment.stored_status === "CANCELADO") return "CANCELADO";
   if (Number(installment.remaining_amount) <= 0) return "PAGO";
@@ -147,8 +148,8 @@ export function effectiveInstallmentStatus(
   return "PENDENTE";
 }
 
-export function daysOverdue(dueDate: string, remaining: number) {
+export function daysOverdue(dueDate: string, remaining: number, today = brazilDateKey()) {
   if (remaining <= 0) return 0;
-  const diff = differenceInCalendarDays(new Date(), parseISO(dueDate));
+  const diff = differenceInCalendarDays(parseISO(today), parseISO(dueDate));
   return Math.max(0, diff);
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { addDays, format, parseISO } from "date-fns";
 import { Wallet, CircleDollarSign, TrendingUp, CheckCircle2, AlertTriangle, Users, CalendarDays, BadgeDollarSign } from "lucide-react";
-import { getDashboardSummary,getInstallments,getPayments,getCurrentProfile,getLoans } from "@/lib/data";
+import { getDashboardSummary,getInstallments,getHistoricalInstallments,getPayments,getCurrentProfile,getLoans } from "@/lib/data";
 import { money,effectiveInstallmentStatus,daysOverdue } from "@/lib/finance";
 import { brazilDateKey } from "@/lib/date";
 import { StatCard } from "@/components/ui/stat-card";
@@ -10,18 +10,18 @@ import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
 import { PaymentForm } from "@/components/forms/payment-form";
 
 export default async function Dashboard(){
-  const [s,i,p,profile,loans]=await Promise.all([getDashboardSummary(),getInstallments(),getPayments(),getCurrentProfile(),getLoans()]);
+  const [s,i,historyInstallments,p,profile,loans]=await Promise.all([getDashboardSummary(),getInstallments(),getHistoricalInstallments(),getPayments(),getCurrentProfile(),getLoans()]);
   const today=brazilDateKey(),month=today.slice(0,7);
   const next=i.filter(x=>Number(x.remaining_amount)>0).sort((a,b)=>a.due_date.localeCompare(b.due_date)).slice(0,6);
   const overdueRows=i.filter(x=>x.stored_status!=="CANCELADO"&&Number(x.remaining_amount)>0&&x.due_date<today);
   const late=overdueRows.slice(0,4);
-  const todayRows=i.filter(x=>x.due_date===today);
+  const todayRows=historyInstallments.filter(x=>x.due_date===today);
   const pendingTodayRows=todayRows.filter(x=>Number(x.remaining_amount)>0);
   const completeToday=todayRows.filter(x=>Number(x.remaining_amount)<=0).length;
   const receivedMonth=p.filter(x=>x.payment_date.startsWith(month)).reduce((sum,x)=>sum+Number(x.amount),0);
   const loanMap=new Map(loans.map(l=>[l.id,l]));
   const realizedProfit=p.reduce((sum,payment)=>{const loan=loanMap.get(payment.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(payment.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
-  const monthProfit=i.filter(x=>x.due_date.startsWith(month)).reduce((sum,row)=>{const loan=loanMap.get(row.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(row.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
+  const monthProfit=historyInstallments.filter(x=>x.due_date.startsWith(month)).reduce((sum,row)=>{const loan=loanMap.get(row.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(row.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
   const delinquencyAmount=overdueRows.reduce((sum,row)=>sum+Number(row.remaining_amount),0);
   const delinquencyRate=s.totalReceivable>0?(delinquencyAmount/s.totalReceivable)*100:0;
   const delinquencyLabel=delinquencyRate.toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})+"%";
@@ -39,7 +39,7 @@ export default async function Dashboard(){
   });
 
   const weekEnd=format(addDays(parseISO(today),6),"yyyy-MM-dd");
-  const weekRows=i.filter(row=>row.stored_status!=="CANCELADO"&&row.due_date>=today&&row.due_date<=weekEnd);
+  const weekRows=historyInstallments.filter(row=>row.due_date>=today&&row.due_date<=weekEnd);
   const weekExpected=weekRows.reduce((sum,row)=>sum+Number(row.amount),0);
   const weekReceived=weekRows.reduce((sum,row)=>sum+Number(row.amount_paid),0);
   const weekPending=weekRows.reduce((sum,row)=>sum+Number(row.remaining_amount),0);
@@ -117,7 +117,7 @@ export default async function Dashboard(){
       {todayRows.length>0&&pendingTodayRows.length===0&&<div className="empty" style={{marginTop:10}}>Todas as cobranças previstas para hoje estão quitadas. 🎉</div>}
     </div>
 
-    <DashboardCharts installments={i} payments={p}/>
+    <DashboardCharts installments={i} historicalInstallments={historyInstallments} payments={p}/>
 
     <div className="grid-equal" style={{marginTop:16}}>
       <div className="card"><div className="section-title"><h2>Próximos recebimentos</h2><Link href="/calendario" className="muted">Ver todos</Link></div><div className="list">{next.map(x=><div className="list-row" key={x.id}><div className="person"><div className="avatar">{x.client?.name?.[0]}</div><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.due_date} · {x.loan?.loan_code}</div></div></div><div style={{textAlign:"right"}}><strong>{money(x.remaining_amount)}</strong><div style={{marginTop:4}}><StatusBadge status={effectiveInstallmentStatus(x,today)}/></div></div></div>)}</div></div>

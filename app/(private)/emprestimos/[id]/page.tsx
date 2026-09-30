@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { getLoan,getInstallments,getPayments,getActivityLogs } from "@/lib/data";
-import { getLoanTopups } from "@/lib/cash-data";
+import { getLoan,getInstallments,getPayments,getActivityLogs,getLoanTopups } from "@/lib/data";
 import { effectiveInstallmentStatus,money } from "@/lib/finance";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { RenegotiateInstallment } from "@/components/forms/renegotiate-installment";
