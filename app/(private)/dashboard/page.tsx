@@ -2,7 +2,7 @@ import Link from "next/link";
 import { addDays, format, parseISO } from "date-fns";
 import { Wallet, CircleDollarSign, TrendingUp, CheckCircle2, AlertTriangle, Users, CalendarDays, BadgeDollarSign } from "lucide-react";
 import { getDashboardSummary,getInstallments,getHistoricalInstallments,getPayments,getCurrentProfile,getLoans } from "@/lib/data";
-import { money,effectiveInstallmentStatus,daysOverdue } from "@/lib/finance";
+import { money,effectiveInstallmentStatus,daysOverdue,realizedProfitForPayment } from "@/lib/finance";
 import { brazilDateKey } from "@/lib/date";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -20,7 +20,7 @@ export default async function Dashboard(){
   const completeToday=todayRows.filter(x=>Number(x.remaining_amount)<=0).length;
   const receivedMonth=p.filter(x=>x.payment_date.startsWith(month)).reduce((sum,x)=>sum+Number(x.amount),0);
   const loanMap=new Map(loans.map(l=>[l.id,l]));
-  const realizedProfit=p.reduce((sum,payment)=>{const loan=loanMap.get(payment.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(payment.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
+  const realizedProfit=p.reduce((sum,payment)=>sum+realizedProfitForPayment(payment,loanMap.get(payment.loan_id)),0);
   const monthProfit=historyInstallments.filter(x=>x.due_date.startsWith(month)).reduce((sum,row)=>{const loan=loanMap.get(row.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(row.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
   const delinquencyAmount=overdueRows.reduce((sum,row)=>sum+Number(row.remaining_amount),0);
   const delinquencyRate=s.totalReceivable>0?(delinquencyAmount/s.totalReceivable)*100:0;
