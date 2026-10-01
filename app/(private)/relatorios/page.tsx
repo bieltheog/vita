@@ -1,5 +1,5 @@
 import {getDashboardSummary,getClients,getLoans,getPayments,getHistoricalInstallments} from '@/lib/data';
-import {money} from '@/lib/finance';
+import {money,realizedProfitForPayment} from '@/lib/finance';
 import {ExportButtons} from '@/components/reports/export-buttons';
 
 export default async function ReportsPage(){
@@ -7,7 +7,7 @@ export default async function ReportsPage(){
   const validLoans=loans.filter(l=>l.status!=="CANCELADO");
   const ranking=clients.map(x=>({n:x.name,p:payments.filter(y=>y.client_id===x.id).reduce((a,b)=>a+Number(b.amount),0)})).filter(x=>x.p>0).sort((a,b)=>b.p-a.p);
   const loanMap=new Map(loans.map(l=>[l.id,l]));
-  const realizedProfit=payments.reduce((sum,p)=>{const loan=loanMap.get(p.loan_id);if(!loan||Number(loan.total_receivable)<=0)return sum;return sum+Number(p.amount)*(Number(loan.expected_profit)/Number(loan.total_receivable));},0);
+  const realizedProfit=payments.reduce((sum,p)=>sum+realizedProfitForPayment(p,loanMap.get(p.loan_id)),0);
   const totalPrincipal=validLoans.reduce((a,b)=>a+Number(b.principal_amount),0);
   const movements=[
     ...payments.map(x=>({d:x.payment_date.slice(0,10),n:x.client?.name||"Cliente",t:'Pagamento recebido',v:Number(x.amount)})),

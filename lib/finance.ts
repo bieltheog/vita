@@ -1,5 +1,5 @@
 import { addDays, addMonths, addWeeks, differenceInCalendarDays, format, parseISO } from "date-fns";
-import type { FixedScheduleRule, Installment, PaymentStatus } from "@/lib/types";
+import type { FixedScheduleRule, Installment, Loan, Payment, PaymentStatus } from "@/lib/types";
 import { brazilDateKey } from "@/lib/date";
 
 export const currency = new Intl.NumberFormat("pt-BR", {
@@ -152,4 +152,16 @@ export function daysOverdue(dueDate: string, remaining: number, today = brazilDa
   if (remaining <= 0) return 0;
   const diff = differenceInCalendarDays(parseISO(today), parseISO(dueDate));
   return Math.max(0, diff);
+}
+
+export function realizedProfitForPayment(
+  payment: Pick<Payment, "amount" | "notes">,
+  loan?: Pick<Loan, "total_receivable" | "expected_profit"> | null,
+) {
+  const amount = Number(payment.amount || 0);
+  if (String(payment.notes || "").trim().startsWith("[JUROS]")) return amount;
+  const totalReceivable = Number(loan?.total_receivable || 0);
+  const expectedProfit = Number(loan?.expected_profit || 0);
+  if (totalReceivable <= 0 || expectedProfit <= 0) return 0;
+  return amount * (expectedProfit / totalReceivable);
 }
