@@ -115,7 +115,15 @@ create table if not exists public.interest_rollovers (
 alter table public.interest_rollovers enable row level security;
 create policy interest_rollovers_select_own on public.interest_rollovers
   for select to authenticated using (user_id=(select auth.uid()));
-create policy interest_rollovers_insert_own on public.interest_rollovers\n  for insert to authenticated with check (\n    user_id=(select auth.uid()) and exists (\n      select 1 from public.loans l where l.id=loan_id and l.user_id=(select auth.uid())\n    ) and exists (\n      select 1 from public.payments p where p.id=payment_id and p.user_id=(select auth.uid())\n    )\n  );\ngrant select,insert on public.interest_rollovers to authenticated;
+create policy interest_rollovers_insert_own on public.interest_rollovers
+  for insert to authenticated with check (
+    user_id=(select auth.uid()) and exists (
+      select 1 from public.loans l where l.id=loan_id and l.user_id=(select auth.uid())
+    ) and exists (
+      select 1 from public.payments p where p.id=payment_id and p.user_id=(select auth.uid())
+    )
+  );
+grant select,insert on public.interest_rollovers to authenticated;
 
 -- Transação atômica: marca o juro como quitado e renova o MESMO capital
 -- para o mês seguinte, mantendo todo o histórico. Restrita a contratos
