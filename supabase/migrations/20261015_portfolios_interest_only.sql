@@ -49,7 +49,9 @@ create policy portfolio_entries_update_own on public.portfolio_entries
       where l.id=loan_id and l.user_id=(select auth.uid()) and l.portfolio_id=portfolio_id
     ))
   );
-grant select,insert,update on public.portfolio_entries to authenticated;
+grant select,insert on public.portfolio_entries to authenticated;
+revoke update on public.portfolio_entries from authenticated;
+grant update(voided_at,void_reason) on public.portfolio_entries to authenticated;
 
 -- Classificação inequívoca para que o juros recebido não amortize o principal.
 alter table public.payments add column if not exists payment_kind text not null default 'NORMAL'
@@ -121,6 +123,13 @@ create policy interest_rollovers_insert_own on public.interest_rollovers
       select 1 from public.loans l where l.id=loan_id and l.user_id=(select auth.uid())
     ) and exists (
       select 1 from public.payments p where p.id=payment_id and p.user_id=(select auth.uid())
+    )
+    and exists (
+      select 1 from public.installments oi where oi.id=original_installment_id
+        and oi.loan_id=loan_id and oi.user_id=(select auth.uid())
+    ) and exists (
+      select 1 from public.installments ni where ni.id=next_installment_id
+        and ni.loan_id=loan_id and ni.user_id=(select auth.uid())
     )
   );
 grant select,insert on public.interest_rollovers to authenticated;
@@ -242,3 +251,31 @@ $$;
 drop trigger if exists interest_rollover_void_guard on public.payments;
 create trigger interest_rollover_void_guard before update on public.payments
 for each row execute function private.guard_interest_rollover_void();
+
+-- Carteira é imutável após criar o contrato: não misturar histórico antigo/novo.
+create or replace function private.lock_loan_portfolio()
+returns trigger language plpgsql set search_path=public as $$
+begin
+  if old.portfolio_id is distinct from new.portfolio_id then
+    raise exception 'Não é permitido mover um empréstimo entre carteiras';
+  end if;
+  return new;
+end; $$;
+drop trigger if exists lock_loan_portfolio_trigger on public.loans;
+create trigger lock_loan_portfolio_trigger before update of portfolio_id on public.loans
+for each row execute function private.lock_loan_portfolio();
+
+-- Uma classificação confirmada de pagamento só muda por estorno, nunca edição.
+create or replace function private.lock_payment_components()
+returns trigger language plpgsql set search_path=public as $$
+begin
+  if new.principal_component is distinct from old.principal_component
+  or new.interest_component is distinct from old.interest_component
+  or new.payment_kind is distinct from old.payment_kind then
+    raise exception 'Componentes do pagamento são imutáveis; utilize estorno';
+  end if;
+  return new;
+end; $$;
+drop trigger if exists lock_payment_components_trigger on public.payments;
+create trigger lock_payment_components_trigger before update on public.payments
+for each row execute function private.lock_payment_components();
