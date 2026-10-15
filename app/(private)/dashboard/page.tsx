@@ -1,3 +1,4 @@
+import { CashOverview } from "@/components/dashboard/cash-overview";
 import Link from "next/link";
 import { addDays, format, parseISO } from "date-fns";
 import { Wallet, CircleDollarSign, TrendingUp, CheckCircle2, AlertTriangle, Users, CalendarDays, BadgeDollarSign } from "lucide-react";
@@ -64,6 +65,7 @@ export default async function Dashboard(){
     </div>
 
     <div className="stats">
+      <CashOverview/>
       <StatCard label="Capital em circulação" value={money(s.capitalCirculation)} meta="Principal atualmente emprestado" icon={Wallet} href="/emprestimos"/>
       <StatCard label="Total a receber" value={money(s.totalReceivable)} meta="Saldo pendente total" icon={CircleDollarSign} href="/pagamentos"/>
       <StatCard label="Lucro contratado" value={money(s.expectedProfit)} icon={TrendingUp} href="/relatorios"/>
