@@ -17,7 +17,7 @@ create table if not exists public.portfolio_entries (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   portfolio_id smallint not null check (portfolio_id in (1,2)),
-  kind text not null check (kind in ('APORTE','RETIRADA','DESPESA','PERDA','RECUPERACAO')),
+  kind text not null check (kind in ('APORTE','CREDITO','AMORTIZACAO_DIVIDA','JUROS_FINANCIAMENTO','RETIRADA','DESPESA','PERDA','RECUPERACAO')),
   amount numeric(14,2) not null check (amount > 0),
   entry_date date not null,
   description text not null,
