@@ -73,6 +73,8 @@ export interface Payment {
   notes?: string | null;
   voided_at?: string | null;
   payment_kind?: "NORMAL" | "JUROS";
+  principal_component?: number | null;
+  interest_component?: number | null;
   created_at: string;
   client?: Pick<Client, "id" | "name" | "phone" | "whatsapp"> | null;
   loan?: { id: string; loan_code: string; total_receivable?: number; expected_profit?: number; status?: LoanStatus } | null;
