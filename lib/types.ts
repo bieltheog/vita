@@ -27,6 +27,7 @@ export interface Loan {
   user_id?: string;
   client_id: string;
   loan_code: string;
+  portfolio_id?: 1 | 2;
   principal_amount: number;
   return_percentage: number | null;
   fixed_return_amount?: number | null;
@@ -71,6 +72,7 @@ export interface Payment {
   payment_method: string;
   notes?: string | null;
   voided_at?: string | null;
+  payment_kind?: "NORMAL" | "JUROS";
   created_at: string;
   client?: Pick<Client, "id" | "name" | "phone" | "whatsapp"> | null;
   loan?: { id: string; loan_code: string; total_receivable?: number; expected_profit?: number; status?: LoanStatus } | null;
