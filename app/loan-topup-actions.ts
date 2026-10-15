@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { brazilDateKey } from "@/lib/date";
+import { getActivePortfolio } from "@/lib/portfolio";
 import { calculateLoan, generateDueDates, roundMoney, splitInstallments } from "@/lib/finance";
 
 export type LoanTopupResult = { ok: true; message: string } | { ok: false; error: string };
@@ -50,7 +51,7 @@ export async function addLoanTopupAction(formData: FormData): Promise<LoanTopupR
     if(frequency==="DIARIO"&&dailyOffDays.length>=7) throw new Error("Escolha pelo menos um dia da semana com cobrança.");
 
     const [{ data: loan, error: loanError }, { data: installments, error: installmentsError }]=await Promise.all([
-      supabase.from("loans").select("id,client_id,loan_code,status").eq("id",loanId).eq("user_id",user.id).single(),
+      supabase.from("loans").select("id,client_id,loan_code,status").eq("id",loanId).eq("user_id",user.id).eq("portfolio_id",await getActivePortfolio()).single(),
       supabase.from("installments").select("id,remaining_amount,stored_status").eq("loan_id",loanId).eq("user_id",user.id),
     ]);
     if(loanError||!loan) throw loanError||new Error("Empréstimo não encontrado.");
