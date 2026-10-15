@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/carteiras", label: "Caixa", icon: Wallet },
   { href: "/cobrancas-hoje", label: "Cobranças", icon: CircleDollarSign },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
@@ -21,7 +22,6 @@ const nav = [
   { href: "/calendario", label: "Calendário", icon: CalendarDays },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/simulador", label: "Simulador", icon: Calculator },
-  { href: "/carteiras", label: "Carteiras / Caixa", icon: Wallet },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
@@ -33,7 +33,7 @@ const mobile = [
 ];
 
 const mobileMore = [
-  { href: "/carteiras", label: "Carteiras / Caixa", icon: Wallet },
+  { href: "/carteiras", label: "Caixa", icon: Wallet },
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
