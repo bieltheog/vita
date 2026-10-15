@@ -99,7 +99,6 @@ export async function getPayments(clientId?: string, loanId?: string): Promise<P
   let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans!inner(id,loan_code,total_receivable,expected_profit,status,portfolio_id)").is("voided_at", null).order("payment_date", { ascending: false });
   query=query.eq("loan.portfolio_id",await getActivePortfolio());
   if (clientId) query = query.eq("client_id", clientId);
-  query=query.eq("loan.portfolio_id",await getActivePortfolio());
   if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
   if (error) throw error;
@@ -116,6 +115,7 @@ export async function getLoanTopups(loanId?: string): Promise<LoanTopup[]> {
     .select("*, client:clients(id,name), loan:loans!inner(id,loan_code,portfolio_id)")
     .order("topup_date", { ascending: false })
     .order("created_at", { ascending: false });
+  query = query.eq("loan.portfolio_id", await getActivePortfolio());
   if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
   if (error) throw error;
@@ -167,13 +167,24 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   // Nos ciclos renovados, total_receivable é cumulativo; retire os juros
   // já liquidados antes de estimar a proporção do capital ainda em circulação.
   const paidInterestByLoan = new Map<string,number>();
+  const trackedPrincipalByLoan = new Map<string,number>();
+  const trackedPaymentCountByLoan = new Map<string,number>();
+  const paymentCountByLoan = new Map<string,number>();
   for(const payment of payments){
+    paymentCountByLoan.set(payment.loan_id,(paymentCountByLoan.get(payment.loan_id)||0)+1);
+    if(payment.principal_component!=null){
+      trackedPrincipalByLoan.set(payment.loan_id,(trackedPrincipalByLoan.get(payment.loan_id)||0)+Number(payment.principal_component));
+      trackedPaymentCountByLoan.set(payment.loan_id,(trackedPaymentCountByLoan.get(payment.loan_id)||0)+1);
+    }
     if(payment.payment_kind==="JUROS" || String(payment.notes||"").startsWith("[JUROS]")){
       paidInterestByLoan.set(payment.loan_id,(paidInterestByLoan.get(payment.loan_id)||0)+Number(payment.amount));
     }
   }
   const capitalCirculation = activeLoans.reduce((sum, loan) => {
     const principal = Number(loan.principal_amount);
+    if((paymentCountByLoan.get(loan.id)||0)>0 && trackedPaymentCountByLoan.get(loan.id)===paymentCountByLoan.get(loan.id)) {
+      return sum+Math.max(0,principal-(trackedPrincipalByLoan.get(loan.id)||0));
+    }
     const totalReceivable = Math.max(0,Number(loan.total_receivable)-(paidInterestByLoan.get(loan.id)||0));
     const remainingReceivable = Math.max(0, remainingByLoan.get(loan.id) || 0);
     if (principal <= 0 || totalReceivable <= 0) return sum;
