@@ -63,7 +63,7 @@ export async function getInstallments(options?: { clientId?: string; loanId?: st
       (Boolean(options?.loanId) || Boolean(options?.includeInactive) || !inactiveIds.has(row.loan_id))
     );
   }
-  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans!inner(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit,status,portfolio_id)").order("due_date", { ascending: true });
+  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans!inner(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit,status,portfolio_id,return_percentage,fixed_return_amount,payment_frequency)").order("due_date", { ascending: true });
   query=query.eq("loan.portfolio_id",await getActivePortfolio());
   if (options?.clientId) query = query.eq("client_id", options.clientId);
   if (options?.loanId) query = query.eq("loan_id", options.loanId);
