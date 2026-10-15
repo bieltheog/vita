@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getActivePortfolio } from "@/lib/portfolio";
 
-const TYPES = ["APORTE","RETIRADA","DESPESA","PERDA","RECUPERACAO"];
+const TYPES = ["APORTE","CREDITO","AMORTIZACAO_DIVIDA","JUROS_FINANCIAMENTO","RETIRADA","DESPESA","PERDA","RECUPERACAO"];
 export async function registerPortfolioEntryAction(formData:FormData){
   const supabase=await createClient();
   if(!supabase)throw new Error("Supabase não configurado");
@@ -20,11 +20,13 @@ export async function registerPortfolioEntryAction(formData:FormData){
   if(!Number.isFinite(amount)||amount<=0)throw new Error("Valor inválido");
   if(!/^\d{4}-\d{2}-\d{2}$/.test(entry_date))throw new Error("Data inválida");
   if(!description)throw new Error("Informe a origem ou o destino do dinheiro");
+  if(["PERDA","RECUPERACAO"].includes(kind)&&!loan_id)throw new Error("Selecione um empréstimo para registrar perda ou reversão.");
   if(loan_id){
     const {data:loan,error}=await supabase.from("loans").select("id").eq("id",loan_id)
       .eq("portfolio_id",portfolio_id).eq("user_id",user.id).single();
     if(error||!loan)throw new Error("Contrato não pertence à carteira selecionada");
   }
+  if(["AMORTIZACAO_DIVIDA","JUROS_FINANCIAMENTO"].includes(kind)&&!description.trim())throw new Error("Identifique o contrato da dívida.");
   const {error}=await supabase.from("portfolio_entries").insert({
     user_id:user.id,portfolio_id,kind,amount,entry_date,description,loan_id
   });
