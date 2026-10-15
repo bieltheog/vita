@@ -1,171 +1,119 @@
+import Link from "next/link";
+import { ArrowDownLeft, ArrowUpRight, ArrowRight, ChevronDown, Wallet } from "lucide-react";
 import { getActivePortfolio } from "@/lib/portfolio";
-import { getLoans,getPayments,getInstallments,getLoanTopups,getDashboardSummary } from "@/lib/data";
+import { getLoans, getPayments, getLoanTopups, getDashboardSummary, getInstallments } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
-import { money,realizedProfitForPayment } from "@/lib/finance";
-import { brazilDateKey } from "@/lib/date";
-import { registerPortfolioEntryAction,voidPortfolioEntryAction,registerOpeningBalanceAction } from "@/app/portfolio-entry-actions";
 import { buildCashLedger } from "@/lib/cash-ledger";
-import type { CashBaseline,PortfolioCashEntry } from "@/lib/cash-ledger";
+import type { CashBaseline, PortfolioCashEntry, CashMovement } from "@/lib/cash-ledger";
+import { money } from "@/lib/finance";
+import { brazilDateKey } from "@/lib/date";
+import { registerOpeningBalanceAction } from "@/app/portfolio-entry-actions";
+import { QuickCashActions } from "@/components/cash/quick-cash-actions";
+
+function CashRow({row,showBalance}:{row:CashMovement;showBalance:boolean}){
+  const incoming=row.direction==="ENTRADA";
+  return <div className="cash-movement">
+    <span className={"cash-movement-icon "+(incoming?"cash-movement-icon-in":"cash-movement-icon-out")}>
+      {incoming?<ArrowDownLeft size={17}/>:<ArrowUpRight size={17}/>}
+    </span>
+    <div className="cash-movement-description"><strong>{row.category}</strong><span className="muted">{row.description}</span></div>
+    <div className="cash-movement-value"><strong className={incoming?"cash-positive":"cash-negative"}>{incoming?"+":"−"} {money(row.amount)}</strong>
+      <span className="muted">{row.date.split("-").reverse().join("/")}{showBalance?" · Saldo "+money(row.balanceAfter):""}</span>
+    </div>
+  </div>;
+}
 
 export default async function WalletsPage(){
   const portfolioId=await getActivePortfolio();
+  const today=brazilDateKey();
   const supabase=await createClient();
-  const [loans,payments,installments,topups,summary]=await Promise.all([
-    getLoans(),getPayments(),getInstallments(),getLoanTopups(),getDashboardSummary()
+  const [loans,payments,topups,summary,installments]=await Promise.all([
+    getLoans(),getPayments(),getLoanTopups(),getDashboardSummary(),getInstallments()
   ]);
   let entries:PortfolioCashEntry[]=[];
   let baseline:CashBaseline|null=null;
   if(supabase){
-    const {data,error}=await supabase.from("portfolio_entries").select("*")
-      .eq("portfolio_id",portfolioId).order("entry_date",{ascending:false});
-    if(error)throw error;entries=(data||[]) as PortfolioCashEntry[];
-    const {data:starting,error:openingError}=await supabase.from("portfolio_cash_baselines")
-      .select("portfolio_id,start_date,opening_balance,created_at").eq("portfolio_id",portfolioId).maybeSingle();
-    if(openingError)throw openingError;
-    baseline=starting as CashBaseline|null;
+    const [activity,opening]=await Promise.all([
+      supabase.from("portfolio_entries").select("*").eq("portfolio_id",portfolioId),
+      supabase.from("portfolio_cash_baselines").select("*").eq("portfolio_id",portfolioId).maybeSingle()
+    ]);
+    if(activity.error)throw activity.error;
+    if(opening.error)throw opening.error;
+    entries=(activity.data||[]) as PortfolioCashEntry[];
+    baseline=opening.data as CashBaseline|null;
   }
-  const activeEntries=entries.filter(e=>!e.voided_at);
-  const ledger=buildCashLedger({loans,payments,topups,entries,baseline});
-  const loanMap=new Map(loans.map(l=>[l.id,l]));
-  const topupsByLoan=new Map<string,number>();
-  topups.forEach(t=>topupsByLoan.set(t.loan_id,(topupsByLoan.get(t.loan_id)||0)+Number(t.amount)));
-  const funding=activeEntries.filter(e=>e.kind==="APORTE").reduce((s,e)=>s+Number(e.amount),0);
-  const credit=activeEntries.filter(e=>e.kind==="CREDITO").reduce((s,e)=>s+Number(e.amount),0);
-  const debtPrincipal=activeEntries.filter(e=>e.kind==="AMORTIZACAO_DIVIDA").reduce((s,e)=>s+Number(e.amount),0);
-  const financeCost=activeEntries.filter(e=>e.kind==="JUROS_FINANCIAMENTO").reduce((s,e)=>s+Number(e.amount),0);
-  const withdrawals=activeEntries.filter(e=>e.kind==="RETIRADA").reduce((s,e)=>s+Number(e.amount),0);
-  const expenses=activeEntries.filter(e=>e.kind==="DESPESA").reduce((s,e)=>s+Number(e.amount),0);
-  const writeoffs=activeEntries.filter(e=>e.kind==="PERDA").reduce((s,e)=>s+Number(e.amount),0);
-  const recoveries=activeEntries.filter(e=>e.kind==="RECUPERACAO").reduce((s,e)=>s+Number(e.amount),0);
-  const repayments=payments.reduce((s,p)=>s+Number(p.amount),0);
-  const disbursements=loans.reduce((s,l)=>s+Number(l.principal_amount),0);
-  const cashEstimate=ledger.balance;
-  const realizedProfit=payments.reduce((s,p)=>s+realizedProfitForPayment(p,loanMap.get(p.loan_id)),0);
-  const today=brazilDateKey();
-  const delinquent=installments.filter(i=>i.due_date<today&&Number(i.remaining_amount)>0&&i.stored_status!=="CANCELADO");
-  const overdue=delinquent.reduce((s,i)=>s+Number(i.remaining_amount),0);
-  const exposure=summary.capitalCirculation;
-  const month=today.slice(0,7);
-  const months=Array.from(new Set([
-    month,
-    ...payments.map(p=>p.payment_date.slice(0,7)),
-    ...activeEntries.map(e=>e.entry_date.slice(0,7))
-  ])).sort().reverse();
-  const monthStats=months.map(m=>{
-    const received=payments.filter(p=>p.payment_date.startsWith(m));
-    const spent=activeEntries.filter(e=>e.entry_date.startsWith(m));
-    const interest=received.reduce((s,p)=>s+realizedProfitForPayment(p,loanMap.get(p.loan_id)),0);
-    const costs=spent.filter(e=>e.kind==="DESPESA").reduce((s,e)=>s+Number(e.amount),0);
-    const loss=spent.filter(e=>e.kind==="PERDA").reduce((s,e)=>s+Number(e.amount),0);
-    const recovery=spent.filter(e=>e.kind==="RECUPERACAO").reduce((s,e)=>s+Number(e.amount),0);
-    const financing=spent.filter(e=>e.kind==="JUROS_FINANCIAMENTO").reduce((s,e)=>s+Number(e.amount),0);
-    return {month:m,received:received.reduce((s,p)=>s+Number(p.amount),0),interest,costs,financing,loss,recovery,net:interest-costs-financing-loss+recovery};
-  });
-  const rows=ledger.movements;
-  const ageRanges=[{name:"1–7 dias",a:1,b:7},{name:"8–30 dias",a:8,b:30},{name:"31–60 dias",a:31,b:60},{name:"+60 dias",a:61,b:999999}];
-  const lossByLoan=new Map<string,{client:string;lost:number;recovered:number}>();
-  activeEntries.filter(e=>e.loan_id&&["PERDA","RECUPERACAO"].includes(e.kind)).forEach(e=>{
-    const l=loanMap.get(e.loan_id!);
-    const current=lossByLoan.get(e.loan_id!)||{client:l?.client?.name||"Cliente",lost:0,recovered:0};
-    if(e.kind==="PERDA")current.lost+=Number(e.amount);else current.recovered+=Number(e.amount);
-    lossByLoan.set(e.loan_id!,current);
-  });
-  const aged=ageRanges.map(x=>({...x,rows:delinquent.filter(i=>{
-    const days=Math.floor((Date.parse(today+"T12:00:00Z")-Date.parse(i.due_date+"T12:00:00Z"))/86400000);
-    return days>=x.a&&days<=x.b;
-  })}));
-  return <>
-    <div className="page-head"><div><div className="eyebrow">Controle financeiro · Carteira {portfolioId}</div><h1>Carteira {portfolioId} · Conciliação</h1>
-      <div className="muted">{portfolioId===1?"Operação antiga preservada; cadastros compartilhados com a Carteira 2.":"Operação nova, inicialmente zerada. Cada movimento real altera o saldo disponível."}</div></div></div>
-    <div className="stats">
-      <div className="card"><div className="muted">Capital próprio aportado</div><div className="stat-value">{money(funding)}</div></div>
-      <div className="card"><div className="muted">Saldo disponível em caixa</div><div className="stat-value" style={{color:cashEstimate<0?"var(--red)":"inherit"}}>{portfolioId===1&&!baseline?"Não conciliado":money(cashEstimate)}</div><div className="person-meta">{portfolioId===1&&!baseline?"Registre o saldo real da data de abertura para iniciar a conciliação.":baseline?"Saldo de abertura + todas as entradas - todas as saídas desde "+baseline.start_date:"Carteira zerada: saldo inicial R$ 0,00 até lançar os primeiros valores."}</div></div>
-      <div className="card"><div className="muted">Principal em circulação estimado</div><div className="stat-value">{money(exposure)}</div></div>
-      <div className="card"><div className="muted">Crédito recebido</div><div className="stat-value">{money(credit)}</div></div>
-      <div className="card"><div className="muted">Principal do financiamento pago</div><div className="stat-value">{money(debtPrincipal)}</div></div>
-      <div className="card"><div className="muted">Recebido de clientes</div><div className="stat-value">{money(repayments)}</div></div>
-      <div className="card"><div className="muted">Atrasado (ainda não é prejuízo)</div><div className="stat-value">{money(overdue)}</div></div>
-      <div className="card"><div className="muted">Perda reconhecida, líquida</div><div className="stat-value">{money(writeoffs-recoveries)}</div></div>
-    </div>
-    <div className="card" style={{marginTop:16}}>
-      <div className="section-title"><div><h2>Caixa real · Carteira {portfolioId}</h2><div className="muted">O empréstimo que você cadastra sai automaticamente do caixa. Ao registrar o pagamento, o valor recebido entra automaticamente.</div></div></div>
-      <div className="stats" style={{marginTop:12}}>
-        <div className="card"><div className="muted">Saldo de abertura</div><div className="stat-value">{money(ledger.openingBalance)}</div></div>
-        <div className="card"><div className="muted">Entradas após abertura</div><div className="stat-value" style={{color:"var(--green)"}}>{money(ledger.received)}</div></div>
-        <div className="card"><div className="muted">Saídas após abertura</div><div className="stat-value" style={{color:"var(--red)"}}>{money(ledger.spent)}</div></div>
-        <div className="card"><div className="muted">Disponível agora</div><div className="stat-value" style={{color:ledger.balance<0?"var(--red)":"var(--green)"}}>{portfolioId===1&&!baseline?"Não conciliado":money(ledger.balance)}</div></div>
+  const cash=buildCashLedger({loans,payments,topups,entries,baseline});
+  const reconciled=portfolioId===2||Boolean(baseline);
+  const overdue=installments.filter(i=>i.stored_status!=="CANCELADO"&&i.due_date<today&&Number(i.remaining_amount)>0)
+    .reduce((total,i)=>total+Number(i.remaining_amount),0);
+  const thisMonth=cash.movements.filter(row=>row.date.startsWith(today.slice(0,7)));
+  const receivedMonth=thisMonth.filter(row=>row.delta>0).reduce((s,row)=>s+row.amount,0);
+  const spentMonth=thisMonth.filter(row=>row.delta<0).reduce((s,row)=>s+row.amount,0);
+  const recent=cash.movements.slice(0,8);
+  const older=cash.movements.slice(8);
+
+  return <div className="cash-shell">
+    <div className="cash-heading">
+      <div><div className="eyebrow">Carteira {portfolioId}</div><h1>Caixa</h1>
+        <p className="muted">Acompanhe o que entra, o que sai e quanto está disponível.</p>
       </div>
-      {baseline
-        ? <div className="alert" style={{marginTop:12}}>Abertura registrada em {baseline.start_date}, com saldo de {money(baseline.opening_balance)} no início desse dia. Movimentos anteriores continuam no histórico, mas não entram no saldo atual.</div>
-        : <div className="grid-equal" style={{marginTop:12}}>
-            <div><h2>Definir caixa inicial</h2><p className="muted">Digite o dinheiro que havia disponível no <strong>início da data escolhida</strong>. Por exemplo, R$ 115.000,00, se já for o saldo após a quitação de dívidas antigas.</p>
-              <form action={registerOpeningBalanceAction} className="form-grid">
-                <div className="field"><label>Saldo inicial (R$)</label><input className="input" name="opening_balance" type="number" min="0" step="0.01" placeholder="115000.00" required/></div>
-                <div className="field"><label>Data de referência</label><input className="input" name="start_date" type="date" defaultValue={today} required/></div>
-                <div className="field full"><label>Observação</label><input className="input" name="notes" placeholder="Ex.: saldo após quitar obrigações anteriores"/></div>
-                <div className="field full"><button className="btn" type="submit">Registrar saldo de abertura</button></div>
-              </form>
-            </div>
-            <div className="alert">Escolha <strong>uma forma de começar</strong>: cadastrar um saldo inicial líquido ou lançar separadamente capital próprio, empréstimo bancário e pagamentos de dívidas. Não faça as duas coisas para os mesmos valores. Se você já iniciou as movimentações, use como abertura o saldo no começo do dia indicado.</div>
-          </div>}
+      <Link href="/carteiras/detalhes" className="cash-advanced-link">Mais detalhes <ArrowRight size={15}/></Link>
     </div>
-    <div className="grid-equal" style={{marginTop:16}}>
-      <div className="card"><h2>Lançar movimento</h2><p className="muted">Registre pagamentos das dívidas e gastos aqui. Para parcelas de financiamento, separe principal em “Pagamento de dívida” e juros em “Juros de financiamento”. Não lance manualmente recebimentos dos clientes: eles já entram quando você registra o pagamento.</p>
-        <form action={registerPortfolioEntryAction} className="form-grid">
-          <div className="field"><label>Tipo</label><select className="select" name="kind" required>
-            <option value="APORTE">Aporte de capital</option><option value="CREDITO">Entrada de dinheiro emprestado</option><option value="AMORTIZACAO_DIVIDA">Pagamento / quitação de dívida (principal)</option><option value="JUROS_FINANCIAMENTO">Juros / custo do financiamento</option><option value="RETIRADA">Retirada dos sócios</option>
-            <option value="DESPESA">Despesa geral</option><option value="OUTRA_ENTRADA">Outra entrada (não é pagamento de cliente)</option><option value="OUTRA_SAIDA">Outra saída</option><option value="PERDA">Perda reconhecida</option>
-            <option value="RECUPERACAO">Reversão de perda</option>
-          </select></div>
-          <div className="field"><label>Valor (R$)</label><input className="input" name="amount" type="number" step="0.01" min="0.01" required/></div>
-          <div className="field"><label>Data</label><input className="input" name="entry_date" type="date" defaultValue={today} required/></div>
-          <div className="field full"><label>Descrição / origem / destino</label><input className="input" name="description" required placeholder="Ex.: aporte dos sócios, parcela do financiamento, despesa operacional"/></div>
-          <div className="field"><label>Contrato vinculado (opcional)</label><select className="select" name="loan_id"><option value="">Não vincular</option>{loans.map(l=><option key={l.id} value={l.id}>{l.loan_code} · {l.client?.name}</option>)}</select></div>
-          <div className="field"><button type="submit" className="btn">Registrar lançamento</button></div>
-        </form>
+
+    <section className="cash-balance">
+      <div className="cash-balance-top"><span className="cash-balance-label"><Wallet size={17}/> Saldo disponível</span>
+        <span className="cash-wallet-label">Carteira {portfolioId}</span></div>
+      <div className={"cash-balance-number"+(reconciled&&cash.balance<0?" cash-balance-negative":"")}>
+        {reconciled?money(cash.balance):"Não conciliado"}
       </div>
-      <div className="card"><h2>Inadimplência por idade</h2><p className="muted">Atraso é recebível em aberto. Só vira perda reconhecida mediante baixa explícita.</p>
-        <div className="list">{aged.map(x=><div className="list-row" key={x.name}><span>{x.name} · {x.rows.length} parcelas</span><strong>{money(x.rows.reduce((s,i)=>s+Number(i.remaining_amount),0))}</strong></div>)}</div>
-        <div className="alert" style={{marginTop:16}}>Lucro estimado registrado: {money(realizedProfit)}. Despesas registradas: {money(expenses)}. Retiradas: {money(withdrawals)}. Nunca confundir previsão de juros com recebimento.</div>
+      <p className="cash-balance-caption">{baseline
+        ?"Movimentações desde "+baseline.start_date.split("-").reverse().join("/")
+        : portfolioId===1?"Defina o saldo inicial para acompanhar esta carteira com precisão.":"O caixa começa zerado e muda conforme os lançamentos."}</p>
+      <div className="cash-balance-month">
+        <div><span className="cash-dot cash-dot-green"/><span>Entradas do mês</span><strong className="cash-positive">{money(receivedMonth)}</strong></div>
+        <div><span className="cash-dot cash-dot-red"/><span>Saídas do mês</span><strong>{money(spentMonth)}</strong></div>
+      </div>
+    </section>
+
+    <div className="cash-mini-stats">
+      <div className="cash-mini-stat"><span>Capital em circulação</span><strong>{money(summary.capitalCirculation)}</strong></div>
+      <div className="cash-mini-stat"><span>Em atraso</span><strong className={overdue>0?"cash-negative":""}>{money(overdue)}</strong></div>
+    </div>
+
+    <div className="cash-two-column">
+      <section className="cash-panel cash-statement">
+        <div className="cash-section-head">
+          <div><h2>Movimentações</h2><p className="muted">Entradas e saídas recentes</p></div>
+          <Link className="cash-inline-link" href="/relatorios">Relatórios <ArrowRight size={15}/></Link>
+        </div>
+        {recent.length
+          ?<div className="cash-movement-list">{recent.map(row=><CashRow key={row.id} row={row} showBalance={reconciled}/>)}</div>
+          :<div className="cash-empty"><Wallet size={22}/><strong>Nenhum movimento ainda</strong><span>Empréstimos, pagamentos e despesas aparecerão aqui.</span></div>}
+        {older.length>0&&<details className="cash-more-movements">
+          <summary>Ver extrato completo ({cash.movements.length}) <ChevronDown size={16}/></summary>
+          <div className="cash-movement-list">{older.map(row=><CashRow key={row.id} row={row} showBalance={reconciled}/>)}</div>
+        </details>}
+        {entries.some(e=>e.voided_at)&&<p className="cash-tiny muted">Estornos permanecem registrados no histórico detalhado.</p>}
+      </section>
+
+      <div className="cash-side">
+        <QuickCashActions today={today}/>
+        {!baseline&&<details className="cash-panel cash-starting">
+          <summary>Configurar saldo inicial <ChevronDown size={17}/></summary>
+          <p className="muted">Informe o dinheiro disponível no início da data escolhida. Não registre o mesmo valor novamente como aporte.</p>
+          <form action={registerOpeningBalanceAction} className="cash-start-form">
+            <div className="field"><label htmlFor="cash-opening">Saldo inicial (R$)</label>
+              <input className="input" id="cash-opening" name="opening_balance" type="number" min="0" step="0.01" required/></div>
+            <div className="field"><label htmlFor="cash-opening-date">Data</label>
+              <input className="input" id="cash-opening-date" name="start_date" type="date" defaultValue={today} required/></div>
+            <input type="hidden" name="notes" value="Abertura pelo caixa simplificado"/>
+            <button type="submit" className="btn">Salvar saldo inicial</button>
+          </form>
+        </details>}
+        {baseline&&<div className="cash-panel cash-quiet-meta"><span>Saldo de abertura</span>
+          <strong>{money(baseline.opening_balance)}</strong><span className="muted">{baseline.start_date.split("-").reverse().join("/")}</span></div>}
+        <Link href="/carteiras/detalhes" className="cash-deep-link">Inadimplência, prejuízos e opções avançadas <ArrowRight size={16}/></Link>
       </div>
     </div>
-    <div className="grid-equal" style={{marginTop:16}}>
-      <div className="card"><h2>Clientes inadimplentes</h2>
-        <p className="muted">Atrasos atuais, ainda recuperáveis. Valores contratuais incluem juros, não apenas principal.</p>
-        <div className="list">{delinquent.slice().sort((a,b)=>Number(b.remaining_amount)-Number(a.remaining_amount)).slice(0,25).map(i=><div className="list-row" key={i.id}>
-          <div><strong>{i.client?.name||"Cliente"}</strong><div className="person-meta">{i.loan?.loan_code} · vencimento {i.due_date}</div></div><strong>{money(i.remaining_amount)}</strong>
-        </div>)}</div>
-        {!delinquent.length&&<div className="empty">Nenhuma parcela em atraso nesta carteira.</div>}
-      </div>
-      <div className="card"><h2>Prejuízo reconhecido por contrato</h2>
-        <p className="muted">Baixas explícitas com recuperação posterior registrada separadamente; não confundir com atrasos.</p>
-        <div className="list">{Array.from(lossByLoan.entries()).map(([loanId,x])=><div className="list-row" key={loanId}>
-          <div><strong>{x.client}</strong><div className="person-meta">{loanMap.get(loanId)?.loan_code||"Contrato"} · baixado {money(x.lost)} · revertido {money(x.recovered)}</div></div><strong>{money(x.lost-x.recovered)}</strong>
-        </div>)}</div>
-        {!lossByLoan.size&&<div className="empty">Nenhuma baixa de prejuízo registrada.</div>}
-      </div>
-    </div>
-    <div className="card" style={{marginTop:16}}><h2>Resultado mensal por carteira</h2>
-      <p className="muted">Juros recebidos estimados por rateio dos contratos. No pagamento somente de juros, o valor inteiro é juro. Aportes e retiradas não compõem o lucro.</p>
-      <div className="table-wrap"><table><thead><tr><th>Mês</th><th>Recebimentos</th><th>Juros realizados (estim.)</th><th>Despesas</th><th>Custo do financiamento</th><th>Perdas</th><th>Recuperações</th><th>Resultado</th></tr></thead><tbody>{monthStats.map(x=><tr key={x.month}>
-        <td>{x.month}</td><td>{money(x.received)}</td><td>{money(x.interest)}</td>
-        <td>{money(x.costs)}</td><td>{money(x.financing)}</td><td>{money(x.loss)}</td><td>{money(x.recovery)}</td><td><strong>{money(x.net)}</strong></td>
-      </tr>)}</tbody></table></div>
-    </div>
-    <div className="card" style={{marginTop:16}}>
-      <h2>Extrato do caixa: saldo após cada movimento</h2>
-      <p className="muted">Mostra a origem de cada entrada e o destino de cada saída, com valores em centavos e saldo atualizado. Empréstimos e recebimentos são automáticos; gastos e dívidas são lançados acima. {baseline?"Data de início do controle: "+baseline.start_date:"Antes do saldo de abertura, o histórico da Carteira 1 não é conciliado."}</p>
-      <div className="table-wrap"><table><thead><tr><th>Data</th><th>Movimentação</th><th>Descrição</th><th>Entrada</th><th>Saída</th><th>Saldo após</th><th>Ação</th></tr></thead>
-        <tbody>{rows.map(r=><tr key={r.id}>
-          <td>{r.date}</td><td>{r.category}</td><td>{r.description}</td>
-          <td style={{color:"var(--green)"}}>{r.direction==="ENTRADA"?"+"+money(r.amount):"·"}</td>
-          <td style={{color:"var(--red)"}}>{r.direction==="SAIDA"?"-"+money(r.amount):"·"}</td>
-          <td><strong style={{color:r.balanceAfter<0?"var(--red)":"inherit"}}>{portfolioId===1&&!baseline?"Não conciliado":money(r.balanceAfter)}</strong></td>
-          <td>{r.entryId?<form action={voidPortfolioEntryAction}><input type="hidden" name="entry_id" value={r.entryId}/><button type="submit" className="btn secondary">Estornar</button></form>:null}</td>
-        </tr>)}</tbody>
-      </table></div>
-      {!rows.length&&<div className="empty">Nenhuma entrada ou saída registrada após a abertura.</div>}
-      {entries.some(e=>e.voided_at)&&<div className="alert" style={{marginTop:12}}>{entries.filter(e=>e.voided_at).length} lançamento(s) manual(is) estornado(s), preservado(s) no banco, não somados ao saldo.</div>}
-    </div>
-  </>;
+  </div>;
 }
