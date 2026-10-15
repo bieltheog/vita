@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getActivePortfolio } from "@/lib/portfolio";
 import { registerPaymentAction } from "@/app/actions";
 import { markInstallmentUnpaidAction } from "@/app/calendar-actions";
 
@@ -44,6 +45,10 @@ export async function renegotiateInstallmentAction(formData: FormData): Promise<
     const reason = String(formData.get("reason") || "").trim();
     if (!installmentId || !dueDate || amount <= 0) return { ok: false, error: "Informe a parcela, a nova data e o novo valor." };
 
+    const { data:inst,error:instError }=await supabase.from("installments").select("loan_id").eq("id",installmentId).eq("user_id",user.id).single();
+    if(instError||!inst)return {ok:false,error:"Parcela inexistente"};
+    const { data:loan }=await supabase.from("loans").select("id").eq("id",inst.loan_id).eq("user_id",user.id).eq("portfolio_id",await getActivePortfolio()).maybeSingle();
+    if(!loan)return {ok:false,error:"Parcela de outra carteira"};
     const { data, error } = await supabase.rpc("renegotiate_installment", {
       p_installment_id: installmentId,
       p_new_due_date: dueDate,
