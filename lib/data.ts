@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { demoClients, demoInstallments, demoLoans, demoPayments } from "@/lib/demo-data";
 import { effectiveInstallmentStatus } from "@/lib/finance";
 import { brazilDateKey } from "@/lib/date";
+import { getActivePortfolio } from "@/lib/portfolio";
 import type { ActivityLog, Client, DashboardSummary, Installment, Loan, LoanTopup, Payment } from "@/lib/types";
 
 export async function getCurrentProfile() {
@@ -32,9 +33,10 @@ export async function getClient(id: string) {
 
 export async function getLoans(clientId?: string): Promise<Loan[]> {
   const supabase = await createClient();
-  if (!supabase) return clientId ? demoLoans.filter((loan) => loan.client_id === clientId) : demoLoans;
+  if (!supabase) return (await getActivePortfolio())===2?[]:(clientId ? demoLoans.filter((loan) => loan.client_id === clientId) : demoLoans);
   let query = supabase.from("loans").select("*, client:clients(id,name,phone,whatsapp)").order("created_at", { ascending: false });
   if (clientId) query = query.eq("client_id", clientId);
+  query=query.eq("portfolio_id",await getActivePortfolio());
   const { data, error } = await query;
   if (error) throw error;
   return (data || []) as unknown as Loan[];
@@ -42,8 +44,8 @@ export async function getLoans(clientId?: string): Promise<Loan[]> {
 
 export async function getLoan(id: string): Promise<Loan | null> {
   const supabase = await createClient();
-  if (!supabase) return demoLoans.find((loan) => loan.id === id) || null;
-  const { data, error } = await supabase.from("loans").select("*, client:clients(id,name,phone,whatsapp)").eq("id", id).maybeSingle();
+  if (!supabase) return (await getActivePortfolio())===2?null:demoLoans.find((loan) => loan.id === id) || null;
+  const { data, error } = await supabase.from("loans").select("*, client:clients(id,name,phone,whatsapp)").eq("id", id).eq("portfolio_id",await getActivePortfolio()).maybeSingle();
   if (error) throw error;
   return data as unknown as Loan | null;
 }
@@ -51,6 +53,7 @@ export async function getLoan(id: string): Promise<Loan | null> {
 export async function getInstallments(options?: { clientId?: string; loanId?: string; from?: string; to?: string; includeInactive?: boolean }): Promise<Installment[]> {
   const supabase = await createClient();
   if (!supabase) {
+    if((await getActivePortfolio())===2) return [];
     const inactiveIds = new Set(demoLoans.filter((loan) => loan.status !== "ATIVO").map((loan) => loan.id));
     return demoInstallments.filter((row) =>
       (!options?.clientId || row.client_id === options.clientId) &&
@@ -60,7 +63,8 @@ export async function getInstallments(options?: { clientId?: string; loanId?: st
       (Boolean(options?.loanId) || Boolean(options?.includeInactive) || !inactiveIds.has(row.loan_id))
     );
   }
-  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit,status)").order("due_date", { ascending: true });
+  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans!inner(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit,status,portfolio_id)").order("due_date", { ascending: true });
+  query=query.eq("loan.portfolio_id",await getActivePortfolio());
   if (options?.clientId) query = query.eq("client_id", options.clientId);
   if (options?.loanId) query = query.eq("loan_id", options.loanId);
   if (options?.from) query = query.gte("due_date", options.from);
@@ -86,13 +90,16 @@ export async function getHistoricalInstallments(options?: { clientId?: string; f
 export async function getPayments(clientId?: string, loanId?: string): Promise<Payment[]> {
   const supabase = await createClient();
   if (!supabase) {
+    if((await getActivePortfolio())===2) return [];
     return demoPayments.filter((p) =>
       (!clientId || p.client_id === clientId) &&
       (!loanId || p.loan_id === loanId)
     );
   }
-  let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,total_receivable,expected_profit,status)").is("voided_at", null).order("payment_date", { ascending: false });
+  let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans!inner(id,loan_code,total_receivable,expected_profit,status,portfolio_id)").is("voided_at", null).order("payment_date", { ascending: false });
+  query=query.eq("loan.portfolio_id",await getActivePortfolio());
   if (clientId) query = query.eq("client_id", clientId);
+  query=query.eq("loan.portfolio_id",await getActivePortfolio());
   if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
   if (error) throw error;
@@ -106,7 +113,7 @@ export async function getLoanTopups(loanId?: string): Promise<LoanTopup[]> {
   const supabase = await createClient();
   if (!supabase) return [];
   let query = supabase.from("loan_topups")
-    .select("*, client:clients(id,name), loan:loans(id,loan_code)")
+    .select("*, client:clients(id,name), loan:loans!inner(id,loan_code,portfolio_id)")
     .order("topup_date", { ascending: false })
     .order("created_at", { ascending: false });
   if (loanId) query = query.eq("loan_id", loanId);
