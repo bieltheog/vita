@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getActivePortfolio } from "@/lib/portfolio";
 
 export type DeleteLoanResult =
   | { ok: true; message: string }
@@ -29,6 +30,9 @@ export async function deleteLoanAction(formData: FormData): Promise<DeleteLoanRe
     if (!loanId) throw new Error("Empréstimo não encontrado.");
     if (!confirmation) throw new Error("Digite o código do empréstimo para confirmar.");
 
+    const {data:loan,error:loanError}=await supabase.from("loans").select("id").eq("id",loanId)
+      .eq("user_id",user.id).eq("portfolio_id",await getActivePortfolio()).maybeSingle();
+    if(loanError||!loan)throw new Error("Empréstimo não pertence à carteira selecionada.");
     const { data, error } = await supabase.rpc("delete_loan_permanently", {
       p_loan_id: loanId,
       p_confirmation: confirmation,
