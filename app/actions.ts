@@ -215,8 +215,10 @@ export async function rescheduleInstallmentAction(formData: FormData) {
   const id = text(formData, "installment_id");
   const newDate = text(formData, "new_due_date");
   const reason = text(formData, "reason");
-  const { data: old, error: findError } = await supabase.from("installments").select("due_date,client_id").eq("id", id).single();
-  if (findError) throw findError;
+  const { data: old, error: findError } = await supabase.from("installments").select("due_date,client_id,loan_id").eq("id", id).eq("user_id",user.id).single();
+  if (findError || !old) throw findError || new Error("Parcela não encontrada");
+  const {data:loan }=await supabase.from("loans").select("id").eq("id",old.loan_id).eq("user_id",user.id).eq("portfolio_id",await getActivePortfolio()).maybeSingle();
+  if(!loan)throw new Error("Parcela de outra carteira");
   const { error } = await supabase.from("installments").update({ due_date: newDate, stored_status: "REAGENDADO" }).eq("id", id);
   if (error) throw error;
   await supabase.from("activity_logs").insert({ user_id: user.id, entity_type: "installment", entity_id: id, action: "rescheduled", old_data: { due_date: old.due_date }, new_data: { due_date: newDate, reason }, description: `Pagamento reagendado de ${old.due_date} para ${newDate}. ${reason}` });
