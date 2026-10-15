@@ -58,7 +58,7 @@ export interface Installment {
   stored_status: PaymentStatus;
   paid_at?: string | null;
   client?: Pick<Client, "id" | "name" | "phone" | "whatsapp"> | null;
-  loan?: { id: string; loan_code: string; installment_count: number; principal_amount?: number; total_receivable?: number; expected_profit?: number; status?: LoanStatus } | null;
+  loan?: { id: string; loan_code: string; installment_count: number; principal_amount?: number; total_receivable?: number; expected_profit?: number; status?: LoanStatus; return_percentage?: number | null; fixed_return_amount?: number | null; payment_frequency?: string } | null;
 }
 
 export interface Payment {
