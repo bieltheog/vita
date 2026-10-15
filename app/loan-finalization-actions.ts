@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getActivePortfolio } from "@/lib/portfolio";
 
 export type FinalizeLoanResult = { ok: true } | { ok: false; error: string };
 
@@ -29,6 +30,7 @@ export async function finalizeLoanAction(formData: FormData): Promise<FinalizeLo
       .select("id,loan_code,client_id,status")
       .eq("id", loanId)
       .eq("user_id", user.id)
+      .eq("portfolio_id", await getActivePortfolio())
       .single();
     if (findError || !loan) throw findError || new Error("Empréstimo não encontrado.");
 
