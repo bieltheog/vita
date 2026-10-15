@@ -163,9 +163,18 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       (remainingByLoan.get(installment.loan_id) || 0) + Number(installment.remaining_amount),
     );
   }
+  // Juros pagos sem amortização não diminuem o principal exposto.
+  // Nos ciclos renovados, total_receivable é cumulativo; retire os juros
+  // já liquidados antes de estimar a proporção do capital ainda em circulação.
+  const paidInterestByLoan = new Map<string,number>();
+  for(const payment of payments){
+    if(payment.payment_kind==="JUROS" || String(payment.notes||"").startsWith("[JUROS]")){
+      paidInterestByLoan.set(payment.loan_id,(paidInterestByLoan.get(payment.loan_id)||0)+Number(payment.amount));
+    }
+  }
   const capitalCirculation = activeLoans.reduce((sum, loan) => {
     const principal = Number(loan.principal_amount);
-    const totalReceivable = Number(loan.total_receivable);
+    const totalReceivable = Math.max(0,Number(loan.total_receivable)-(paidInterestByLoan.get(loan.id)||0));
     const remainingReceivable = Math.max(0, remainingByLoan.get(loan.id) || 0);
     if (principal <= 0 || totalReceivable <= 0) return sum;
     const outstandingRatio = Math.max(0, Math.min(1, remainingReceivable / totalReceivable));
