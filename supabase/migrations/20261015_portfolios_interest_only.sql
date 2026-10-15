@@ -64,7 +64,7 @@ alter table public.payments add constraint payment_components_nonnegative
      and (interest_component is null or interest_component >= 0));
 
 create or replace function private.classify_portfolio_payment()
-returns trigger language plpgsql security invoker set search_path=public as $
+returns trigger language plpgsql security invoker set search_path=public as $$
 declare
   v_portfolio smallint;
   v_principal numeric(14,2);
@@ -95,7 +95,7 @@ begin
     new.interest_component:=null;
   end if;
   return new;
-end; $;
+end; $$;
 
 drop trigger if exists portfolio_classify_payment on public.payments;
 create trigger portfolio_classify_payment before insert on public.payments
