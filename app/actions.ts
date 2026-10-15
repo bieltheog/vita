@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { calculateLoan, generateDueDates, splitInstallments } from "@/lib/finance";
+import { getActivePortfolio } from "@/lib/portfolio";
 
 async function authContext() {
   const supabase = await createClient();
@@ -130,7 +131,9 @@ export async function createLoanAction(formData: FormData) {
 
   const calc = calculateLoan(principal, calculationType, returnValue);
   validateFixedTotal(manualFixed,calc.totalReceivable);
+  const portfolioId = await getActivePortfolio();
   const { data: loan, error } = await supabase.from("loans").insert({
+    portfolio_id: portfolioId,
     user_id: user.id, client_id: clientId, principal_amount: calc.principal,
     return_percentage: calc.returnPercentage, fixed_return_amount: calculationType === "fixed" ? returnValue : null,
     expected_profit: calc.expectedProfit, total_receivable: calc.totalReceivable, payment_frequency: frequency,
@@ -169,8 +172,10 @@ export async function registerPaymentAction(formData: FormData) {
   const method = text(formData, "payment_method") || "PIX";
   if (!installmentId || amount <= 0 || !paymentDate) throw new Error("Informe parcela, valor e data.");
 
-  const { data: installment, error: findError } = await supabase.from("installments").select("id,client_id,loan_id,remaining_amount").eq("id", installmentId).single();
-  if (findError) throw findError;
+  const { data: installment, error: findError } = await supabase.from("installments").select("id,client_id,loan_id,remaining_amount").eq("id", installmentId).eq("user_id",user.id).single();
+  if (findError || !installment) throw findError || new Error("Parcela não encontrada");
+  const {data:loanForPayment,error:loanForPaymentError}=await supabase.from("loans").select("portfolio_id").eq("id",installment.loan_id).eq("user_id",user.id).single();
+  if(loanForPaymentError||!loanForPayment||loanForPayment.portfolio_id!==(await getActivePortfolio())) throw new Error("Esta parcela pertence a outra carteira.");
   if (amount > Number(installment.remaining_amount)) throw new Error("O valor recebido não pode ultrapassar o saldo da parcela.");
 
   const { data: payment, error } = await supabase.from("payments").insert({
