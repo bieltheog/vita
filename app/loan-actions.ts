@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getActivePortfolio } from "@/lib/portfolio";
 import { calculateLoan, generateDueDates, splitInstallments } from "@/lib/finance";
 
 async function authContext() {
@@ -77,6 +78,7 @@ export async function updateLoanAction(formData: FormData) {
     .select("id,client_id,loan_code,principal_amount,return_percentage,fixed_return_amount,expected_profit,total_receivable,payment_frequency,installment_count,start_date,first_due_date,daily_off_days,fixed_schedule,status")
     .eq("id", loanId)
     .eq("user_id", user.id)
+    .eq("portfolio_id", await getActivePortfolio())
     .single();
   if (findError || !current) throw findError || new Error("Empréstimo não encontrado.");
 

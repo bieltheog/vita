@@ -155,10 +155,11 @@ export function daysOverdue(dueDate: string, remaining: number, today = brazilDa
 }
 
 export function realizedProfitForPayment(
-  payment: Pick<Payment, "amount" | "notes">,
+  payment: Pick<Payment, "amount" | "notes" | "interest_component">,
   loan?: Pick<Loan, "total_receivable" | "expected_profit"> | null,
 ) {
   const amount = Number(payment.amount || 0);
+  if (payment.interest_component != null) return Number(payment.interest_component);
   if (String(payment.notes || "").trim().startsWith("[JUROS]")) return amount;
   const totalReceivable = Number(loan?.total_receivable || 0);
   const expectedProfit = Number(loan?.expected_profit || 0);

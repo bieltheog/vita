@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { demoClients, demoInstallments, demoLoans, demoPayments } from "@/lib/demo-data";
 import { effectiveInstallmentStatus } from "@/lib/finance";
 import { brazilDateKey } from "@/lib/date";
+import { getActivePortfolio } from "@/lib/portfolio";
 import type { ActivityLog, Client, DashboardSummary, Installment, Loan, LoanTopup, Payment } from "@/lib/types";
 
 export async function getCurrentProfile() {
@@ -32,9 +33,10 @@ export async function getClient(id: string) {
 
 export async function getLoans(clientId?: string): Promise<Loan[]> {
   const supabase = await createClient();
-  if (!supabase) return clientId ? demoLoans.filter((loan) => loan.client_id === clientId) : demoLoans;
+  if (!supabase) return (await getActivePortfolio())===2?[]:(clientId ? demoLoans.filter((loan) => loan.client_id === clientId) : demoLoans);
   let query = supabase.from("loans").select("*, client:clients(id,name,phone,whatsapp)").order("created_at", { ascending: false });
   if (clientId) query = query.eq("client_id", clientId);
+  query=query.eq("portfolio_id",await getActivePortfolio());
   const { data, error } = await query;
   if (error) throw error;
   return (data || []) as unknown as Loan[];
@@ -42,8 +44,8 @@ export async function getLoans(clientId?: string): Promise<Loan[]> {
 
 export async function getLoan(id: string): Promise<Loan | null> {
   const supabase = await createClient();
-  if (!supabase) return demoLoans.find((loan) => loan.id === id) || null;
-  const { data, error } = await supabase.from("loans").select("*, client:clients(id,name,phone,whatsapp)").eq("id", id).maybeSingle();
+  if (!supabase) return (await getActivePortfolio())===2?null:demoLoans.find((loan) => loan.id === id) || null;
+  const { data, error } = await supabase.from("loans").select("*, client:clients(id,name,phone,whatsapp)").eq("id", id).eq("portfolio_id",await getActivePortfolio()).maybeSingle();
   if (error) throw error;
   return data as unknown as Loan | null;
 }
@@ -51,6 +53,7 @@ export async function getLoan(id: string): Promise<Loan | null> {
 export async function getInstallments(options?: { clientId?: string; loanId?: string; from?: string; to?: string; includeInactive?: boolean }): Promise<Installment[]> {
   const supabase = await createClient();
   if (!supabase) {
+    if((await getActivePortfolio())===2) return [];
     const inactiveIds = new Set(demoLoans.filter((loan) => loan.status !== "ATIVO").map((loan) => loan.id));
     return demoInstallments.filter((row) =>
       (!options?.clientId || row.client_id === options.clientId) &&
@@ -60,7 +63,8 @@ export async function getInstallments(options?: { clientId?: string; loanId?: st
       (Boolean(options?.loanId) || Boolean(options?.includeInactive) || !inactiveIds.has(row.loan_id))
     );
   }
-  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit,status)").order("due_date", { ascending: true });
+  let query = supabase.from("installments").select("*, client:clients(id,name,phone,whatsapp), loan:loans!inner(id,loan_code,installment_count,principal_amount,total_receivable,expected_profit,status,portfolio_id,return_percentage,fixed_return_amount,payment_frequency)").order("due_date", { ascending: true });
+  query=query.eq("loan.portfolio_id",await getActivePortfolio());
   if (options?.clientId) query = query.eq("client_id", options.clientId);
   if (options?.loanId) query = query.eq("loan_id", options.loanId);
   if (options?.from) query = query.gte("due_date", options.from);
@@ -86,12 +90,14 @@ export async function getHistoricalInstallments(options?: { clientId?: string; f
 export async function getPayments(clientId?: string, loanId?: string): Promise<Payment[]> {
   const supabase = await createClient();
   if (!supabase) {
+    if((await getActivePortfolio())===2) return [];
     return demoPayments.filter((p) =>
       (!clientId || p.client_id === clientId) &&
       (!loanId || p.loan_id === loanId)
     );
   }
-  let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans(id,loan_code,total_receivable,expected_profit,status)").is("voided_at", null).order("payment_date", { ascending: false });
+  let query = supabase.from("payments").select("*, client:clients(id,name,phone,whatsapp), loan:loans!inner(id,loan_code,total_receivable,expected_profit,status,portfolio_id)").is("voided_at", null).order("payment_date", { ascending: false });
+  query=query.eq("loan.portfolio_id",await getActivePortfolio());
   if (clientId) query = query.eq("client_id", clientId);
   if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
@@ -106,9 +112,10 @@ export async function getLoanTopups(loanId?: string): Promise<LoanTopup[]> {
   const supabase = await createClient();
   if (!supabase) return [];
   let query = supabase.from("loan_topups")
-    .select("*, client:clients(id,name), loan:loans(id,loan_code)")
+    .select("*, client:clients(id,name), loan:loans!inner(id,loan_code,portfolio_id)")
     .order("topup_date", { ascending: false })
     .order("created_at", { ascending: false });
+  query = query.eq("loan.portfolio_id", await getActivePortfolio());
   if (loanId) query = query.eq("loan_id", loanId);
   const { data, error } = await query;
   if (error) throw error;
@@ -156,9 +163,29 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       (remainingByLoan.get(installment.loan_id) || 0) + Number(installment.remaining_amount),
     );
   }
+  // Juros pagos sem amortização não diminuem o principal exposto.
+  // Nos ciclos renovados, total_receivable é cumulativo; retire os juros
+  // já liquidados antes de estimar a proporção do capital ainda em circulação.
+  const paidInterestByLoan = new Map<string,number>();
+  const trackedPrincipalByLoan = new Map<string,number>();
+  const trackedPaymentCountByLoan = new Map<string,number>();
+  const paymentCountByLoan = new Map<string,number>();
+  for(const payment of payments){
+    paymentCountByLoan.set(payment.loan_id,(paymentCountByLoan.get(payment.loan_id)||0)+1);
+    if(payment.principal_component!=null){
+      trackedPrincipalByLoan.set(payment.loan_id,(trackedPrincipalByLoan.get(payment.loan_id)||0)+Number(payment.principal_component));
+      trackedPaymentCountByLoan.set(payment.loan_id,(trackedPaymentCountByLoan.get(payment.loan_id)||0)+1);
+    }
+    if(payment.payment_kind==="JUROS" || String(payment.notes||"").startsWith("[JUROS]")){
+      paidInterestByLoan.set(payment.loan_id,(paidInterestByLoan.get(payment.loan_id)||0)+Number(payment.amount));
+    }
+  }
   const capitalCirculation = activeLoans.reduce((sum, loan) => {
     const principal = Number(loan.principal_amount);
-    const totalReceivable = Number(loan.total_receivable);
+    if((paymentCountByLoan.get(loan.id)||0)>0 && trackedPaymentCountByLoan.get(loan.id)===paymentCountByLoan.get(loan.id)) {
+      return sum+Math.max(0,principal-(trackedPrincipalByLoan.get(loan.id)||0));
+    }
+    const totalReceivable = Math.max(0,Number(loan.total_receivable)-(paidInterestByLoan.get(loan.id)||0));
     const remainingReceivable = Math.max(0, remainingByLoan.get(loan.id) || 0);
     if (principal <= 0 || totalReceivable <= 0) return sum;
     const outstandingRatio = Math.max(0, Math.min(1, remainingReceivable / totalReceivable));

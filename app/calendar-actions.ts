@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getActivePortfolio } from "@/lib/portfolio";
 
 async function authContext() {
   const supabase = await createClient();
@@ -23,6 +24,8 @@ export async function markInstallmentUnpaidAction(formData: FormData) {
     .eq("user_id", user.id)
     .single();
   if (installmentError || !installment) throw installmentError || new Error("Parcela não encontrada.");
+  const { data:loan }=await supabase.from("loans").select("id").eq("id",installment.loan_id).eq("user_id",user.id).eq("portfolio_id",await getActivePortfolio()).maybeSingle();
+  if(!loan)throw new Error("Parcela de outra carteira.");
 
   const { data: activePayments, error: paymentsError } = await supabase
     .from("payments")

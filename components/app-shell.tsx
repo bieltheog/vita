@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState,useTransition } from "react";
+import { switchPortfolioAction } from "@/app/portfolio-actions";
+import type { PortfolioId } from "@/lib/portfolio";
 import {
   LayoutDashboard, Users, Landmark, CreditCard, CalendarDays, BarChart3,
   Calculator, Bell, Settings, Search, LogOut, MoreHorizontal, Plus,
-  CircleDollarSign, X,
+  CircleDollarSign, X, Wallet,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -19,6 +21,7 @@ const nav = [
   { href: "/calendario", label: "Calendário", icon: CalendarDays },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/simulador", label: "Simulador", icon: Calculator },
+  { href: "/carteiras", label: "Carteiras / Caixa", icon: Wallet },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
@@ -30,6 +33,7 @@ const mobile = [
 ];
 
 const mobileMore = [
+  { href: "/carteiras", label: "Carteiras / Caixa", icon: Wallet },
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
@@ -37,10 +41,12 @@ const mobileMore = [
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
-export function AppShell({ children, profile }: { children: React.ReactNode; profile: { full_name?: string | null; email?: string | null; demo?: boolean } }) {
+export function AppShell({ children, profile,portfolioId }: { children: React.ReactNode; profile: { full_name?: string | null; email?: string | null; demo?: boolean }; portfolioId:PortfolioId }) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen,setMoreOpen]=useState(false);
+  const [switching,startSwitch]=useTransition();
+  const switchWallet=(value: string)=>startSwitch(async()=>{await switchPortfolioAction(value==="2"?2:1);router.refresh();});
   const active = (href: string) => pathname === href || pathname.startsWith(href + "/");
   const moreActive=mobileMore.some(item=>active(item.href));
 
@@ -80,6 +86,7 @@ export function AppShell({ children, profile }: { children: React.ReactNode; pro
       <header className="topbar">
         <form className="search-box" onSubmit={search}><Search size={17}/><input name="q" aria-label="Busca global" placeholder="Buscar cliente..." /></form>
         <div className="top-actions">
+          <select aria-label="Selecionar carteira" className="select" style={{maxWidth:154,fontSize:12}} value={portfolioId} disabled={switching} onChange={e=>switchWallet(e.target.value)}><option value={1}>Carteira 1 · Atual</option><option value={2}>Carteira 2 · Nova</option></select>
           {profile.demo && <span className="badge blue">Demo</span>}
           <Link className="icon-btn" href="/notificacoes" title="Notificações"><Bell size={17}/></Link>
           <Link className="icon-btn desktop-settings" href="/configuracoes"><Settings size={17}/></Link>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { calculateLoan, generateDueDates, splitInstallments } from "@/lib/finance";
+import { getActivePortfolio } from "@/lib/portfolio";
 
 async function authContext() {
   const supabase = await createClient();
@@ -130,7 +131,9 @@ export async function createLoanAction(formData: FormData) {
 
   const calc = calculateLoan(principal, calculationType, returnValue);
   validateFixedTotal(manualFixed,calc.totalReceivable);
+  const portfolioId = await getActivePortfolio();
   const { data: loan, error } = await supabase.from("loans").insert({
+    portfolio_id: portfolioId,
     user_id: user.id, client_id: clientId, principal_amount: calc.principal,
     return_percentage: calc.returnPercentage, fixed_return_amount: calculationType === "fixed" ? returnValue : null,
     expected_profit: calc.expectedProfit, total_receivable: calc.totalReceivable, payment_frequency: frequency,
@@ -169,8 +172,10 @@ export async function registerPaymentAction(formData: FormData) {
   const method = text(formData, "payment_method") || "PIX";
   if (!installmentId || amount <= 0 || !paymentDate) throw new Error("Informe parcela, valor e data.");
 
-  const { data: installment, error: findError } = await supabase.from("installments").select("id,client_id,loan_id,remaining_amount").eq("id", installmentId).single();
-  if (findError) throw findError;
+  const { data: installment, error: findError } = await supabase.from("installments").select("id,client_id,loan_id,remaining_amount").eq("id", installmentId).eq("user_id",user.id).single();
+  if (findError || !installment) throw findError || new Error("Parcela não encontrada");
+  const {data:loanForPayment,error:loanForPaymentError}=await supabase.from("loans").select("portfolio_id").eq("id",installment.loan_id).eq("user_id",user.id).single();
+  if(loanForPaymentError||!loanForPayment||loanForPayment.portfolio_id!==(await getActivePortfolio())) throw new Error("Esta parcela pertence a outra carteira.");
   if (amount > Number(installment.remaining_amount)) throw new Error("O valor recebido não pode ultrapassar o saldo da parcela.");
 
   const { data: payment, error } = await supabase.from("payments").insert({
@@ -210,8 +215,10 @@ export async function rescheduleInstallmentAction(formData: FormData) {
   const id = text(formData, "installment_id");
   const newDate = text(formData, "new_due_date");
   const reason = text(formData, "reason");
-  const { data: old, error: findError } = await supabase.from("installments").select("due_date,client_id").eq("id", id).single();
-  if (findError) throw findError;
+  const { data: old, error: findError } = await supabase.from("installments").select("due_date,client_id,loan_id").eq("id", id).eq("user_id",user.id).single();
+  if (findError || !old) throw findError || new Error("Parcela não encontrada");
+  const {data:loan }=await supabase.from("loans").select("id").eq("id",old.loan_id).eq("user_id",user.id).eq("portfolio_id",await getActivePortfolio()).maybeSingle();
+  if(!loan)throw new Error("Parcela de outra carteira");
   const { error } = await supabase.from("installments").update({ due_date: newDate, stored_status: "REAGENDADO" }).eq("id", id);
   if (error) throw error;
   await supabase.from("activity_logs").insert({ user_id: user.id, entity_type: "installment", entity_id: id, action: "rescheduled", old_data: { due_date: old.due_date }, new_data: { due_date: newDate, reason }, description: `Pagamento reagendado de ${old.due_date} para ${newDate}. ${reason}` });
