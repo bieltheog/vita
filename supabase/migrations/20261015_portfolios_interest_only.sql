@@ -67,7 +67,7 @@ create table if not exists public.interest_rollovers (
 alter table public.interest_rollovers enable row level security;
 create policy interest_rollovers_select_own on public.interest_rollovers
   for select to authenticated using (user_id=(select auth.uid()));
-grant select on public.interest_rollovers to authenticated;
+create policy interest_rollovers_insert_own on public.interest_rollovers\n  for insert to authenticated with check (\n    user_id=(select auth.uid()) and exists (\n      select 1 from public.loans l where l.id=loan_id and l.user_id=(select auth.uid())\n    ) and exists (\n      select 1 from public.payments p where p.id=payment_id and p.user_id=(select auth.uid())\n    )\n  );\ngrant select,insert on public.interest_rollovers to authenticated;
 
 -- Transação atômica: marca o juro como quitado e renova o MESMO capital
 -- para o mês seguinte, mantendo todo o histórico. Restrita a contratos
@@ -124,6 +124,15 @@ begin
   select coalesce(max(installment_number),0)+1 into v_next_number
     from public.installments where loan_id=v_loan.id;
 
+  -- Agendar PRIMEIRO a parcela seguinte evita que o trigger de quitação
+  -- finalize o empréstimo quando os juros atuais forem pagos.
+  insert into public.installments(user_id,loan_id,client_id,installment_number,
+      due_date,original_due_date,amount,amount_paid,remaining_amount,stored_status)
+  values(v_user,v_loan.id,v_loan.client_id,v_next_number,
+      v_new_date,v_new_date,v_loan.principal_amount+v_interest,0,
+      v_loan.principal_amount+v_interest,'PENDENTE')
+  returning id into v_next_id;
+
   -- O pagamento cobriu os juros deste mês, nunca o principal.
   update public.installments set amount=v_interest,
     remaining_amount=v_interest,updated_at=now()
@@ -135,13 +144,6 @@ begin
     p_payment_date,p_payment_method,
     concat('[JUROS] ',coalesce(p_notes,'')),'JUROS')
   returning id into v_payment_id;
-
-  insert into public.installments(user_id,loan_id,client_id,installment_number,
-      due_date,original_due_date,amount,amount_paid,remaining_amount,stored_status)
-  values(v_user,v_loan.id,v_loan.client_id,v_next_number,
-      v_new_date,v_new_date,v_loan.principal_amount+v_interest,0,
-      v_loan.principal_amount+v_interest,'PENDENTE')
-  returning id into v_next_id;
 
   update public.loans set installment_count=v_next_number,
     total_receivable=total_receivable+v_interest,
