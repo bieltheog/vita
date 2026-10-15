@@ -24,7 +24,8 @@ create table if not exists public.portfolio_entries (
   loan_id uuid references public.loans(id) on delete restrict,
   created_at timestamptz not null default now(),
   voided_at timestamptz,
-  void_reason text
+  void_reason text,
+  constraint portfolio_entries_loss_link check (kind not in ('PERDA','RECUPERACAO') or loan_id is not null)
 );
 create index if not exists portfolio_entries_owner_period_idx
   on public.portfolio_entries (user_id,portfolio_id,entry_date desc);
@@ -53,6 +54,53 @@ grant select,insert,update on public.portfolio_entries to authenticated;
 -- Classificação inequívoca para que o juros recebido não amortize o principal.
 alter table public.payments add column if not exists payment_kind text not null default 'NORMAL'
   check (payment_kind in ('NORMAL','JUROS'));
+
+-- Classificação de principal e juros preservada no instante do pagamento.
+-- Pagamentos históricos anteriores à migração ficam sem componentes retroativos.
+alter table public.payments add column if not exists principal_component numeric(14,2);
+alter table public.payments add column if not exists interest_component numeric(14,2);
+alter table public.payments add constraint payment_components_nonnegative
+  check ((principal_component is null or principal_component >= 0)
+     and (interest_component is null or interest_component >= 0));
+
+create or replace function private.classify_portfolio_payment()
+returns trigger language plpgsql security invoker set search_path=public as $
+declare
+  v_portfolio smallint;
+  v_principal numeric(14,2);
+  v_principal_paid numeric(14,2);
+  v_receivable numeric(14,2);
+  v_left numeric(14,2);
+begin
+  select portfolio_id,principal_amount into v_portfolio,v_principal
+    from public.loans where id=new.loan_id and user_id=new.user_id;
+  if v_portfolio is null then raise exception 'Empréstimo inválido para o proprietário'; end if;
+  if new.payment_kind='JUROS' then
+    new.principal_component:=0;
+    new.interest_component:=new.amount;
+  elsif v_portfolio=2 then
+    select coalesce(sum(principal_component),0) into v_principal_paid
+      from public.payments where loan_id=new.loan_id and user_id=new.user_id
+      and voided_at is null and principal_component is not null;
+    v_left:=greatest(v_principal-v_principal_paid,0);
+    select coalesce(sum(remaining_amount),0) into v_receivable
+      from public.installments where loan_id=new.loan_id and user_id=new.user_id
+      and stored_status<>'CANCELADO';
+    if v_receivable<=0 then raise exception 'Empréstimo sem saldo a receber'; end if;
+    new.principal_component:=least(new.amount,round(new.amount*(v_left/v_receivable),2));
+    new.interest_component:=new.amount-new.principal_component;
+  else
+    -- Carteira 1: não reclassificar pagamentos legados.
+    new.principal_component:=null;
+    new.interest_component:=null;
+  end if;
+  return new;
+end; $;
+
+drop trigger if exists portfolio_classify_payment on public.payments;
+create trigger portfolio_classify_payment before insert on public.payments
+for each row execute function private.classify_portfolio_payment();
+
 create table if not exists public.interest_rollovers (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
