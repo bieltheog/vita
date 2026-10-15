@@ -8,14 +8,14 @@ export function InterestOnlyForm({installments,demo=false}:{installments:Install
   const [open,setOpen]=useState(false),[pending,start]=useTransition(),[error,setError]=useState("");
   const [selected,setSelected]=useState("");
   const current=installments.find(i=>i.id===selected);
-  const interest=current?.loan?.expected_profit;
+  const interest=current?.loan ? Number(current.loan.fixed_return_amount ?? (Number(current.loan.principal_amount||0)*Number(current.loan.return_percentage||0)/100)) : 0;
   const principal=current?.loan?.principal_amount;
   function submit(formData:FormData){
     setError("");
     start(async()=>{try{await registerInterestOnlyAction(formData);setOpen(false);setSelected("");}catch(e){setError(e instanceof Error?e.message:"Falha ao registrar juros");}});
   }
   const choices=installments.filter(i=>i.stored_status!=="CANCELADO"&&i.remaining_amount>0&&
-    i.loan?.status==="ATIVO"&&i.loan?.principal_amount&&i.loan?.expected_profit);
+    i.loan?.status==="ATIVO"&&i.loan?.principal_amount&&["UNICO","MENSAL"].includes(i.loan?.payment_frequency||""));
   return <>
     <button type="button" className="btn secondary" onClick={()=>setOpen(true)}>Pagou somente os juros</button>
     {open&&<div className="modal-backdrop"><div className="modal">
