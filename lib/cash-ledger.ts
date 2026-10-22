@@ -40,7 +40,7 @@ const amount=(centavos:number)=>centavos/100;
 
 /**
  * O caixa é fluxo de dinheiro, não receita contratada.
- * Pagamentos estornados NÃO devem estar no array recebido.
+ * Pagamentos estornados são ignorados mesmo se chegarem ao array por engano.
  * "PERDA" e "RECUPERACAO" são contábeis e não movimentam caixa.
  * A data do corte representa o SALDO DO INÍCIO DO DIA.
  */
@@ -78,11 +78,14 @@ export function buildCashLedger({
     category:"Capital adicional",source:"topup",
     description:`Adicional · ${topup.loan?.loan_code||"Empréstimo"}`
   },cents(topup.amount));
-  for(const p of payments) incoming({
-    id:"payment:"+p.id,date:p.payment_date,createdAt:p.created_at,
-    category:p.payment_kind==="JUROS"?"Juros recebidos":"Pagamento de cliente",
-    source:"payment",description:`${p.client?.name||"Cliente"} · ${p.loan?.loan_code||"Empréstimo"}`
-  },cents(p.amount));
+  for(const p of payments){
+    if(p.voided_at)continue;
+    incoming({
+      id:"payment:"+p.id,date:p.payment_date,createdAt:p.created_at,
+      category:p.payment_kind==="JUROS"?"Juros recebidos":"Pagamento de cliente",
+      source:"payment",description:`${p.client?.name||"Cliente"} · ${p.loan?.loan_code||"Empréstimo"}`
+    },cents(p.amount));
+  }
 
   const labels:Record<CashEntryKind,string>={
     APORTE:"Aporte dos sócios", CREDITO:"Empréstimo recebido",
