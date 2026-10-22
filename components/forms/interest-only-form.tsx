@@ -1,10 +1,13 @@
 "use client";
 import { useState,useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { registerInterestOnlyAction } from "@/app/interest-only-actions";
 import { money } from "@/lib/finance";
 import type { Installment } from "@/lib/types";
 
 export function InterestOnlyForm({installments,demo=false}:{installments:Installment[];demo?:boolean}){
+  const router=useRouter();
   const [open,setOpen]=useState(false),[pending,start]=useTransition(),[error,setError]=useState("");
   const [selected,setSelected]=useState("");
   const current=installments.find(i=>i.id===selected);
@@ -12,7 +15,7 @@ export function InterestOnlyForm({installments,demo=false}:{installments:Install
   const principal=current?.loan?.principal_amount;
   function submit(formData:FormData){
     setError("");
-    start(async()=>{try{await registerInterestOnlyAction(formData);setOpen(false);setSelected("");}catch(e){setError(e instanceof Error?e.message:"Falha ao registrar juros");}});
+    start(async()=>{try{await registerInterestOnlyAction(formData);setOpen(false);setSelected("");router.refresh();}catch(e){setError(e instanceof Error?e.message:"Falha ao registrar juros");}});
   }
   const openCountByLoan=new Map<string,number>();
   installments
@@ -28,9 +31,9 @@ export function InterestOnlyForm({installments,demo=false}:{installments:Install
     return interest>0&&Math.abs(Number(i.amount)-(Number(loan.principal_amount||0)+interest))<=0.01;
   });
   return <>
-    <button type="button" className="btn secondary" onClick={()=>setOpen(true)}>Somente juros</button>
+    <button type="button" className="btn secondary" onClick={()=>setOpen(true)} disabled={demo||choices.length===0} title={choices.length===0?"Nenhuma parcela compatível com pagamento somente de juros":undefined}>Somente juros</button>
     {open&&<div className="modal-backdrop"><div className="modal">
-      <div className="section-title"><h2>Pagamento somente dos juros</h2><button type="button" className="icon-btn" onClick={()=>setOpen(false)}>Fechar</button></div>
+      <div className="section-title"><h2>Pagamento somente dos juros</h2><button type="button" className="icon-btn" title="Fechar" onClick={()=>setOpen(false)}><X size={17}/></button></div>
       <p className="muted">Registra os juros deste ciclo como recebidos e renova o valor total devido para o próximo mês. O principal permanece emprestado e o mês quitado não fica atrasado. Disponível apenas para operações compatíveis com uma única parcela aberta.</p>
       <form action={submit} className="form-grid">
         <div className="field full"><label>Parcela</label><select className="select" name="installment_id" value={selected} onChange={e=>setSelected(e.target.value)} required>
