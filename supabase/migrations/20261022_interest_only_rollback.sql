@@ -219,3 +219,10 @@ $$;
 
 revoke all on function public.void_interest_only_payment(uuid,text) from public,anon;
 grant execute on function public.void_interest_only_payment(uuid,text) to authenticated;
+
+create index if not exists interest_rollovers_user_idx
+  on public.interest_rollovers(user_id);
+create index if not exists interest_rollovers_loan_idx
+  on public.interest_rollovers(loan_id);
+create index if not exists interest_rollovers_original_installment_idx
+  on public.interest_rollovers(original_installment_id);
