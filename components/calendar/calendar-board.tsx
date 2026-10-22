@@ -9,6 +9,7 @@ import { effectiveInstallmentStatus, money } from "@/lib/finance";
 import { brazilDateKey } from "@/lib/date";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { registerPaymentSafeAction, markInstallmentUnpaidSafeAction } from "@/app/operations-actions";
+import { registerInterestOnlyAction } from "@/app/interest-only-actions";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { RenegotiateInstallment } from "@/components/forms/renegotiate-installment";
 import type { Installment } from "@/lib/types";
@@ -21,6 +22,13 @@ export function CalendarBoard({ installments }: { installments: Installment[] })
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
   const todayKey=brazilDateKey();
+  const openCountByLoan=useMemo(()=>{
+    const map=new Map<string,number>();
+    installments
+      .filter(i=>i.stored_status!=="CANCELADO"&&Number(i.remaining_amount)>0&&i.loan?.status==="ATIVO")
+      .forEach(i=>map.set(i.loan_id,(map.get(i.loan_id)||0)+1));
+    return map;
+  },[installments]);
 
   const days=useMemo(()=>eachDayOfInterval({
     start:startOfWeek(startOfMonth(month),{weekStartsOn:0}),
@@ -59,11 +67,31 @@ export function CalendarBoard({ installments }: { installments: Installment[] })
     setError("");
     setMessage("");
     startTransition(async()=>{
-      const result=await registerPaymentSafeAction(formData);
-      if(!result.ok){setError(result.error);return;}
-      setMessage(result.message||"Pagamento registrado.");
-      router.refresh();
+      try{
+        if(String(formData.get("payment_mode")||"")==="JUROS"){
+          await registerInterestOnlyAction(formData);
+          setMessage("Juros registrados. A parcela do ciclo foi quitada e o próximo vencimento foi criado com o valor total.");
+        }else{
+          const result=await registerPaymentSafeAction(formData);
+          if(!result.ok){setError(result.error);return;}
+          setMessage(result.message||"Pagamento registrado.");
+        }
+        router.refresh();
+      }catch(e){
+        setError(e instanceof Error?e.message:"Não foi possível registrar o pagamento.");
+      }
     });
+  }
+
+  function canInterestOnly(i:Installment){
+    const loan=i.loan;
+    if(!loan?.principal_amount||loan.status!=="ATIVO")return false;
+    if(!["UNICO","MENSAL"].includes(loan.payment_frequency||""))return false;
+    if((openCountByLoan.get(i.loan_id)||0)!==1)return false;
+    if(Number(i.amount_paid)>0.005)return false;
+    if(Math.abs(Number(i.remaining_amount)-Number(i.amount))>0.005)return false;
+    const interest=Number(loan.fixed_return_amount ?? (Number(loan.principal_amount||0)*Number(loan.return_percentage||0)/100));
+    return interest>0&&Math.abs(Number(i.amount)-(Number(loan.principal_amount||0)+interest))<=0.01;
   }
 
   function undoPayment(installmentId:string){
@@ -189,6 +217,7 @@ export function CalendarBoard({ installments }: { installments: Installment[] })
               const hasPaid=Number(i.amount_paid)>0;
               const remaining=Number(i.remaining_amount);
               const canRenegotiate=i.loan?.status==="ATIVO"&&remaining>0;
+              const interestOnly=canInterestOnly(i);
               return <div className="card" key={`manage-${i.id}`} style={{padding:14}}>
                 <div className="section-title">
                   <div className="person"><div className="avatar">{i.client?.name?.[0]||"?"}</div><div><div className="person-name">{i.client?.name}</div><div className="person-meta">{i.loan?.loan_code} · parcela {i.installment_number}/{i.loan?.installment_count}</div></div></div>
@@ -210,7 +239,10 @@ export function CalendarBoard({ installments }: { installments: Installment[] })
                   <div className="field"><label>Forma de pagamento</label><select className="select" name="payment_method" defaultValue="PIX"><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="TRANSFERENCIA">Transferência</option><option value="OUTRO">Outro</option></select></div>
                   <div className="field"><label>Observação</label><input className="input" name="notes" placeholder="Opcional"/></div>
                   <div className="field full"><div className="muted" style={{fontSize:11}}>Para marcar como pago, deixe o valor igual ao saldo. Para parcial, informe um valor menor.</div></div>
-                  <div className="field full" style={{alignItems:"flex-end"}}><button className="btn" disabled={pending}><CreditCard size={16}/>{pending?"Salvando...":"Registrar pagamento"}</button></div>
+                  <div className="field full" style={{display:"flex",flexDirection:"row",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap"}}>
+                    {interestOnly&&<button type="submit" name="payment_mode" value="JUROS" formNoValidate className="btn secondary" disabled={pending}>Somente juros</button>}
+                    <button className="btn" disabled={pending}><CreditCard size={16}/>{pending?"Salvando...":"Registrar pagamento"}</button>
+                  </div>
                 </form>}
                 {hasPaid&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}><button type="button" className="btn secondary" disabled={pending} onClick={()=>undoPayment(i.id)}><Undo2 size={16}/> Marcar como não pago</button></div>}
               </div>;
