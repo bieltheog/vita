@@ -48,8 +48,8 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   const [open,setOpen]=useState(false);
   const [pending,start]=useTransition();
   const [error,setError]=useState("");
-  const [principal,setPrincipal]=useState(originalPrincipal);
-  const [returnValue,setReturnValue]=useState(initialReturn);
+  const [principalInput,setPrincipalInput]=useState(String(originalPrincipal));
+  const [returnInput,setReturnInput]=useState(String(initialReturn));
   const [type,setType]=useState<"percentage"|"fixed">(initialType);
   const [countInput,setCountInput]=useState(String(initialCount));
   const [frequency,setFrequency]=useState(initialFrequency);
@@ -62,6 +62,8 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   const single=frequency==="UNICO";
   const daily=frequency==="DIARIO";
   const fixed=frequency==="DATAS_FIXAS";
+  const principal=Number(principalInput)||0;
+  const returnValue=Number(returnInput)||0;
   const count=Math.max(1,Math.floor(Number(countInput)||1));
   const topupPrincipal=roundMoney(Math.max(0,principal-originalPrincipal));
   const topupMode=hasPayments&&topupPrincipal>0.005;
@@ -93,8 +95,8 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   );
   const renderedFixedRows=buildFixedRows(fixedRows,targetCount,targetTotal,preserveFixedAmounts);
 
-  function changePrincipal(next:number){
-    setPrincipal(next);
+  function changePrincipal(raw:string){
+    setPrincipalInput(raw);
     if(fixed&&hasPayments)setFixedTouched(false);
   }
 
@@ -123,6 +125,8 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
 
   async function submit(formData:FormData){
     setError("");
+    if(!String(formData.get("principal_amount")||"").trim()){setError("Informe o valor emprestado.");return;}
+    if(!paidScheduleMode&&!String(formData.get("return_value")||"").trim()){setError("Informe o retorno.");return;}
     if(!single&&!String(formData.get("installment_count")||"").trim()){
       setError("Informe o número de parcelas.");
       return;
@@ -206,7 +210,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
 
         <div className="field">
           <label>{hasPayments?"Novo total emprestado *":"Valor emprestado *"}</label>
-          <input className="input" name="principal_amount" type="number" min={hasPayments?originalPrincipal:0.01} step="0.01" value={principal} onChange={e=>changePrincipal(Number(e.target.value))} required/>
+          <input className="input" name="principal_amount" type="number" min={hasPayments?originalPrincipal:0.01} step="0.01" value={principalInput} onChange={e=>changePrincipal(e.target.value)} required/>
           {hasPayments&&<div className="muted" style={{fontSize:11}}>Original: {money(originalPrincipal)}{topupMode?` · adicional: ${money(topupPrincipal)}`:""}</div>}
         </div>
 
@@ -220,7 +224,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
 
         <div className="field">
           <label>{topupMode?(type==="percentage"?"Retorno sobre o adicional (%)":"Lucro sobre o adicional (R$)"):(type==="percentage"?"Retorno (%)":"Lucro fixo (R$)")}</label>
-          <input className="input" name="return_value" type="number" min="0" step="0.01" value={returnValue} disabled={paidScheduleMode} onChange={e=>{setReturnValue(Number(e.target.value));if(fixed&&topupMode)setFixedTouched(false)}}/>
+          <input className="input" name="return_value" type="number" min="0" step="0.01" value={returnInput} disabled={paidScheduleMode} onChange={e=>{setReturnInput(e.target.value);if(fixed&&topupMode)setFixedTouched(false)}} required={!paidScheduleMode}/>
           {paidScheduleMode&&<input type="hidden" name="return_value" value={initialReturn}/>} 
         </div>
 
@@ -274,7 +278,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
         {error&&<div className="field full"><div className="alert" style={{borderColor:"rgba(255,98,109,.35)",color:"#ff9aa2"}}>{error}</div></div>}
         <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end",flexWrap:"wrap"}}>
           <button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button>
-          <button className="btn" disabled={pending||reducingPrincipal||(!single&&!countInput.trim())}>{topupMode&&<CirclePlus size={16}/>} {pending?"Salvando...":topupMode?`Adicionar ${money(topupPrincipal)} e salvar`:scheduleChanged?"Corrigir calendário":"Salvar alterações"}</button>
+          <button className="btn" disabled={pending||reducingPrincipal||!principalInput.trim()||(!paidScheduleMode&&!returnInput.trim())||(!single&&!countInput.trim())}>{topupMode&&<CirclePlus size={16}/>} {pending?"Salvando...":topupMode?`Adicionar ${money(topupPrincipal)} e salvar`:scheduleChanged?"Corrigir calendário":"Salvar alterações"}</button>
         </div>
       </form>
     </div></div>}

@@ -29,12 +29,13 @@ export async function markInstallmentUnpaidAction(formData: FormData) {
 
   const { data: activePayments, error: paymentsError } = await supabase
     .from("payments")
-    .select("id,amount,payment_date,payment_method")
+    .select("id,amount,payment_date,payment_method,payment_kind")
     .eq("installment_id", installmentId)
     .eq("user_id", user.id)
     .is("voided_at", null);
   if (paymentsError) throw paymentsError;
   if (!activePayments?.length) throw new Error("Esta parcela não possui pagamento ativo para desfazer.");
+  if (activePayments.some(payment=>payment.payment_kind==="JUROS")) throw new Error("Este recebimento é de somente juros. Use a ação Estornar juros para também cancelar a renovação criada.");
 
   const now = new Date().toISOString();
   const { error: voidError } = await supabase

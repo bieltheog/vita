@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CreditCard, X } from "lucide-react";
 import { registerPaymentAction } from "@/app/actions";
 import { registerInterestOnlyAction } from "@/app/interest-only-actions";
@@ -10,6 +11,7 @@ import type { Installment } from "@/lib/types";
 type PaymentMode = "NORMAL" | "JUROS";
 
 export function PaymentForm({ installments, demo=false, compact=false }: { installments: Installment[]; demo?: boolean; compact?: boolean }) {
+  const router=useRouter();
   const [open,setOpen]=useState(false);
   const [pending,start]=useTransition();
   const [error,setError]=useState("");
@@ -64,6 +66,7 @@ export function PaymentForm({ installments, demo=false, compact=false }: { insta
         if(mode==="JUROS") await registerInterestOnlyAction(formData);
         else await registerPaymentAction(formData);
         close();
+        router.refresh();
       }catch(e){
         setError(e instanceof Error?e.message:"Erro ao registrar pagamento");
       }

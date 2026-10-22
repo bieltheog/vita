@@ -16,8 +16,8 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
   const [open,setOpen]=useState(false);
   const [pending,start]=useTransition();
   const [error,setError]=useState("");
-  const [principal,setPrincipal]=useState(1000);
-  const [returnValue,setReturnValue]=useState(30);
+  const [principalInput,setPrincipalInput]=useState("1000");
+  const [returnInput,setReturnInput]=useState("30");
   const [type,setType]=useState<"percentage"|"fixed">("percentage");
   const [countInput,setCountInput]=useState("5");
   const [frequency,setFrequency]=useState("MENSAL");
@@ -26,8 +26,10 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
   const single=frequency==="UNICO";
   const daily=frequency==="DIARIO";
   const fixed=frequency==="DATAS_FIXAS";
+  const principal=Number(principalInput)||0;
+  const returnValue=Number(returnInput)||0;
   const count=Math.max(1,Math.floor(Number(countInput)||1));
-  const calc=useMemo(()=>calculateLoan(principal||0,type,returnValue||0),[principal,type,returnValue]);
+  const calc=useMemo(()=>calculateLoan(principal,type,returnValue),[principal,type,returnValue]);
   const installments=splitInstallments(calc.totalReceivable,count);
 
   function changeFrequency(next:string){
@@ -47,6 +49,8 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
 
   async function submit(formData:FormData){
     setError("");
+    if(!String(formData.get("principal_amount")||"").trim()){setError("Informe o valor emprestado.");return;}
+    if(!String(formData.get("return_value")||"").trim()){setError("Informe o retorno.");return;}
     if(!single&&!String(formData.get("installment_count")||"").trim()){
       setError("Informe o número de parcelas.");
       return;
@@ -70,9 +74,9 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
       {demo&&<div className="alert">Modo demonstração: conecte o Supabase para gravar empréstimos.</div>}
       <form action={submit} className="form-grid" style={{marginTop:14}}>
         <div className="field full"><label>Cliente *</label><select className="select" name="client_id" required defaultValue={initialClientId}><option value="">Selecione</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="field"><label>Valor emprestado *</label><input className="input" name="principal_amount" type="number" min="0.01" step="0.01" value={principal} onChange={e=>setPrincipal(Number(e.target.value))}/></div>
+        <div className="field"><label>Valor emprestado *</label><input className="input" name="principal_amount" type="number" min="0.01" step="0.01" value={principalInput} onChange={e=>setPrincipalInput(e.target.value)} required/></div>
         <div className="field"><label>Tipo de cálculo</label><select className="select" name="calculation_type" value={type} onChange={e=>setType(e.target.value as "percentage"|"fixed")}><option value="percentage">Porcentagem de retorno</option><option value="fixed">Valor fixo de retorno</option></select></div>
-        <div className="field"><label>{type==="percentage"?"Retorno (%)":"Lucro fixo (R$)"}</label><input className="input" name="return_value" type="number" min="0" step="0.01" value={returnValue} onChange={e=>setReturnValue(Number(e.target.value))}/></div>
+        <div className="field"><label>{type==="percentage"?"Retorno (%)":"Lucro fixo (R$)"}</label><input className="input" name="return_value" type="number" min="0" step="0.01" value={returnInput} onChange={e=>setReturnInput(e.target.value)} required/></div>
         <div className="field"><label>Forma de pagamento</label><select className="select" name="payment_frequency" value={frequency} onChange={e=>changeFrequency(e.target.value)}><option value="UNICO">Pagamento único</option><option value="DIARIO">Diário</option><option value="SEMANAL">Semanal</option><option value="QUINZENAL">Quinzenal</option><option value="MENSAL">Mensal</option><option value="DATAS_FIXAS">Datas fixas</option></select></div>
         {single
           ? <input type="hidden" name="installment_count" value="1"/>
@@ -85,7 +89,7 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
         {fixed&&<div className="field full"><div className="alert">Em Datas fixas, cada parcela tem sua própria data e seu próprio valor. A soma dos valores precisa ser igual ao total a receber.</div></div>}
         <div className="field full"><div className="card" style={{background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(calc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(calc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted" style={{fontSize:12}}>{single?<>Pagamento único de <strong style={{color:"white"}}>{money(calc.totalReceivable)}</strong></>:fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(installments[0]||0)}</strong></>}</div></div></div>
         {error&&<div className="field full"><div className="alert">{error}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||demo||(!single&&!countInput.trim())}>{pending?"Criando...":"Criar empréstimo"}</button></div>
+        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||demo||!principalInput.trim()||!returnInput.trim()||(!single&&!countInput.trim())}>{pending?"Criando...":"Criar empréstimo"}</button></div>
       </form>
     </div></div>}
   </>;

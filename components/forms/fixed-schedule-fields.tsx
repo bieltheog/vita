@@ -49,8 +49,8 @@ export function FixedScheduleFields({
             type="number"
             min="1"
             max={isBusiness?23:31}
-            value={rule.value}
-            onChange={e=>onChange({...rule,value:Math.max(1,Number(e.target.value)||1)} as RuleState)}
+            value={rule.value || ""}
+            onChange={e=>onChange({...rule,value:e.target.value===""?0:Number(e.target.value)} as RuleState)}
             required={!optional}
           />
         </div>}

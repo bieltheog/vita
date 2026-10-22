@@ -35,7 +35,7 @@ export function RenegotiateInstallment({ installment, compact=false }: { install
         <div className="field"><label>Nova data *</label><input className="input" type="date" name="new_due_date" defaultValue={installment.due_date} required/></div>
         <div className="field"><label>Novo valor *</label><input className="input" type="number" name="new_amount" min={Number(installment.amount_paid)||0.01} step="0.01" defaultValue={Number(installment.amount).toFixed(2)} required/></div>
         <div className="field full"><label>Motivo</label><input className="input" name="reason" placeholder="Ex.: cliente pediu mudança de vencimento"/></div>
-        <div className="field full"><div className="alert">A data original fica preservada no histórico. Se o valor mudar, o total a receber e o lucro previsto do empréstimo são recalculados automaticamente.</div></div>
+        <div className="field full"><div className="alert">A data original fica salva no histórico. Se o valor mudar, o sistema recalcula automaticamente o total a receber e o lucro previsto.</div></div>
         {error&&<div className="field full"><div className="alert">{error}</div></div>}
         {message&&<div className="field full"><div className="alert">{message}</div></div>}
         <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending}>{pending?"Salvando...":"Salvar renegociação"}</button></div>
