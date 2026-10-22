@@ -32,9 +32,11 @@ export async function addLoanTopupAction(formData: FormData): Promise<LoanTopupR
     const calculationType=(text(formData,"calculation_type")||"percentage") as "percentage"|"fixed";
     const returnValue=num(formData,"return_value");
     const topupDate=text(formData,"topup_date");
+    const futureCountRaw=text(formData,"future_installment_count");
     let futureCount=Math.max(1,Math.floor(num(formData,"future_installment_count")||1));
     const frequency=text(formData,"payment_frequency")||"MENSAL";
     let firstDueDate=text(formData,"first_due_date");
+    const allowDueBeforeStart=text(formData,"allow_due_before_start")==="1";
     const notes=text(formData,"notes");
     const dailyOffDays=frequency==="DIARIO"
       ? Array.from(new Set(formData.getAll("daily_off_days").map(Number).filter(day=>Number.isInteger(day)&&day>=0&&day<=6))).sort((a,b)=>a-b)
@@ -47,11 +49,12 @@ export async function addLoanTopupAction(formData: FormData): Promise<LoanTopupR
     if(!topupDate) throw new Error("Informe a data do adicional.");
     if(topupDate>brazilDateKey()) throw new Error("A data do adicional não pode estar no futuro.");
     if(!["UNICO","DIARIO","SEMANAL","QUINZENAL","MENSAL","DATAS_FIXAS"].includes(frequency)) throw new Error("Forma de pagamento inválida.");
+    if(frequency!=="UNICO"&&!futureCountRaw) throw new Error("Informe o número de parcelas futuras.");
     if(frequency==="UNICO") futureCount=1;
     if(frequency==="DIARIO"&&dailyOffDays.length>=7) throw new Error("Escolha pelo menos um dia da semana com cobrança.");
 
     const [{ data: loan, error: loanError }, { data: installments, error: installmentsError }]=await Promise.all([
-      supabase.from("loans").select("id,client_id,loan_code,status").eq("id",loanId).eq("user_id",user.id).eq("portfolio_id",await getActivePortfolio()).single(),
+      supabase.from("loans").select("id,client_id,loan_code,status,start_date").eq("id",loanId).eq("user_id",user.id).eq("portfolio_id",await getActivePortfolio()).single(),
       supabase.from("installments").select("id,remaining_amount,stored_status").eq("loan_id",loanId).eq("user_id",user.id),
     ]);
     if(loanError||!loan) throw loanError||new Error("Empréstimo não encontrado.");
@@ -85,6 +88,8 @@ export async function addLoanTopupAction(formData: FormData): Promise<LoanTopupR
       dueDates=generateDueDates(firstDueDate,frequency,futureCount,dailyOffDays);
       remainingValues=splitInstallments(newRemaining,futureCount);
     }
+
+    if(firstDueDate<loan.start_date&&!allowDueBeforeStart) throw new Error("O primeiro vencimento está antes da data original do empréstimo. Confirme essa exceção para salvar a correção.");
 
     const { error: rpcError }=await supabase.rpc("add_loan_topup",{
       p_loan_id:loanId,
