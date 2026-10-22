@@ -14,10 +14,21 @@ export function InterestOnlyForm({installments,demo=false}:{installments:Install
     setError("");
     start(async()=>{try{await registerInterestOnlyAction(formData);setOpen(false);setSelected("");}catch(e){setError(e instanceof Error?e.message:"Falha ao registrar juros");}});
   }
-  const choices=installments.filter(i=>i.stored_status!=="CANCELADO"&&i.remaining_amount>0&&
-    i.loan?.status==="ATIVO"&&i.loan?.principal_amount&&["UNICO","MENSAL"].includes(i.loan?.payment_frequency||"")&&i.loan?.installment_count>=1);
+  const openCountByLoan=new Map<string,number>();
+  installments
+    .filter(i=>i.stored_status!=="CANCELADO"&&Number(i.remaining_amount)>0&&i.loan?.status==="ATIVO")
+    .forEach(i=>openCountByLoan.set(i.loan_id,(openCountByLoan.get(i.loan_id)||0)+1));
+  const choices=installments.filter(i=>{
+    const loan=i.loan;
+    if(i.stored_status==="CANCELADO"||Number(i.remaining_amount)<=0||loan?.status!=="ATIVO"||!loan?.principal_amount)return false;
+    if(!["UNICO","MENSAL"].includes(loan.payment_frequency||""))return false;
+    if((openCountByLoan.get(i.loan_id)||0)!==1)return false;
+    if(Number(i.amount_paid)>0.005||Math.abs(Number(i.remaining_amount)-Number(i.amount))>0.005)return false;
+    const interest=Number(loan.fixed_return_amount ?? (Number(loan.principal_amount||0)*Number(loan.return_percentage||0)/100));
+    return interest>0&&Math.abs(Number(i.amount)-(Number(loan.principal_amount||0)+interest))<=0.01;
+  });
   return <>
-    <button type="button" className="btn secondary" onClick={()=>setOpen(true)}>Pagou somente os juros</button>
+    <button type="button" className="btn secondary" onClick={()=>setOpen(true)}>Somente juros</button>
     {open&&<div className="modal-backdrop"><div className="modal">
       <div className="section-title"><h2>Pagamento somente dos juros</h2><button type="button" className="icon-btn" onClick={()=>setOpen(false)}>Fechar</button></div>
       <p className="muted">Registra os juros deste ciclo como recebidos e renova o valor total devido para o próximo mês. O principal permanece emprestado e o mês quitado não fica atrasado. Disponível apenas para operações compatíveis com uma única parcela aberta.</p>
