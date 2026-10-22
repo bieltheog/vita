@@ -9,12 +9,12 @@ import { effectiveInstallmentStatus, money } from "@/lib/finance";
 import { brazilDateKey } from "@/lib/date";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { registerPaymentSafeAction, markInstallmentUnpaidSafeAction } from "@/app/operations-actions";
-import { registerInterestOnlyAction } from "@/app/interest-only-actions";
+import { registerInterestOnlyAction, voidInterestOnlyAction } from "@/app/interest-only-actions";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { RenegotiateInstallment } from "@/components/forms/renegotiate-installment";
 import type { Installment } from "@/lib/types";
 
-export function CalendarBoard({ installments }: { installments: Installment[] }) {
+export function CalendarBoard({ installments, interestPayments=[] }: { installments: Installment[]; interestPayments?: {id:string;installment_id:string}[] }) {
   const router = useRouter();
   const [month,setMonth]=useState(new Date());
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
@@ -22,6 +22,7 @@ export function CalendarBoard({ installments }: { installments: Installment[] })
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
   const todayKey=brazilDateKey();
+  const interestPaymentByInstallment=useMemo(()=>new Map(interestPayments.map(p=>[p.installment_id,p.id])),[interestPayments]);
   const openCountByLoan=useMemo(()=>{
     const map=new Map<string,number>();
     installments
@@ -95,15 +96,28 @@ export function CalendarBoard({ installments }: { installments: Installment[] })
   }
 
   function undoPayment(installmentId:string){
-    if(!window.confirm("Marcar esta parcela como não paga? Os pagamentos serão estornados, mas continuarão salvos no histórico."))return;
+    const interestPaymentId=interestPaymentByInstallment.get(installmentId);
+    const confirmation=interestPaymentId
+      ?"Estornar este pagamento de juros? A parcela original será reaberta e a parcela criada pela renovação será cancelada."
+      :"Marcar esta parcela como não paga? Os pagamentos serão estornados, mas continuarão salvos no histórico.";
+    if(!window.confirm(confirmation))return;
     setError("");
     setMessage("");
-    const formData=new FormData();
-    formData.set("installment_id",installmentId);
     startTransition(async()=>{
-      const result=await markInstallmentUnpaidSafeAction(formData);
-      if(!result.ok){setError(result.error);return;}
-      setMessage(result.message||"Pagamento desfeito.");
+      if(interestPaymentId){
+        const formData=new FormData();
+        formData.set("payment_id",interestPaymentId);
+        formData.set("reason","Estorno manual pelo calendário");
+        const result=await voidInterestOnlyAction(formData);
+        if(!result.ok){setError(result.error);return;}
+        setMessage(result.message||"Juros estornados e renovação desfeita.");
+      }else{
+        const formData=new FormData();
+        formData.set("installment_id",installmentId);
+        const result=await markInstallmentUnpaidSafeAction(formData);
+        if(!result.ok){setError(result.error);return;}
+        setMessage(result.message||"Pagamento desfeito.");
+      }
       router.refresh();
     });
   }
@@ -218,6 +232,7 @@ export function CalendarBoard({ installments }: { installments: Installment[] })
               const remaining=Number(i.remaining_amount);
               const canRenegotiate=i.loan?.status==="ATIVO"&&remaining>0;
               const interestOnly=canInterestOnly(i);
+              const interestPaymentId=interestPaymentByInstallment.get(i.id);
               return <div className="card" key={`manage-${i.id}`} style={{padding:14}}>
                 <div className="section-title">
                   <div className="person"><div className="avatar">{i.client?.name?.[0]||"?"}</div><div><div className="person-name">{i.client?.name}</div><div className="person-meta">{i.loan?.loan_code} · parcela {i.installment_number}/{i.loan?.installment_count}</div></div></div>
@@ -240,11 +255,11 @@ export function CalendarBoard({ installments }: { installments: Installment[] })
                   <div className="field"><label>Observação</label><input className="input" name="notes" placeholder="Opcional"/></div>
                   <div className="field full"><div className="muted" style={{fontSize:11}}>Para marcar como pago, deixe o valor igual ao saldo. Para parcial, informe um valor menor.</div></div>
                   <div className="field full" style={{display:"flex",flexDirection:"row",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap"}}>
-                    {interestOnly&&<button type="submit" name="payment_mode" value="JUROS" formNoValidate className="btn secondary" disabled={pending}>Somente juros</button>}
+                    {interestOnly&&<button type="submit" name="payment_mode" value="JUROS" className="btn secondary" disabled={pending}>Somente juros</button>}
                     <button className="btn" disabled={pending}><CreditCard size={16}/>{pending?"Salvando...":"Registrar pagamento"}</button>
                   </div>
                 </form>}
-                {hasPaid&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}><button type="button" className="btn secondary" disabled={pending} onClick={()=>undoPayment(i.id)}><Undo2 size={16}/> Marcar como não pago</button></div>}
+                {hasPaid&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}><button type="button" className={interestPaymentId?"btn danger":"btn secondary"} disabled={pending} onClick={()=>undoPayment(i.id)}><Undo2 size={16}/> {interestPaymentId?"Estornar juros":"Marcar como não pago"}</button></div>}
               </div>;
             })}
           </div>
