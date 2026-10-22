@@ -45,6 +45,13 @@ test("Juros-only não debita principal outra vez na renovação",()=>{
   assert.equal(c.balance,800);
   assert.equal(c.movements.filter(x=>x.source==="loan").length,1);
 });
+test("Pagamento estornado nunca volta para o saldo mesmo se vier no array",()=>{
+  const voided={...payment("J-VOID","L1",400),payment_kind:"JUROS",voided_at:"2026-10-16T12:00:00Z"};
+  const c=ledger({loans:[loan("L1",1000)],payments:[voided]});
+  assert.equal(c.balance,-1000);
+  assert.equal(c.received,0);
+  assert.equal(c.movements.filter(x=>x.source==="payment").length,0);
+});
 test("Adicional de capital não é deduzido em duplicidade",()=>{
   const topup={id:"T1",loan_id:"L1",amount:300,topup_date:date,
     created_at:date+"T10:00:00Z",loan:{loan_code:"L1"}};
