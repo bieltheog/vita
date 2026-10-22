@@ -111,6 +111,8 @@ export function generateDueDates(
   dailyOffDays: number[] = [],
 ) {
   const first = parseISO(firstDueDate);
+  if (!firstDueDate || Number.isNaN(first.getTime())) throw new Error("Informe uma data válida para o primeiro pagamento.");
+  if (frequency === "UNICO") return [format(first, "yyyy-MM-dd")];
 
   if (frequency === "DIARIO") {
     const offDays = new Set(dailyOffDays.filter(day => Number.isInteger(day) && day >= 0 && day <= 6));
@@ -130,7 +132,6 @@ export function generateDueDates(
     if (frequency === "SEMANAL") date = addWeeks(first, i);
     else if (frequency === "QUINZENAL") date = addDays(first, i * 15);
     else if (frequency === "MENSAL") date = addMonths(first, i);
-    else if (frequency === "UNICO") date = first;
     else date = addMonths(first, i);
     return format(date, "yyyy-MM-dd");
   });
