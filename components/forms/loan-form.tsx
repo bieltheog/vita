@@ -19,30 +19,49 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
   const [principal,setPrincipal]=useState(1000);
   const [returnValue,setReturnValue]=useState(30);
   const [type,setType]=useState<"percentage"|"fixed">("percentage");
-  const [count,setCount]=useState(5);
+  const [countInput,setCountInput]=useState("5");
   const [frequency,setFrequency]=useState("MENSAL");
   const [dailyOffDays,setDailyOffDays]=useState<number[]>([0]);
   const [fixedRows,setFixedRows]=useState<ManualFixedRow[]>([]);
   const single=frequency==="UNICO";
   const daily=frequency==="DIARIO";
   const fixed=frequency==="DATAS_FIXAS";
+  const count=Math.max(1,Math.floor(Number(countInput)||1));
   const calc=useMemo(()=>calculateLoan(principal||0,type,returnValue||0),[principal,type,returnValue]);
-  const installments=splitInstallments(calc.totalReceivable,count||1);
+  const installments=splitInstallments(calc.totalReceivable,count);
 
   function changeFrequency(next:string){
     setFrequency(next);
-    if(next==="UNICO")setCount(1);
+    if(next==="UNICO")setCountInput("1");
     if(next==="DATAS_FIXAS")setFixedRows(rows=>resizeFixedRows(rows,count,calc.totalReceivable));
   }
-  function changeCount(next:number){
-    if(single){setCount(1);return;}
-    const safe=Math.max(1,next||1);
-    setCount(safe);
-    if(fixed)setFixedRows(rows=>resizeFixedRows(rows,safe,calc.totalReceivable));
+  function changeCount(raw:string){
+    if(single){setCountInput("1");return;}
+    if(raw===""){setCountInput("");return;}
+    const next=Math.floor(Number(raw));
+    if(!Number.isFinite(next))return;
+    setCountInput(String(next));
+    if(fixed&&next>0)setFixedRows(rows=>resizeFixedRows(rows,next,calc.totalReceivable));
   }
   function splitFixedEqually(){const values=splitInstallments(calc.totalReceivable,count);setFixedRows(rows=>resizeFixedRows(rows,count,calc.totalReceivable).map((row,index)=>({...row,amount:(values[index]||0).toFixed(2)})));}
 
-  async function submit(formData:FormData){setError("");start(async()=>{const result=await createLoanFormAction(formData);if(!result.ok){setError(result.error);return;}setOpen(false);});}
+  async function submit(formData:FormData){
+    setError("");
+    if(!single&&!String(formData.get("installment_count")||"").trim()){
+      setError("Informe o número de parcelas.");
+      return;
+    }
+    const startDate=String(formData.get("start_date")||"");
+    const firstDueDate=fixed
+      ? String(formData.get("fixed_due_date_0")||"")
+      : String(formData.get("first_due_date")||"");
+    if(startDate&&firstDueDate&&firstDueDate<startDate){
+      const confirmed=window.confirm("O primeiro vencimento está antes da data do empréstimo. Isso normalmente só deve ser usado para corrigir um cadastro. Deseja salvar assim mesmo?");
+      if(!confirmed)return;
+      formData.set("allow_due_before_start","1");
+    }
+    start(async()=>{const result=await createLoanFormAction(formData);if(!result.ok){setError(result.error);return;}setOpen(false);});
+  }
 
   return <>
     <button className="btn" onClick={()=>setOpen(true)}><Plus size={16}/>{buttonLabel}</button>
@@ -57,16 +76,16 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
         <div className="field"><label>Forma de pagamento</label><select className="select" name="payment_frequency" value={frequency} onChange={e=>changeFrequency(e.target.value)}><option value="UNICO">Pagamento único</option><option value="DIARIO">Diário</option><option value="SEMANAL">Semanal</option><option value="QUINZENAL">Quinzenal</option><option value="MENSAL">Mensal</option><option value="DATAS_FIXAS">Datas fixas</option></select></div>
         {single
           ? <input type="hidden" name="installment_count" value="1"/>
-          : <div className="field"><label>Número de parcelas</label><input className="input" name="installment_count" type="number" min="1" value={count} onChange={e=>changeCount(Number(e.target.value))}/></div>}
+          : <div className="field"><label>Número de parcelas</label><input className="input" name="installment_count" type="number" min="1" value={countInput} onChange={e=>changeCount(e.target.value)} required/></div>}
         {daily&&<DailyOffDays selected={dailyOffDays} onChange={setDailyOffDays}/>} 
         {fixed&&<ManualFixedInstallments rows={resizeFixedRows(fixedRows,count,calc.totalReceivable)} total={calc.totalReceivable} onChange={setFixedRows} onSplitEqually={splitFixedEqually}/>} 
         <div className="field"><label>Data do empréstimo *</label><input className="input" name="start_date" type="date" required/></div>
         {!fixed&&<div className="field"><label>Primeiro pagamento *</label><input className="input" name="first_due_date" type="date" required/></div>}
         {daily&&<div className="field full"><div className="alert">No modo diário, os dias marcados acima são pulados. Ex.: se domingo estiver marcado, nenhuma parcela diária vence no domingo.</div></div>}
         {fixed&&<div className="field full"><div className="alert">Em Datas fixas, cada parcela tem sua própria data e seu próprio valor. A soma dos valores precisa ser igual ao total a receber.</div></div>}
-        <div className="field full"><div className="card" style={{background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(calc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(calc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted" style={{fontSize:12}}>{fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(installments[0]||0)}</strong></>}</div></div></div>
+        <div className="field full"><div className="card" style={{background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(calc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(calc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted" style={{fontSize:12}}>{single?<>Pagamento único de <strong style={{color:"white"}}>{money(calc.totalReceivable)}</strong></>:fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(installments[0]||0)}</strong></>}</div></div></div>
         {error&&<div className="field full"><div className="alert">{error}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||demo}>{pending?"Criando...":"Criar empréstimo"}</button></div>
+        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||demo||(!single&&!countInput.trim())}>{pending?"Criando...":"Criar empréstimo"}</button></div>
       </form>
     </div></div>}
   </>;
