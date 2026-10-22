@@ -51,7 +51,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   const [principal,setPrincipal]=useState(originalPrincipal);
   const [returnValue,setReturnValue]=useState(initialReturn);
   const [type,setType]=useState<"percentage"|"fixed">(initialType);
-  const [count,setCount]=useState(initialCount);
+  const [countInput,setCountInput]=useState(String(initialCount));
   const [frequency,setFrequency]=useState(initialFrequency);
   const [dailyOffDays,setDailyOffDays]=useState<number[]>(initialDays);
   const [firstDueDate,setFirstDueDate]=useState(initialFirstDueDate);
@@ -62,6 +62,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   const single=frequency==="UNICO";
   const daily=frequency==="DIARIO";
   const fixed=frequency==="DATAS_FIXAS";
+  const count=Math.max(1,Math.floor(Number(countInput)||1));
   const topupPrincipal=roundMoney(Math.max(0,principal-originalPrincipal));
   const topupMode=hasPayments&&topupPrincipal>0.005;
   const reducingPrincipal=hasPayments&&principal<originalPrincipal-0.005;
@@ -100,17 +101,18 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   function changeFrequency(next:string){
     const wasFixed=frequency==="DATAS_FIXAS";
     setFrequency(next);
-    if(next==="UNICO")setCount(hasPayments?Math.max(1,lockedMax+1):1);
+    if(next==="UNICO")setCountInput(String(hasPayments?Math.max(1,lockedMax+1):1));
     if(next==="DATAS_FIXAS"){
       if(!wasFixed)setFixedRows([]);
       setFixedTouched(false);
     }
   }
 
-  function changeCount(next:number){
-    const minimum=hasPayments?lockedMax+1:1;
-    const safe=Math.max(minimum,next||minimum);
-    setCount(safe);
+  function changeCount(raw:string){
+    if(raw===""){setCountInput("");return;}
+    const next=Math.floor(Number(raw));
+    if(!Number.isFinite(next))return;
+    setCountInput(String(next));
     if(fixed)setFixedTouched(false);
   }
 
@@ -121,6 +123,19 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
 
   async function submit(formData:FormData){
     setError("");
+    if(!single&&!String(formData.get("installment_count")||"").trim()){
+      setError("Informe o número de parcelas.");
+      return;
+    }
+    const firstDue=fixed
+      ? String(formData.get("fixed_due_date_0")||"")
+      : String(formData.get("first_due_date")||"");
+    const scheduleWillChange=!hasPayments||topupMode||scheduleChanged;
+    if(scheduleWillChange&&firstDue&&loan.start_date&&firstDue<loan.start_date){
+      const confirmed=window.confirm("O primeiro vencimento está antes da data original do empréstimo. Isso pode ser válido em uma correção. Deseja salvar assim mesmo?");
+      if(!confirmed)return;
+      formData.set("allow_due_before_start","1");
+    }
     start(async()=>{
       if(reducingPrincipal){
         setError(`Este empréstimo já possui pagamento. O principal original de ${money(originalPrincipal)} não pode ser reduzido por esta tela.`);
@@ -221,7 +236,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
           {hasPayments&&<div className="field"><label>Parcelas futuras</label><div className="muted" style={{fontSize:12}}>Pagamento único: o saldo futuro será reunido em 1 cobrança. {lockedMax} parcela(s) ficam preservadas no histórico.</div></div>}
         </> : <div className="field">
           <label>{hasPayments?"Número total de parcelas após correção":"Número de parcelas"}</label>
-          <input className="input" name="installment_count" type="number" min={hasPayments?lockedMax+1:1} value={count} onChange={e=>changeCount(Number(e.target.value))}/>
+          <input className="input" name="installment_count" type="number" min={hasPayments?lockedMax+1:1} value={countInput} onChange={e=>changeCount(e.target.value)} required/>
           {hasPayments&&<div className="muted" style={{fontSize:11}}>{lockedMax} parcela(s) ficam no histórico · {futureCount} parcela(s) futuras serão criadas</div>}
         </div>}
 
@@ -259,7 +274,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
         {error&&<div className="field full"><div className="alert" style={{borderColor:"rgba(255,98,109,.35)",color:"#ff9aa2"}}>{error}</div></div>}
         <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end",flexWrap:"wrap"}}>
           <button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button>
-          <button className="btn" disabled={pending||reducingPrincipal}>{topupMode&&<CirclePlus size={16}/>} {pending?"Salvando...":topupMode?`Adicionar ${money(topupPrincipal)} e salvar`:scheduleChanged?"Corrigir calendário":"Salvar alterações"}</button>
+          <button className="btn" disabled={pending||reducingPrincipal||(!single&&!countInput.trim())}>{topupMode&&<CirclePlus size={16}/>} {pending?"Salvando...":topupMode?`Adicionar ${money(topupPrincipal)} e salvar`:scheduleChanged?"Corrigir calendário":"Salvar alterações"}</button>
         </div>
       </form>
     </div></div>}
