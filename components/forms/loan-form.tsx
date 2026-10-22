@@ -23,13 +23,23 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
   const [frequency,setFrequency]=useState("MENSAL");
   const [dailyOffDays,setDailyOffDays]=useState<number[]>([0]);
   const [fixedRows,setFixedRows]=useState<ManualFixedRow[]>([]);
+  const single=frequency==="UNICO";
   const daily=frequency==="DIARIO";
   const fixed=frequency==="DATAS_FIXAS";
   const calc=useMemo(()=>calculateLoan(principal||0,type,returnValue||0),[principal,type,returnValue]);
   const installments=splitInstallments(calc.totalReceivable,count||1);
 
-  function changeFrequency(next:string){setFrequency(next);if(next==="DATAS_FIXAS")setFixedRows(rows=>resizeFixedRows(rows,count,calc.totalReceivable));}
-  function changeCount(next:number){const safe=Math.max(1,next||1);setCount(safe);if(fixed)setFixedRows(rows=>resizeFixedRows(rows,safe,calc.totalReceivable));}
+  function changeFrequency(next:string){
+    setFrequency(next);
+    if(next==="UNICO")setCount(1);
+    if(next==="DATAS_FIXAS")setFixedRows(rows=>resizeFixedRows(rows,count,calc.totalReceivable));
+  }
+  function changeCount(next:number){
+    if(single){setCount(1);return;}
+    const safe=Math.max(1,next||1);
+    setCount(safe);
+    if(fixed)setFixedRows(rows=>resizeFixedRows(rows,safe,calc.totalReceivable));
+  }
   function splitFixedEqually(){const values=splitInstallments(calc.totalReceivable,count);setFixedRows(rows=>resizeFixedRows(rows,count,calc.totalReceivable).map((row,index)=>({...row,amount:(values[index]||0).toFixed(2)})));}
 
   async function submit(formData:FormData){setError("");start(async()=>{const result=await createLoanFormAction(formData);if(!result.ok){setError(result.error);return;}setOpen(false);});}
@@ -45,7 +55,9 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
         <div className="field"><label>Tipo de cálculo</label><select className="select" name="calculation_type" value={type} onChange={e=>setType(e.target.value as "percentage"|"fixed")}><option value="percentage">Porcentagem de retorno</option><option value="fixed">Valor fixo de retorno</option></select></div>
         <div className="field"><label>{type==="percentage"?"Retorno (%)":"Lucro fixo (R$)"}</label><input className="input" name="return_value" type="number" min="0" step="0.01" value={returnValue} onChange={e=>setReturnValue(Number(e.target.value))}/></div>
         <div className="field"><label>Forma de pagamento</label><select className="select" name="payment_frequency" value={frequency} onChange={e=>changeFrequency(e.target.value)}><option value="UNICO">Pagamento único</option><option value="DIARIO">Diário</option><option value="SEMANAL">Semanal</option><option value="QUINZENAL">Quinzenal</option><option value="MENSAL">Mensal</option><option value="DATAS_FIXAS">Datas fixas</option></select></div>
-        <div className="field"><label>Número de parcelas</label><input className="input" name="installment_count" type="number" min="1" value={count} onChange={e=>changeCount(Number(e.target.value))}/></div>
+        {single
+          ? <input type="hidden" name="installment_count" value="1"/>
+          : <div className="field"><label>Número de parcelas</label><input className="input" name="installment_count" type="number" min="1" value={count} onChange={e=>changeCount(Number(e.target.value))}/></div>}
         {daily&&<DailyOffDays selected={dailyOffDays} onChange={setDailyOffDays}/>} 
         {fixed&&<ManualFixedInstallments rows={resizeFixedRows(fixedRows,count,calc.totalReceivable)} total={calc.totalReceivable} onChange={setFixedRows} onSplitEqually={splitFixedEqually}/>} 
         <div className="field"><label>Data do empréstimo *</label><input className="input" name="start_date" type="date" required/></div>

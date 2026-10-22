@@ -72,10 +72,14 @@ export async function getInstallments(options?: { clientId?: string; loanId?: st
   const { data, error } = await query;
   if (error) throw error;
   const rows = (data || []) as unknown as Installment[];
-  // Somente operações ativas participam de saldo, cobrança e calendário. Ao abrir
-  // diretamente um empréstimo finalizado/cancelado, o histórico continua visível.
+  // Somente operações ativas e parcelas não canceladas participam de saldo,
+  // cobrança e calendário. Ao abrir um empréstimo específico ou pedir histórico,
+  // as linhas canceladas continuam disponíveis para auditoria.
   if (options?.loanId || options?.includeInactive) return rows;
-  return rows.filter((row) => (row.loan as unknown as { status?: string } | undefined)?.status === "ATIVO");
+  return rows.filter((row) =>
+    (row.loan as unknown as { status?: string } | undefined)?.status === "ATIVO" &&
+    row.stored_status !== "CANCELADO"
+  );
 }
 
 export async function getHistoricalInstallments(options?: { clientId?: string; from?: string; to?: string }): Promise<Installment[]> {

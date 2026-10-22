@@ -60,7 +60,10 @@ export async function updateLoanAction(formData: FormData) {
   let firstDueDate = text(formData, "first_due_date");
   const status = text(formData, "status") || "ATIVO";
 
+  if (!["percentage","fixed"].includes(calculationType)) throw new Error("Tipo de cálculo inválido.");
+  if (returnValue < 0) throw new Error("O retorno não pode ser negativo.");
   if (!['UNICO','DIARIO','SEMANAL','QUINZENAL','MENSAL','DATAS_FIXAS','PERSONALIZADO'].includes(frequency)) throw new Error("Forma de pagamento inválida.");
+  if (frequency === "UNICO") installmentCount = 1;
   if (frequency === "DIARIO" && dailyOffDays.length >= 7) throw new Error("Escolha pelo menos um dia da semana com cobrança.");
   const manualFixed=getManualFixedInstallments(formData,frequency,installmentCount);
   if (frequency === "DATAS_FIXAS") firstDueDate=manualFixed[0]?.date || "";
@@ -71,6 +74,8 @@ export async function updateLoanAction(formData: FormData) {
     if (customDate2 < customDate1) throw new Error("A segunda parcela não pode vencer antes da primeira.");
   }
   if (!loanId || principal <= 0 || !startDate || !firstDueDate) throw new Error("Preencha os campos obrigatórios do empréstimo.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate)) throw new Error("Informe datas válidas para o empréstimo.");
+  if (firstDueDate < startDate) throw new Error("O primeiro pagamento não pode vencer antes da data do empréstimo.");
   if (!['ATIVO','FINALIZADO','CANCELADO'].includes(status)) throw new Error("Status inválido.");
 
   const { data: current, error: findError } = await supabase

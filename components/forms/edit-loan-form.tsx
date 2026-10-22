@@ -39,7 +39,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   const initialType: "percentage" | "fixed" = loan.fixed_return_amount != null ? "fixed" : "percentage";
   const initialReturn = initialType === "fixed" ? Number(loan.fixed_return_amount || 0) : Number(loan.return_percentage || 0);
   const initialFrequency=loan.payment_frequency==="PERSONALIZADO"?"DATAS_FIXAS":loan.payment_frequency;
-  const initialCount=Number(loan.installment_count);
+  const initialCount=loan.payment_frequency==="UNICO"&&!hasPayments?1:Number(loan.installment_count);
   const initialDays=(loan.daily_off_days||[]).map(Number).sort((a,b)=>a-b);
   const initialFirstDueDate=unpaidRows[0]?.due_date||loan.first_due_date;
   const initialFixedRows: ManualFixedRow[]=unpaidRows.map(row=>({date:row.due_date,amount:Number(row.remaining_amount).toFixed(2)}));
@@ -59,6 +59,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   const [fixedTouched,setFixedTouched]=useState(false);
   const [topupDate,setTopupDate]=useState(brazilDateKey());
 
+  const single=frequency==="UNICO";
   const daily=frequency==="DIARIO";
   const fixed=frequency==="DATAS_FIXAS";
   const topupPrincipal=roundMoney(Math.max(0,principal-originalPrincipal));
@@ -99,7 +100,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
   function changeFrequency(next:string){
     const wasFixed=frequency==="DATAS_FIXAS";
     setFrequency(next);
-    if(next==="UNICO"&&hasPayments)setCount(Math.max(1,lockedMax+1));
+    if(next==="UNICO")setCount(hasPayments?Math.max(1,lockedMax+1):1);
     if(next==="DATAS_FIXAS"){
       if(!wasFixed)setFixedRows([]);
       setFixedTouched(false);
@@ -215,11 +216,14 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
           </select>
         </div>
 
-        <div className="field">
+        {single? <>
+          <input type="hidden" name="installment_count" value={hasPayments?Math.max(1,lockedMax+1):1}/>
+          {hasPayments&&<div className="field"><label>Parcelas futuras</label><div className="muted" style={{fontSize:12}}>Pagamento único: o saldo futuro será reunido em 1 cobrança. {lockedMax} parcela(s) ficam preservadas no histórico.</div></div>}
+        </> : <div className="field">
           <label>{hasPayments?"Número total de parcelas após correção":"Número de parcelas"}</label>
-          <input className="input" name="installment_count" type="number" min={hasPayments?lockedMax+1:1} value={count} disabled={hasPayments&&frequency==="UNICO"} onChange={e=>changeCount(Number(e.target.value))}/>
+          <input className="input" name="installment_count" type="number" min={hasPayments?lockedMax+1:1} value={count} onChange={e=>changeCount(Number(e.target.value))}/>
           {hasPayments&&<div className="muted" style={{fontSize:11}}>{lockedMax} parcela(s) ficam no histórico · {futureCount} parcela(s) futuras serão criadas</div>}
-        </div>
+        </div>}
 
         {daily&&<DailyOffDays selected={dailyOffDays} onChange={setDailyOffDays}/>} 
         {fixed&&<ManualFixedInstallments rows={renderedFixedRows} total={targetTotal} onChange={rows=>{setFixedRows(rows);setFixedTouched(true)}} onSplitEqually={splitFixedEqually}/>} 
