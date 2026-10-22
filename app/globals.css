@@ -121,7 +121,9 @@ tr:last-child td { border-bottom:0; }
 .tabs { display:inline-flex; padding:4px; gap:3px; border:1px solid var(--border); background:#0a0d12; border-radius:12px; }
 .tab { border:0; background:transparent; color:var(--muted); padding:8px 11px; border-radius:9px; font-size:12px; font-weight:750; }
 .tab.active { color:#fff; background:var(--panel-2); }
-.alert { padding:12px 14px; border-radius:12px; font-size:12px; border:1px solid rgba(255,196,81,.2); background:rgba(255,196,81,.07); color:#f5d98e; }
+.alert { padding:12px 14px; border-radius:12px; font-size:12px; line-height:1.5; border:1px solid rgba(255,196,81,.2); background:rgba(255,196,81,.07); color:#f5d98e; white-space:normal; overflow-wrap:anywhere; word-break:normal; }
+.modal, .card, .field, .section-title > *, .person, .person > div { min-width:0; }
+.muted, .person-meta { overflow-wrap:anywhere; }
 @media (max-width:1150px) { .stats{grid-template-columns:repeat(2,1fr)} .grid-2{grid-template-columns:1fr} }
 @media (max-width:780px) {
   .shell { display:block; padding-bottom:68px; }
