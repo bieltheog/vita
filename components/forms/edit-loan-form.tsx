@@ -130,7 +130,8 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
     const firstDue=fixed
       ? String(formData.get("fixed_due_date_0")||"")
       : String(formData.get("first_due_date")||"");
-    if(firstDue&&loan.start_date&&firstDue<loan.start_date){
+    const scheduleWillChange=!hasPayments||topupMode||scheduleChanged;
+    if(scheduleWillChange&&firstDue&&loan.start_date&&firstDue<loan.start_date){
       const confirmed=window.confirm("O primeiro vencimento está antes da data original do empréstimo. Isso pode ser válido em uma correção. Deseja salvar assim mesmo?");
       if(!confirmed)return;
       formData.set("allow_due_before_start","1");
