@@ -51,3 +51,41 @@
   .cash-report-table td,.cash-report-table th { padding:5px; }
   .cash-report-paper h2 { break-after:avoid; }
 }
+
+
+/* Hierarquia enxuta: caixa, recebimentos e inadimplência */
+.cash-simple-main,.cash-simple-result { margin-top:22px; }
+.cash-simple-main h2,.cash-simple-result h2 { margin:20px 0 10px; font-size:17px; }
+.cash-simple-balance { border:1px solid #d7dee8; border-radius:12px; background:#f5f7fa; padding:18px 20px; }
+.cash-simple-balance span { display:block; font-size:12px; color:#586577; margin-bottom:6px; }
+.cash-simple-balance strong { display:block; font-size:29px; font-variant-numeric:tabular-nums; }
+.cash-simple-line { display:flex; justify-content:space-between; gap:16px; padding:10px 3px; border-bottom:1px solid #e5eaf0; font-size:13px; }
+.cash-simple-line strong { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cash-simple-line.final { font-weight:800; background:#f5f7fa; border-radius:7px; padding:12px 10px; margin-top:6px; border-bottom:none; }
+.cash-simple-line.positive strong { color:#116149; }
+.cash-simple-line.negative strong { color:#993a3a; }
+.cash-simple-explain { font-size:11px; line-height:1.5; color:#667085; margin-bottom:10px!important; }
+.cash-simple-cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.cash-simple-card { border:1px solid #dae1e8; border-radius:10px; padding:16px; }
+.cash-simple-card span { display:block; color:#475467; font-size:12px; font-weight:650; }
+.cash-simple-card strong { display:block; color:#17212e; font-size:24px; margin-top:6px; font-variant-numeric:tabular-nums; }
+.cash-simple-card small { display:block; color:#667085; font-size:10px; margin-top:6px; }
+.cash-simple-alert strong { color:#ab3434; }
+.cash-simple-note { margin-top:21px; border-top:1px solid #dce1e8; padding-top:14px; line-height:1.55; color:#475467; font-size:11px; }
+.cash-report-extract { border-radius:12px; overflow:hidden; background:#fff; color:#17212e; }
+.cash-report-extract summary { padding:16px 22px; font-weight:700; cursor:pointer; }
+.cash-report-extract .cash-report-paper { padding-top:6px; box-shadow:none; }
+@media(max-width:580px) {
+  .cash-simple-cards { grid-template-columns:1fr; }
+  .cash-simple-line { font-size:12px; }
+  .cash-simple-balance strong { font-size:25px; }
+}
+@media print {
+  .cash-simple-main,.cash-simple-result { margin-top:16px!important; }
+  .cash-simple-main h2,.cash-simple-result h2 { margin:14px 0 8px!important; }
+  .cash-simple-line { padding:7px 3px!important; }
+  .cash-simple-card { padding:12px!important; }
+  .cash-simple-balance { padding:12px 16px!important; }
+  .cash-simple-note { margin-top:15px!important; }
+  .cash-simple-cards { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
+}
