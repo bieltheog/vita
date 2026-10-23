@@ -1,0 +1,53 @@
+.cash-report-shell { display: grid; gap: 18px; }
+.cash-report-toolbar { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:14px; }
+.cash-report-period { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; }
+.cash-report-period .field { min-width:150px; }
+.cash-report-period .field label { display:block; font-size:12px; margin-bottom:5px; color:var(--muted); }
+.cash-report-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.cash-report-paper { color:#17212e; background:#fff; border-radius:16px; padding:28px; box-shadow:0 8px 32px rgba(0,0,0,.1); }
+.cash-report-paper h1 { font-size:27px; margin:0 0 5px; color:#17212e; }
+.cash-report-paper h2 { font-size:16px; color:#17212e; margin:20px 0 10px; }
+.cash-report-paper p { margin:0; }
+.cash-report-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding-bottom:20px; border-bottom:2px solid #17212e; }
+.cash-report-sub { color:#667085; font-size:12px; margin-top:4px!important; }
+.cash-report-mark { background:#17212e; color:white; font-weight:800; font-size:12px; padding:8px 12px; border-radius:8px; white-space:nowrap; }
+.cash-report-kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:20px; }
+.cash-report-kpi { border:1px solid #dbe1e8; border-radius:9px; padding:11px 12px; }
+.cash-report-kpi span { display:block; color:#586577; font-size:11px; }
+.cash-report-kpi strong { display:block; font-size:20px; margin-top:5px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.cash-report-table { width:100%; table-layout:auto; border-collapse:collapse; font-size:11px; color:#17212e; }
+.cash-report-table th { color:#475467; background:#eef1f4; border:1px solid #dce1e8; padding:9px 7px; white-space:normal; font-weight:700; }
+.cash-report-table td { white-space:normal; border:1px solid #dce1e8; padding:8px 7px; vertical-align:top; overflow-wrap:anywhere; }
+.cash-report-table tr:last-child td { border-bottom:1px solid #dce1e8; }
+.cash-report-table td:last-child,.cash-report-table th:last-child { text-align:right; }
+.cash-report-table .num { white-space:nowrap; text-align:right; font-variant-numeric:tabular-nums; }
+.cash-report-twocol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.cash-report-note { color:#475467; font-size:11px; line-height:1.55; border-left:3px solid #94a3b8; padding:9px 12px; background:#f5f7fa; margin:14px 0; }
+.cash-report-footer { color:#667085; border-top:1px solid #dce1e8; font-size:10px; margin-top:20px; padding-top:12px; }
+.cash-report-empty { color:#667085; font-size:12px; padding:12px 4px; }
+.cash-report-warning { color:#ffb657; font-size:13px; }
+@media(max-width:760px) {
+  .cash-report-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .cash-report-twocol { grid-template-columns:1fr; }
+  .cash-report-paper { padding:16px; }
+  .cash-report-kpi strong { font-size:16px; }
+  .cash-report-period .field { min-width:125px; }
+}
+@media print {
+  @page { size:A4 portrait; margin:12mm; }
+  html,body { color:#17212e!important; background:#fff!important; color-scheme:light!important; }
+  .sidebar,.topbar,.cash-report-screen-only { display:none!important; }
+  .shell,.main { display:block!important; min-height:0!important; }
+  .content { margin:0!important; padding:0!important; max-width:none!important; }
+  .cash-report-shell { display:block!important; }
+  .cash-report-paper { border:0!important; box-shadow:none!important; padding:0!important; border-radius:0!important; }
+  .cash-report-kpis { grid-template-columns:repeat(3,minmax(0,1fr))!important; }
+  .cash-report-twocol { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
+  .cash-report-kpi,.cash-report-note { break-inside:avoid; }
+  .cash-report-paper .table-wrap { overflow:visible!important; }
+  .cash-report-table thead { display:table-header-group; }
+  .cash-report-table tr { break-inside:avoid; }
+  .cash-report-table { font-size:9px; }
+  .cash-report-table td,.cash-report-table th { padding:5px; }
+  .cash-report-paper h2 { break-after:avoid; }
+}

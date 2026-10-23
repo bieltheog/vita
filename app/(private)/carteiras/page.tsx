@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownLeft, ArrowUpRight, ArrowRight, ChevronDown, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ArrowRight, ChevronDown, Wallet, FileText } from "lucide-react";
 import { getActivePortfolio } from "@/lib/portfolio";
 import { getLoans, getPayments, getLoanTopups, getDashboardSummary, getInstallments } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
@@ -57,7 +57,10 @@ export default async function WalletsPage(){
       <div><div className="eyebrow">Carteira {portfolioId}</div><h1>Caixa</h1>
         <p className="muted">Acompanhe o que entra, o que sai e quanto está disponível.</p>
       </div>
-      <Link href="/carteiras/detalhes" className="cash-advanced-link">Mais detalhes <ArrowRight size={15}/></Link>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <Link href="/carteiras/relatorio" className="btn"><FileText size={16}/> Gerar relatório</Link>
+        <Link href="/carteiras/detalhes" className="cash-advanced-link">Mais detalhes <ArrowRight size={15}/></Link>
+      </div>
     </div>
 
     <section className="cash-balance">
