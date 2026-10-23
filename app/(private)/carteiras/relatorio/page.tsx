@@ -137,14 +137,18 @@ export default async function CashReportPage({
         <Kpi label="Entradas em caixa" value={money(received)} />
         <Kpi label="Saídas de caixa" value={money(spent)} />
         <Kpi label="Saldo ao final do período" value={balanceKnown ? money(closingBalance) : "Não conciliado"} />
+        <Kpi label="Capital recuperado no período (estimado)" value={money(principalReturned)} />
         <Kpi label="Juros recebidos (estimativa)" value={money(estimatedInterest)} />
         <Kpi label="Resultado operacional estimado" value={money(estimatedResult)} />
+        <Kpi label={`Inadimplência total hoje (${displayDate(today)})`} value={money(summary.overdue)} />
       </div>
 
       <div className="cash-report-note">
         <strong>Critério:</strong> o extrato usa apenas dinheiro efetivamente lançado.
         Devolução de principal não é lucro; empréstimos liberados não são despesas operacionais.
         A estimativa de juros usa a divisão cadastrada por pagamento ou o rateio histórico do contrato.
+        Capital recuperado corresponde à parcela do principal já devolvida, separada dos juros.
+        A inadimplência total é o saldo de todas as parcelas vencidas e ainda não pagas da carteira na data de geração, inclusive atrasos anteriores ao período selecionado; não significa perda definitiva.
         Perdas reconhecidas e recuperações afetam o resultado estimado, mas não movimentam o caixa.
       </div>
       {!reconciled && <div className="cash-report-note"><strong>Atenção:</strong> a Carteira 1 ainda não possui saldo inicial conciliado. Entradas, saídas e movimentações são exibidas, mas o saldo não é certificado.</div>}
@@ -187,7 +191,7 @@ export default async function CashReportPage({
       <table className="cash-report-table">
         <tbody>
           <tr><td>Capital em circulação atualmente</td><td className="num">{money(summary.capitalCirculation)}</td></tr>
-          <tr><td>Parcelas em atraso hoje ({displayDate(today)})</td><td className="num">{money(summary.overdue)}</td></tr>
+          <tr><td>Inadimplência total em aberto hoje ({displayDate(today)})</td><td className="num">{money(summary.overdue)}</td></tr>
         </tbody>
       </table>
 
