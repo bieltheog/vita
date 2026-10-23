@@ -41,7 +41,7 @@ export default async function CashReportPage({
 }) {
   const query = await searchParams;
   const today = brazilDateKey();
-  const selectedFrom = dateOrDefault(query.inicio, today.slice(0, 7) + "-01");
+  const selectedFrom = dateOrDefault(query.inicio, today);
   const selectedTo = dateOrDefault(query.fim, today);
   const swapped = selectedFrom > selectedTo;
   const from = swapped ? selectedTo : selectedFrom;
@@ -101,115 +101,101 @@ export default async function CashReportPage({
   const recovered = roundMoney(validEntries.filter(e => e.kind === "RECUPERACAO").reduce((sum, e) => sum + Number(e.amount), 0));
   const estimatedResult = roundMoney(estimatedInterest - fundingCosts - operationalCosts - lost + recovered);
 
+  const otherReceived = roundMoney(received - clientReceipts);
+  const otherSpent = roundMoney(spent - disbursed);
+
   return <div className="cash-report-shell">
     <div className="cash-report-toolbar cash-report-screen-only">
       <div>
-        <Link href="/carteiras" className="cash-inline-link"><ArrowLeft size={16} /> Voltar ao caixa</Link>
-        <h1 style={{marginTop:10,marginBottom:4}}>Gerar relatório</h1>
-        <p className="muted" style={{margin:0}}>Selecione o período, confira os valores e salve em PDF ou CSV.</p>
+        <Link href="/carteiras" className="cash-inline-link"><ArrowLeft size={16}/> Voltar ao caixa</Link>
+        <h1 style={{marginTop:10,marginBottom:4}}>Relatório diário</h1>
+        <p className="muted" style={{margin:0}}>Resumo simples do dinheiro, dos recebimentos e dos atrasos.</p>
       </div>
       <form className="cash-report-period" action="/carteiras/relatorio" method="get">
-        <div className="field"><label htmlFor="report-from">Data inicial</label>
-          <input className="input" type="date" id="report-from" name="inicio" defaultValue={from} required /></div>
-        <div className="field"><label htmlFor="report-to">Data final</label>
-          <input className="input" type="date" id="report-to" name="fim" defaultValue={to} required /></div>
-        <button type="submit" className="btn secondary"><FileText size={16} /> Atualizar</button>
+        <div className="field"><label htmlFor="report-from">De</label>
+          <input className="input" type="date" id="report-from" name="inicio" defaultValue={from} required/></div>
+        <div className="field"><label htmlFor="report-to">Até</label>
+          <input className="input" type="date" id="report-to" name="fim" defaultValue={to} required/></div>
+        <button type="submit" className="btn secondary"><FileText size={16}/> Consultar</button>
       </form>
-      <CashReportActions portfolioId={portfolioId} start={from} end={to} reconciled={balanceKnown} rows={periodMovements.map(row => ({
-        date: row.date, category: row.category, description: row.description,
-        direction: row.direction, amount: row.amount, balanceAfter: row.balanceAfter
-      }))} />
+      <CashReportActions portfolioId={portfolioId} start={from} end={to} reconciled={balanceKnown} rows={periodMovements.map(row=>({
+        date:row.date,category:row.category,description:row.description,
+        direction:row.direction,amount:row.amount,balanceAfter:row.balanceAfter
+      }))}/>
     </div>
     {swapped && <p className="cash-report-warning cash-report-screen-only">As datas foram colocadas em ordem cronológica.</p>}
 
     <article className="cash-report-paper">
       <header className="cash-report-header">
-        <div><h1>Relatório financeiro</h1>
-          <p className="cash-report-sub">Jureminha · Carteira {portfolioId}</p>
-          <p className="cash-report-sub">Período: {displayDate(from)} a {displayDate(to)}</p>
-          <p className="cash-report-sub">Gerado em: {brazilDateTime()}</p>
+        <div>
+          <h1>Resumo financeiro</h1>
+          <p className="cash-report-sub">Carteira {portfolioId} · {displayDate(from)}{from!==to?" a "+displayDate(to):""}</p>
+          <p className="cash-report-sub">Gerado em {brazilDateTime()}</p>
         </div>
         <span className="cash-report-mark">JUREMINHA</span>
       </header>
 
-      <div className="cash-report-kpis">
-        <Kpi label="Saldo inicial do período" value={balanceKnown ? money(openingBalance) : "Não conciliado"} />
-        <Kpi label="Entradas em caixa" value={money(received)} />
-        <Kpi label="Saídas de caixa" value={money(spent)} />
-        <Kpi label="Saldo ao final do período" value={balanceKnown ? money(closingBalance) : "Não conciliado"} />
-        <Kpi label="Capital recuperado no período (estimado)" value={money(principalReturned)} />
-        <Kpi label="Juros recebidos (estimativa)" value={money(estimatedInterest)} />
-        <Kpi label="Resultado operacional estimado" value={money(estimatedResult)} />
-        <Kpi label={`Inadimplência total hoje (${displayDate(today)})`} value={money(summary.overdue)} />
+      <section className="cash-simple-main">
+        <div className="cash-simple-balance">
+          <span>Dinheiro disponível no fim do período</span>
+          <strong>{balanceKnown?money(closingBalance):"Não conciliado"}</strong>
+        </div>
+        <h2>1. Quanto entrou e saiu?</h2>
+        <div className="cash-simple-line"><span>Saldo no início</span><strong>{balanceKnown?money(openingBalance):"Não conciliado"}</strong></div>
+        <div className="cash-simple-line positive"><span>+ Recebido de clientes</span><strong>{money(clientReceipts)}</strong></div>
+        {otherReceived!==0 && <div className="cash-simple-line"><span>+ Aportes, créditos e outras entradas</span><strong>{money(otherReceived)}</strong></div>}
+        <div className="cash-simple-line negative"><span>− Novos empréstimos liberados</span><strong>{money(disbursed)}</strong></div>
+        <div className="cash-simple-line negative"><span>− Gastos, dívidas e outras saídas</span><strong>{money(otherSpent)}</strong></div>
+        <div className="cash-simple-line final"><span>= Saldo calculado</span><strong>{balanceKnown?money(closingBalance):"Não conciliado"}</strong></div>
+      </section>
+
+      <section className="cash-simple-result">
+        <h2>2. O que voltou dos clientes?</h2>
+        <p className="cash-simple-explain">Os valores abaixo já estão dentro de “Recebido de clientes”. Não devem ser somados novamente ao saldo.</p>
+        <div className="cash-simple-cards">
+          <div className="cash-simple-card"><span>Capital recuperado</span><strong>{money(principalReturned)}</strong><small>Principal devolvido · estimado</small></div>
+          <div className="cash-simple-card"><span>Juros recebidos</span><strong>{money(estimatedInterest)}</strong><small>Receita bruta · estimada</small></div>
+        </div>
+      </section>
+
+      <section className="cash-simple-result">
+        <h2>3. Quanto está atrasado?</h2>
+        <div className="cash-simple-cards">
+          <div className="cash-simple-card cash-simple-alert"><span>Inadimplência total da carteira</span><strong>{money(summary.overdue)}</strong><small>Parcelas vencidas em aberto até {displayDate(today)}</small></div>
+          <div className="cash-simple-card"><span>Capital atualmente na rua</span><strong>{money(summary.capitalCirculation)}</strong><small>Posição atual · não é saldo do dia</small></div>
+        </div>
+      </section>
+
+      <div className="cash-simple-note">
+        <strong>Atenção:</strong> capital recuperado e juros podem ser estimados em contratos antigos. Inadimplência não é perda definitiva.
+        O saldo só fica conferido após comparar com o dinheiro no banco e em espécie.
+        {portfolioId===1&&!baseline?" A Carteira 1 ainda não possui saldo inicial conciliado.":""}
+        {fromBeforeOpening?" O período começa antes da abertura do caixa em "+displayDate(baseline!.start_date)+". Os movimentos anteriores não entram no cálculo.":""}
+        {periodIsBeforeOpening?" O período termina antes da abertura do caixa.":""}
       </div>
-
-      <div className="cash-report-note">
-        <strong>Critério:</strong> o extrato usa apenas dinheiro efetivamente lançado.
-        Devolução de principal não é lucro; empréstimos liberados não são despesas operacionais.
-        A estimativa de juros usa a divisão cadastrada por pagamento ou o rateio histórico do contrato.
-        Capital recuperado corresponde à parcela do principal já devolvida, separada dos juros.
-        A inadimplência total é o saldo de todas as parcelas vencidas e ainda não pagas da carteira na data de geração, inclusive atrasos anteriores ao período selecionado; não significa perda definitiva.
-        Perdas reconhecidas e recuperações afetam o resultado estimado, mas não movimentam o caixa.
-      </div>
-      {!reconciled && <div className="cash-report-note"><strong>Atenção:</strong> a Carteira 1 ainda não possui saldo inicial conciliado. Entradas, saídas e movimentações são exibidas, mas o saldo não é certificado.</div>}
-      {fromBeforeOpening && <div className="cash-report-note"><strong>Corte financeiro:</strong> o caixa desta carteira só considera movimentações desde {displayDate(baseline!.start_date)}. Registros anteriores à abertura não estão incluídos nos totais deste relatório.</div>}
-      {periodIsBeforeOpening && <div className="cash-report-note">O período selecionado termina antes da abertura do controle de caixa. Não há saldo conciliável para essa janela.</div>}
-      {portfolioId === 2 && !baseline && <div className="cash-report-note">A Carteira 2 parte de saldo zero. O saldo calculado depende de todos os aportes, financiamentos e despesas reais terem sido cadastrados.</div>}
-
-      <div className="cash-report-twocol">
-        <DetailTable title="Entradas do período" rows={[
-          ["Pagamentos de clientes", clientReceipts],
-          ["Aporte de capital", capitalIn],
-          ["Créditos/financiamentos recebidos", creditIn],
-          ["Outras entradas", otherIn],
-          ["TOTAL DE ENTRADAS", received]
-        ]} />
-        <DetailTable title="Saídas do período" rows={[
-          ["Empréstimos e adicionais liberados", disbursed],
-          ["Pagamento do principal de dívidas", debtPrincipalOut],
-          ["Juros de financiamentos", fundingCosts],
-          ["Despesas operacionais", operationalCosts],
-          ["Retiradas dos sócios", withdrawals],
-          ["Outras saídas", otherOut],
-          ["TOTAL DE SAÍDAS", spent]
-        ]} />
-      </div>
-
-      <h2>Detalhamento dos recebimentos e resultado</h2>
-      <table className="cash-report-table">
-        <tbody>
-          <tr><td>Total recebido de clientes no período</td><td className="num">{money(clientReceipts)}</td></tr>
-          <tr><td>Principal recuperado (estimado)</td><td className="num">{money(principalReturned)}</td></tr>
-          <tr><td>Juros recebidos (estimados)</td><td className="num">{money(estimatedInterest)}</td></tr>
-          <tr><td>Perdas de capital reconhecidas, sem efeito no caixa</td><td className="num">{money(lost)}</td></tr>
-          <tr><td>Recuperação de perdas, sem efeito no caixa</td><td className="num">{money(recovered)}</td></tr>
-          <tr><td><strong>Resultado operacional estimado</strong></td><td className="num"><strong>{money(estimatedResult)}</strong></td></tr>
-        </tbody>
-      </table>
-
-      <h2>Posição atual da carteira (não representa a data histórica do período)</h2>
-      <table className="cash-report-table">
-        <tbody>
-          <tr><td>Capital em circulação atualmente</td><td className="num">{money(summary.capitalCirculation)}</td></tr>
-          <tr><td>Inadimplência total em aberto hoje ({displayDate(today)})</td><td className="num">{money(summary.overdue)}</td></tr>
-        </tbody>
-      </table>
-
-      <h2>Extrato detalhado ({periodMovements.length} movimentações)</h2>
-      {periodMovements.length === 0
-        ? <p className="cash-report-empty">Nenhuma movimentação de caixa registrada neste período.</p>
-        : <table className="cash-report-table">
-          <thead><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Entrada</th><th>Saída</th><th>Saldo após</th></tr></thead>
-          <tbody>{periodMovements.map(row => <tr key={row.id}>
-            <td>{displayDate(row.date)}</td>
-            <td>{row.category}</td>
-            <td>{row.description}</td>
-            <td className="num">{row.direction === "ENTRADA" ? money(row.amount) : ""}</td>
-            <td className="num">{row.direction === "SAIDA" ? money(row.amount) : ""}</td>
-            <td className="num">{balanceKnown ? money(row.balanceAfter) : "Não conciliado"}</td>
-          </tr>)}</tbody>
-        </table>}
-      <footer className="cash-report-footer">Relatório interno de gestão · Valores sujeitos à conferência com extrato bancário e dinheiro em espécie · Carteira {portfolioId}</footer>
+      <footer className="cash-report-footer">
+        Relatório interno · Os valores se referem à Carteira {portfolioId}.
+        Para conferir cada movimentação, utilize o CSV do extrato.
+      </footer>
     </article>
+
+    <details className="cash-report-extract cash-report-screen-only">
+      <summary>Ver movimentações do período ({periodMovements.length})</summary>
+      <div className="cash-report-paper">
+        <h2>Extrato detalhado</h2>
+        <p className="cash-report-sub">As entradas e saídas abaixo já fazem parte do resumo financeiro.</p>
+        {periodMovements.length===0
+          ?<p className="cash-report-empty">Nenhuma movimentação registrada no período.</p>
+          :<div style={{overflowX:"auto"}}><table className="cash-report-table">
+            <thead><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Entrada</th><th>Saída</th><th>Saldo após</th></tr></thead>
+            <tbody>{periodMovements.map(row=><tr key={row.id}>
+              <td>{displayDate(row.date)}</td><td>{row.category}</td><td>{row.description}</td>
+              <td className="num">{row.direction==="ENTRADA"?money(row.amount):"·"}</td>
+              <td className="num">{row.direction==="SAIDA"?money(row.amount):"·"}</td>
+              <td className="num">{balanceKnown?money(row.balanceAfter):"Não conciliado"}</td>
+            </tr>)}</tbody>
+          </table></div>}
+      </div>
+    </details>
   </div>;
 }
