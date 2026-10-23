@@ -77,7 +77,7 @@ export default async function CashReportPage({
   const openingBalance = roundMoney(ledger.openingBalance +
     ledger.movements.filter(row => row.date < from).reduce((total, row) => total + row.delta, 0));
   const closingBalance = roundMoney(openingBalance + received - spent);
-  const balanceKnown = reconciled && !periodIsBeforeOpening;
+  const balanceKnown = reconciled && !fromBeforeOpening && !periodIsBeforeOpening;
 
   const clientReceipts = sumRows(row => row.source === "payment");
   const disbursed = sumRows(row => row.source === "loan" || row.source === "topup");
