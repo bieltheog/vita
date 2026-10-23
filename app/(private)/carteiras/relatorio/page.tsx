@@ -18,22 +18,6 @@ function dateOrDefault(value: string | string[] | undefined, fallback: string) {
 
 const displayDate = (value: string) => value.split("-").reverse().join("/");
 
-function Kpi({ label, value }: { label: string; value: string }) {
-  return <div className="cash-report-kpi"><span>{label}</span><strong>{value}</strong></div>;
-}
-
-function DetailTable({ title, rows }: { title: string; rows: [string, number][] }) {
-  return <section>
-    <h2>{title}</h2>
-    <table className="cash-report-table">
-      <thead><tr><th>Descrição</th><th>Valor</th></tr></thead>
-      <tbody>{rows.map(([name, value]) =>
-        <tr key={name}><td>{name}</td><td className="num">{money(value)}</td></tr>
-      )}</tbody>
-    </table>
-  </section>;
-}
-
 export default async function CashReportPage({
   searchParams
 }: {
@@ -81,26 +65,12 @@ export default async function CashReportPage({
 
   const clientReceipts = sumRows(row => row.source === "payment");
   const disbursed = sumRows(row => row.source === "loan" || row.source === "topup");
-  const capitalIn = sumRows(row => row.category === "Aporte dos sócios");
-  const creditIn = sumRows(row => row.category === "Empréstimo recebido");
-  const otherIn = roundMoney(received - clientReceipts - capitalIn - creditIn);
-  const debtPrincipalOut = sumRows(row => row.category === "Pagamento de dívida (principal)");
-  const fundingCosts = sumRows(row => row.category === "Juros de dívida/financiamento");
-  const operationalCosts = sumRows(row => row.category === "Despesa");
-  const withdrawals = sumRows(row => row.category === "Retirada dos sócios");
-  const otherOut = roundMoney(spent - disbursed - debtPrincipalOut - fundingCosts - operationalCosts - withdrawals);
-
   const effectiveFrom = baseline && from < baseline.start_date ? baseline.start_date : from;
   const periodPayments = payments.filter(p => p.payment_date >= effectiveFrom && p.payment_date <= to);
   const loanMap = new Map(loans.map(l => [l.id, l]));
   const estimatedInterest = roundMoney(periodPayments.reduce((total, payment) =>
     total + realizedProfitForPayment(payment, loanMap.get(payment.loan_id)), 0));
   const principalReturned = roundMoney(clientReceipts - estimatedInterest);
-  const validEntries = entries.filter(e => !e.voided_at && e.entry_date >= effectiveFrom && e.entry_date <= to);
-  const lost = roundMoney(validEntries.filter(e => e.kind === "PERDA").reduce((sum, e) => sum + Number(e.amount), 0));
-  const recovered = roundMoney(validEntries.filter(e => e.kind === "RECUPERACAO").reduce((sum, e) => sum + Number(e.amount), 0));
-  const estimatedResult = roundMoney(estimatedInterest - fundingCosts - operationalCosts - lost + recovered);
-
   const otherReceived = roundMoney(received - clientReceipts);
   const otherSpent = roundMoney(spent - disbursed);
 
