@@ -44,6 +44,7 @@
   .cash-report-kpis { grid-template-columns:repeat(3,minmax(0,1fr))!important; }
   .cash-report-twocol { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
   .cash-report-kpi,.cash-report-note { break-inside:avoid; }
+  .cash-report-paper .table-wrap { overflow:visible!important; }
   .cash-report-table thead { display:table-header-group; }
   .cash-report-table tr { break-inside:avoid; }
   .cash-report-table { font-size:9px; }
