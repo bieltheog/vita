@@ -21,7 +21,7 @@ export async function CashOverview(){
     baseline:baseRes.data as CashBaseline|null
   });
   return <Link href="/carteiras" className="card" style={{textDecoration:"none",color:"inherit"}}>
-    <div className="muted">Dinheiro disponível · Carteira {portfolioId}</div>
+    <div className="stat-label"><span>Dinheiro disponível · Carteira {portfolioId}</span></div>
     <div className="stat-value" style={{color:cash.balance<0?"var(--red)":"var(--green)"}}>
       {portfolioId===1&&!cash.reconciled?"Não conciliado":money(cash.balance)}
     </div>
