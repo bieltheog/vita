@@ -48,7 +48,7 @@ export async function MonthlyFinanceReport(){
       .filter(x=>x.date.slice(0,7)<=month).reduce((sum,x)=>sum+x.delta,0);
     return {month,disbursed,received,interest,overdue,costs,loss,result:interest-costs-loss,cashFlow:flow,balanceAtEnd};
   });
-  return <div className="card" style={{marginTop:16}}>
+  return <div className="card section-gap">
     <div className="section-title"><div><h2>Fechamento mensal · Carteira {portfolioId}</h2>
       <div className="muted">Inadimplência, perdas reconhecidas, resultado e fluxo de caixa, separados por carteira.</div></div></div>
     <div className="table-wrap"><table><thead><tr>
@@ -59,7 +59,7 @@ export async function MonthlyFinanceReport(){
       <td>{money(row.interest)}</td><td>{money(row.overdue)}</td><td>{money(row.costs)}</td>
       <td>{money(row.loss)}</td><td>{money(row.result)}</td><td>{money(row.cashFlow)}</td><td>{portfolioId===1&&!baseline?"Não conciliado":money(row.balanceAtEnd)}</td>
     </tr>)}</tbody></table></div>
-    <div className="alert" style={{marginTop:14}}>
+    <div className="alert form-gap">
       {portfolioId===1&&!baseline
         ?"Na Carteira 1, ainda falta cadastrar o caixa inicial para conciliar. Histórico antigo preservado."
         :baseline

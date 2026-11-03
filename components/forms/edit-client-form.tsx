@@ -28,8 +28,8 @@ export function EditClientForm({ client }: { client: Client }) {
   return <>
     <button className="btn secondary" onClick={() => setOpen(true)}><Pencil size={16}/> Editar cliente</button>
     {open && <div className="modal-backdrop"><div className="modal">
-      <div className="section-title"><div><h2>Editar cliente</h2><div className="muted" style={{fontSize:12}}>Atualize apenas os dados cadastrais. O histórico financeiro será preservado.</div></div><button className="icon-btn" onClick={() => setOpen(false)}><X size={17}/></button></div>
-      <form action={submit} className="form-grid" style={{marginTop:14}}>
+      <div className="section-title"><div><h2>Editar cliente</h2><div className="muted text-sm">Atualize apenas os dados cadastrais. O histórico financeiro será preservado.</div></div><button className="icon-btn" onClick={() => setOpen(false)}><X size={17}/></button></div>
+      <form action={submit} className="form-grid form-gap">
         <input type="hidden" name="client_id" value={client.id}/>
         <div className="field full"><label>Nome completo *</label><input className="input" name="name" required defaultValue={client.name}/></div>
         <div className="field"><label>CPF</label><input className="input" name="cpf" defaultValue={client.cpf || ""}/></div>
@@ -44,7 +44,7 @@ export function EditClientForm({ client }: { client: Client }) {
         <div className="field"><label>CEP</label><input className="input" name="zipcode" defaultValue={client.zipcode || ""}/></div>
         <div className="field"><label>Observações</label><input className="input" name="notes" defaultValue={client.notes || ""}/></div>
         {error && <div className="field full"><div className="alert">{error}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={() => setOpen(false)}>Cancelar</button><button className="btn" disabled={pending}>{pending ? "Salvando..." : "Salvar alterações"}</button></div>
+        <div className="field full form-actions"><button type="button" className="btn secondary" onClick={() => setOpen(false)}>Cancelar</button><button className="btn" disabled={pending}>{pending ? "Salvando..." : "Salvar alterações"}</button></div>
       </form>
     </div></div>}
   </>;

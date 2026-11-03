@@ -57,7 +57,7 @@ export function DeleteLoanButton({
 
     {open&&<div className="modal-backdrop"><div className="modal" style={{maxWidth:520}}>
       <div className="section-title">
-        <div><div className="eyebrow" style={{color:"#ff7a84"}}>Zona de risco</div><h2>Excluir {loanCode}?</h2><div className="muted" style={{fontSize:12}}>{clientName||"Cliente"}{principal!=null?` · ${money(Number(principal))} emprestados`:""}</div></div>
+        <div><div className="eyebrow" style={{color:"#ff7a84"}}>Zona de risco</div><h2>Excluir {loanCode}?</h2><div className="muted text-sm">{clientName||"Cliente"}{principal!=null?` · ${money(Number(principal))} emprestados`:""}</div></div>
         <button type="button" className="icon-btn" onClick={close}><X size={17}/></button>
       </div>
 

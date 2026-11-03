@@ -18,7 +18,7 @@ export function DailyOffDays({ selected, onChange }: { selected: number[]; onCha
   return <div className="field full">
     <label>Dias sem cobrança da diária</label>
     <div className="muted" style={{fontSize:12,marginBottom:8}}>Marque os dias da semana em que o cliente não precisa pagar. Essas datas serão puladas no calendário.</div>
-    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+    <div className="page-actions">
       {WEEK_DAYS.map(day=><label key={day.value} className={`btn ${selected.includes(day.value)?"":"secondary"}`} style={{padding:"8px 11px",cursor:"pointer"}}>
         <input type="checkbox" name="daily_off_days" value={day.value} checked={selected.includes(day.value)} onChange={()=>toggle(day.value)} style={{marginRight:6}}/>
         {day.label}

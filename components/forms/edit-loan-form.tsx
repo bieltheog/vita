@@ -190,7 +190,7 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
     <button className="icon-btn" title="Editar empréstimo" onClick={()=>setOpen(true)}><Pencil size={15}/></button>
     {open&&<div className="modal-backdrop"><div className="modal">
       <div className="section-title">
-        <div><h2>Editar empréstimo</h2><div className="muted" style={{fontSize:12}}>{loan.loan_code} · {loan.client?.name||"Cliente"}</div></div>
+        <div><h2>Editar empréstimo</h2><div className="muted text-sm">{loan.loan_code} · {loan.client?.name||"Cliente"}</div></div>
         <button className="icon-btn" onClick={()=>setOpen(false)}><X size={17}/></button>
       </div>
 
@@ -205,13 +205,13 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
         O empréstimo já tem pagamentos. Para preservar o histórico, o valor original não pode ser reduzido por esta tela.
       </div>}
 
-      <form action={submit} className="form-grid" style={{marginTop:14}}>
+      <form action={submit} className="form-grid form-gap">
         <input type="hidden" name="loan_id" value={loan.id}/>
 
         <div className="field">
           <label>{hasPayments?"Novo total emprestado *":"Valor emprestado *"}</label>
           <input className="input" name="principal_amount" type="number" min={hasPayments?originalPrincipal:0.01} step="0.01" value={principalInput} onChange={e=>changePrincipal(e.target.value)} required/>
-          {hasPayments&&<div className="muted" style={{fontSize:11}}>Original: {money(originalPrincipal)}{topupMode?` · adicional: ${money(topupPrincipal)}`:""}</div>}
+          {hasPayments&&<div className="muted text-xs">Original: {money(originalPrincipal)}{topupMode?` · adicional: ${money(topupPrincipal)}`:""}</div>}
         </div>
 
         <div className="field">
@@ -237,11 +237,11 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
 
         {single? <>
           <input type="hidden" name="installment_count" value={hasPayments?Math.max(1,lockedMax+1):1}/>
-          {hasPayments&&<div className="field"><label>Parcelas futuras</label><div className="muted" style={{fontSize:12}}>Pagamento único: o saldo futuro será reunido em 1 cobrança. {lockedMax} parcela(s) ficam preservadas no histórico.</div></div>}
+          {hasPayments&&<div className="field"><label>Parcelas futuras</label><div className="muted text-sm">Pagamento único: o saldo futuro será reunido em 1 cobrança. {lockedMax} parcela(s) ficam preservadas no histórico.</div></div>}
         </> : <div className="field">
           <label>{hasPayments?"Número total de parcelas após correção":"Número de parcelas"}</label>
           <input className="input" name="installment_count" type="number" min={hasPayments?lockedMax+1:1} value={countInput} onChange={e=>changeCount(e.target.value)} required/>
-          {hasPayments&&<div className="muted" style={{fontSize:11}}>{lockedMax} parcela(s) ficam no histórico · {futureCount} parcela(s) futuras serão criadas</div>}
+          {hasPayments&&<div className="muted text-xs">{lockedMax} parcela(s) ficam no histórico · {futureCount} parcela(s) futuras serão criadas</div>}
         </div>}
 
         {daily&&<DailyOffDays selected={dailyOffDays} onChange={setDailyOffDays}/>} 
@@ -260,23 +260,23 @@ export function EditLoanForm({ loan, installments=[] }: { loan: Loan; installmen
         {daily&&<div className="field full"><div className="alert">Os dias marcados são pulados na sequência diária. As parcelas futuras avançam para os próximos dias permitidos.</div></div>}
         {fixed&&<div className="field full"><div className="alert">Cada parcela futura pode ter uma data e um valor diferentes. A soma precisa fechar exatamente o saldo ainda pendente.</div></div>}
 
-        <div className="field full"><div className="card" style={{background:"#090c11"}}>
+        <div className="field full"><div className="card card-inset">
           {topupMode?<>
-            <div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Saldo antes do adicional</div><strong>{money(currentRemaining)}</strong></div><div><div className="muted" style={{fontSize:11}}>Novo principal entregue</div><strong>{money(topupPrincipal)}</strong></div><div><div className="muted" style={{fontSize:11}}>Lucro do adicional</div><strong>{money(additionCalc.expectedProfit)}</strong></div></div>
+            <div className="grid-equal"><div><div className="muted text-xs">Saldo antes do adicional</div><strong>{money(currentRemaining)}</strong></div><div><div className="muted text-xs">Novo principal entregue</div><strong>{money(topupPrincipal)}</strong></div><div><div className="muted text-xs">Lucro do adicional</div><strong>{money(additionCalc.expectedProfit)}</strong></div></div>
             <div className="divider"/>
-            <div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Total contratado após adicional</div><strong>{money(newContractedTotal)}</strong></div><div><div className="muted" style={{fontSize:11}}>Saldo futuro após pagamentos já feitos</div><strong style={{color:"var(--green)"}}>{money(newRemaining)}</strong></div></div>
-            <div className="divider"/><div className="muted" style={{fontSize:12}}>{futureCount} parcela(s) futura(s) de aproximadamente <strong style={{color:"white"}}>{money(values[0]||0)}</strong></div>
+            <div className="grid-equal"><div><div className="muted text-xs">Total contratado após adicional</div><strong>{money(newContractedTotal)}</strong></div><div><div className="muted text-xs">Saldo futuro após pagamentos já feitos</div><strong style={{color:"var(--green)"}}>{money(newRemaining)}</strong></div></div>
+            <div className="divider"/><div className="muted text-sm">{futureCount} parcela(s) futura(s) de aproximadamente <strong style={{color:"white"}}>{money(values[0]||0)}</strong></div>
           </>:paidScheduleMode?<>
-            <div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Total contratado</div><strong>{money(loan.total_receivable)}</strong></div><div><div className="muted" style={{fontSize:11}}>Saldo ainda pendente</div><strong style={{color:"var(--green)"}}>{money(currentRemaining)}</strong></div></div>
-            <div className="divider"/><div className="muted" style={{fontSize:12}}>{futureCount} parcela(s) futura(s) de aproximadamente <strong style={{color:"white"}}>{money(values[0]||0)}</strong>. Pagamentos anteriores não serão alterados.</div>
+            <div className="grid-equal"><div><div className="muted text-xs">Total contratado</div><strong>{money(loan.total_receivable)}</strong></div><div><div className="muted text-xs">Saldo ainda pendente</div><strong style={{color:"var(--green)"}}>{money(currentRemaining)}</strong></div></div>
+            <div className="divider"/><div className="muted text-sm">{futureCount} parcela(s) futura(s) de aproximadamente <strong style={{color:"white"}}>{money(values[0]||0)}</strong>. Pagamentos anteriores não serão alterados.</div>
           </>:<>
-            <div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(normalCalc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(normalCalc.totalReceivable)}</strong></div></div>
-            <div className="divider"/><div className="muted" style={{fontSize:12}}>{fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(values[0]||0)}</strong></>}</div>
+            <div className="grid-equal"><div><div className="muted text-xs">Lucro esperado</div><strong>{money(normalCalc.expectedProfit)}</strong></div><div><div className="muted text-xs">Total a receber</div><strong>{money(normalCalc.totalReceivable)}</strong></div></div>
+            <div className="divider"/><div className="muted text-sm">{fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(values[0]||0)}</strong></>}</div>
           </>}
         </div></div>
 
         {error&&<div className="field full"><div className="alert" style={{borderColor:"rgba(255,98,109,.35)",color:"#ff9aa2"}}>{error}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end",flexWrap:"wrap"}}>
+        <div className="field full form-actions">
           <button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button>
           <button className="btn" disabled={pending||reducingPrincipal||!principalInput.trim()||(!paidScheduleMode&&!returnInput.trim())||(!single&&!countInput.trim())}>{topupMode&&<CirclePlus size={16}/>} {pending?"Salvando...":topupMode?`Adicionar ${money(topupPrincipal)} e salvar`:scheduleChanged?"Corrigir calendário":"Salvar alterações"}</button>
         </div>

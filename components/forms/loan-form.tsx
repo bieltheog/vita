@@ -12,8 +12,8 @@ function resizeFixedRows(rows: ManualFixedRow[], count: number, total: number) {
   return Array.from({length:count},(_,index)=>rows[index]||{date:"",amount:(values[index]||0).toFixed(2)});
 }
 
-export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel="Novo Empréstimo" }: { clients: Client[]; demo?: boolean; initialClientId?: string; buttonLabel?: string }) {
-  const [open,setOpen]=useState(false);
+export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel="Novo Empréstimo", defaultOpen=false }: { clients: Client[]; demo?: boolean; initialClientId?: string; buttonLabel?: string; defaultOpen?: boolean }) {
+  const [open,setOpen]=useState(defaultOpen);
   const [pending,start]=useTransition();
   const [error,setError]=useState("");
   const [principalInput,setPrincipalInput]=useState("1000");
@@ -70,9 +70,9 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
   return <>
     <button className="btn" onClick={()=>setOpen(true)}><Plus size={16}/>{buttonLabel}</button>
     {open&&<div className="modal-backdrop"><div className="modal">
-      <div className="section-title"><div><h2>Novo empréstimo</h2><div className="muted" style={{fontSize:12}}>Cálculo e parcelas são gerados automaticamente.</div></div><button className="icon-btn" onClick={()=>setOpen(false)}><X size={17}/></button></div>
+      <div className="section-title"><div><h2>Novo empréstimo</h2><div className="muted text-sm">Cálculo e parcelas são gerados automaticamente.</div></div><button className="icon-btn" onClick={()=>setOpen(false)}><X size={17}/></button></div>
       {demo&&<div className="alert">Modo demonstração: conecte o Supabase para gravar empréstimos.</div>}
-      <form action={submit} className="form-grid" style={{marginTop:14}}>
+      <form action={submit} className="form-grid form-gap">
         <div className="field full"><label>Cliente *</label><select className="select" name="client_id" required defaultValue={initialClientId}><option value="">Selecione</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <div className="field"><label>Valor emprestado *</label><input className="input" name="principal_amount" type="number" min="0.01" step="0.01" value={principalInput} onChange={e=>setPrincipalInput(e.target.value)} required/></div>
         <div className="field"><label>Tipo de cálculo</label><select className="select" name="calculation_type" value={type} onChange={e=>setType(e.target.value as "percentage"|"fixed")}><option value="percentage">Porcentagem de retorno</option><option value="fixed">Valor fixo de retorno</option></select></div>
@@ -87,9 +87,9 @@ export function LoanForm({ clients, demo=false, initialClientId="", buttonLabel=
         {!fixed&&<div className="field"><label>Primeiro pagamento *</label><input className="input" name="first_due_date" type="date" required/></div>}
         {daily&&<div className="field full"><div className="alert">No modo diário, os dias marcados acima são pulados. Ex.: se domingo estiver marcado, nenhuma parcela diária vence no domingo.</div></div>}
         {fixed&&<div className="field full"><div className="alert">Em Datas fixas, cada parcela tem sua própria data e seu próprio valor. A soma dos valores precisa ser igual ao total a receber.</div></div>}
-        <div className="field full"><div className="card" style={{background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Lucro esperado</div><strong>{money(calc.expectedProfit)}</strong></div><div><div className="muted" style={{fontSize:11}}>Total a receber</div><strong>{money(calc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted" style={{fontSize:12}}>{single?<>Pagamento único de <strong style={{color:"white"}}>{money(calc.totalReceivable)}</strong></>:fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(installments[0]||0)}</strong></>}</div></div></div>
+        <div className="field full"><div className="card card-inset"><div className="grid-equal"><div><div className="muted text-xs">Lucro esperado</div><strong>{money(calc.expectedProfit)}</strong></div><div><div className="muted text-xs">Total a receber</div><strong>{money(calc.totalReceivable)}</strong></div></div><div className="divider"/><div className="muted text-sm">{single?<>Pagamento único de <strong style={{color:"white"}}>{money(calc.totalReceivable)}</strong></>:fixed?`${count} parcelas com datas e valores definidos por você`:<>{count}x de aproximadamente <strong style={{color:"white"}}>{money(installments[0]||0)}</strong></>}</div></div></div>
         {error&&<div className="field full"><div className="alert">{error}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||demo||!principalInput.trim()||!returnInput.trim()||(!single&&!countInput.trim())}>{pending?"Criando...":"Criar empréstimo"}</button></div>
+        <div className="field full form-actions"><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||demo||!principalInput.trim()||!returnInput.trim()||(!single&&!countInput.trim())}>{pending?"Criando...":"Criar empréstimo"}</button></div>
       </form>
     </div></div>}
   </>;

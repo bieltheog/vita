@@ -3,7 +3,7 @@ import { getActivePortfolio } from "@/lib/portfolio";
 import { getLoans,getPayments,getInstallments,getLoanTopups,getDashboardSummary } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { money,realizedProfitForPayment } from "@/lib/finance";
-import { brazilDateKey } from "@/lib/date";
+import { brazilDateKey, formatDateBR } from "@/lib/date";
 import { registerPortfolioEntryAction,voidPortfolioEntryAction,registerOpeningBalanceAction } from "@/app/portfolio-entry-actions";
 import { buildCashLedger } from "@/lib/cash-ledger";
 import type { CashBaseline,PortfolioCashEntry } from "@/lib/cash-ledger";
@@ -89,7 +89,7 @@ export default async function WalletsPage(){
       <div className="card"><div className="muted">Atrasado (ainda não é prejuízo)</div><div className="stat-value">{money(overdue)}</div></div>
       <div className="card"><div className="muted">Perda reconhecida, líquida</div><div className="stat-value">{money(writeoffs-recoveries)}</div></div>
     </div>
-    <div className="card" style={{marginTop:16}}>
+    <div className="card section-gap">
       <div className="section-title"><div><h2>Caixa real · Carteira {portfolioId}</h2><div className="muted">O empréstimo que você cadastra sai automaticamente do caixa. Ao registrar o pagamento, o valor recebido entra automaticamente.</div></div></div>
       <div className="stats" style={{marginTop:12}}>
         <div className="card"><div className="muted">Saldo de abertura</div><div className="stat-value">{money(ledger.openingBalance)}</div></div>
@@ -98,7 +98,7 @@ export default async function WalletsPage(){
         <div className="card"><div className="muted">Disponível agora</div><div className="stat-value" style={{color:ledger.balance<0?"var(--red)":"var(--green)"}}>{portfolioId===1&&!baseline?"Não conciliado":money(ledger.balance)}</div></div>
       </div>
       {baseline
-        ? <div className="alert" style={{marginTop:12}}>Abertura registrada em {baseline.start_date}, com saldo de {money(baseline.opening_balance)} no início desse dia. Movimentos anteriores continuam no histórico, mas não entram no saldo atual.</div>
+        ? <div className="alert list-top">Abertura registrada em {formatDateBR(baseline.start_date)}, com saldo de {money(baseline.opening_balance)} no início desse dia. Movimentos anteriores continuam no histórico, mas não entram no saldo atual.</div>
         : <div className="grid-equal" style={{marginTop:12}}>
             <div><h2>Definir caixa inicial</h2><p className="muted">Digite o dinheiro que havia disponível no <strong>início da data escolhida</strong>. Por exemplo, R$ 115.000,00, se já for o saldo após a quitação de dívidas antigas.</p>
               <form action={registerOpeningBalanceAction} className="form-grid">
@@ -111,7 +111,7 @@ export default async function WalletsPage(){
             <div className="alert">Escolha <strong>uma forma de começar</strong>: cadastrar um saldo inicial líquido ou lançar separadamente capital próprio, empréstimo bancário e pagamentos de dívidas. Não faça as duas coisas para os mesmos valores. Se você já iniciou as movimentações, use como abertura o saldo no começo do dia indicado.</div>
           </div>}
     </div>
-    <div className="grid-equal" style={{marginTop:16}}>
+    <div className="grid-equal section-gap">
       <div className="card"><h2>Lançar movimento</h2><p className="muted">Registre pagamentos das dívidas e gastos aqui. Para parcelas de financiamento, separe principal em “Pagamento de dívida” e juros em “Juros de financiamento”. Não lance manualmente recebimentos dos clientes: eles já entram quando você registra o pagamento.</p>
         <form action={registerPortfolioEntryAction} className="form-grid">
           <div className="field"><label>Tipo</label><select className="select" name="kind" required>
@@ -131,11 +131,11 @@ export default async function WalletsPage(){
         <div className="alert" style={{marginTop:16}}>Lucro estimado registrado: {money(realizedProfit)}. Despesas registradas: {money(expenses)}. Retiradas: {money(withdrawals)}. Nunca confundir previsão de juros com recebimento.</div>
       </div>
     </div>
-    <div className="grid-equal" style={{marginTop:16}}>
+    <div className="grid-equal section-gap">
       <div className="card"><h2>Clientes inadimplentes</h2>
         <p className="muted">Atrasos atuais, ainda recuperáveis. Valores contratuais incluem juros, não apenas principal.</p>
         <div className="list">{delinquent.slice().sort((a,b)=>Number(b.remaining_amount)-Number(a.remaining_amount)).slice(0,25).map(i=><div className="list-row" key={i.id}>
-          <div><strong>{i.client?.name||"Cliente"}</strong><div className="person-meta">{i.loan?.loan_code} · vencimento {i.due_date}</div></div><strong>{money(i.remaining_amount)}</strong>
+          <div><strong>{i.client?.name||"Cliente"}</strong><div className="person-meta">{i.loan?.loan_code} · vencimento {formatDateBR(i.due_date)}</div></div><strong>{money(i.remaining_amount)}</strong>
         </div>)}</div>
         {!delinquent.length&&<div className="empty">Nenhuma parcela em atraso nesta carteira.</div>}
       </div>
@@ -147,14 +147,14 @@ export default async function WalletsPage(){
         {!lossByLoan.size&&<div className="empty">Nenhuma baixa de prejuízo registrada.</div>}
       </div>
     </div>
-    <div className="card" style={{marginTop:16}}><h2>Resultado mensal por carteira</h2>
+    <div className="card section-gap"><h2>Resultado mensal por carteira</h2>
       <p className="muted">Juros recebidos estimados por rateio dos contratos. No pagamento somente de juros, o valor inteiro é juro. Aportes e retiradas não compõem o lucro.</p>
       <div className="table-wrap"><table><thead><tr><th>Mês</th><th>Recebimentos</th><th>Juros realizados (estim.)</th><th>Despesas</th><th>Custo do financiamento</th><th>Perdas</th><th>Recuperações</th><th>Resultado</th></tr></thead><tbody>{monthStats.map(x=><tr key={x.month}>
         <td>{x.month}</td><td>{money(x.received)}</td><td>{money(x.interest)}</td>
         <td>{money(x.costs)}</td><td>{money(x.financing)}</td><td>{money(x.loss)}</td><td>{money(x.recovery)}</td><td><strong>{money(x.net)}</strong></td>
       </tr>)}</tbody></table></div>
     </div>
-    <div className="card" style={{marginTop:16}}>
+    <div className="card section-gap">
       <h2>Extrato do caixa: saldo após cada movimento</h2>
       <p className="muted">Mostra a origem de cada entrada e o destino de cada saída, com valores em centavos e saldo atualizado. Empréstimos e recebimentos são automáticos; gastos e dívidas são lançados acima. {baseline?"Data de início do controle: "+baseline.start_date:"Antes do saldo de abertura, o histórico da Carteira 1 não é conciliado."}</p>
       <div className="table-wrap"><table><thead><tr><th>Data</th><th>Movimentação</th><th>Descrição</th><th>Entrada</th><th>Saída</th><th>Saldo após</th><th>Ação</th></tr></thead>
@@ -167,7 +167,7 @@ export default async function WalletsPage(){
         </tr>)}</tbody>
       </table></div>
       {!rows.length&&<div className="empty">Nenhuma entrada ou saída registrada após a abertura.</div>}
-      {entries.some(e=>e.voided_at)&&<div className="alert" style={{marginTop:12}}>{entries.filter(e=>e.voided_at).length} lançamento(s) manual(is) estornado(s), preservado(s) no banco, não somados ao saldo.</div>}
+      {entries.some(e=>e.voided_at)&&<div className="alert list-top">{entries.filter(e=>e.voided_at).length} lançamento(s) manual(is) estornado(s), preservado(s) no banco, não somados ao saldo.</div>}
     </div>
   </>;
 }

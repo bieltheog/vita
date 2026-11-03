@@ -6,7 +6,7 @@ import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMont
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, CreditCard, Undo2, X } from "lucide-react";
 import { effectiveInstallmentStatus, money } from "@/lib/finance";
-import { brazilDateKey } from "@/lib/date";
+import { brazilDateKey, formatDateBR } from "@/lib/date";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { registerPaymentSafeAction, markInstallmentUnpaidSafeAction } from "@/app/operations-actions";
 import { registerInterestOnlyAction, voidInterestOnlyAction } from "@/app/interest-only-actions";
@@ -123,7 +123,7 @@ export function CalendarBoard({ installments, interestPayments=[] }: { installme
   }
 
   function chargeMessage(i:Installment){
-    return `Olá, ${i.client?.name||""}! Sua parcela de ${money(i.remaining_amount)} do empréstimo ${i.loan?.loan_code||""} vence em ${i.due_date}. Se já pagou, desconsidere.`;
+    return `Olá, ${i.client?.name||""}! Sua parcela de ${money(i.remaining_amount)} do empréstimo ${i.loan?.loan_code||""} vence em ${formatDateBR(i.due_date)}. Se já pagou, desconsidere.`;
   }
 
   return <>
@@ -146,13 +146,13 @@ export function CalendarBoard({ installments, interestPayments=[] }: { installme
 
     {priorOverdue.length>0&&<div className="card attention-card" style={{marginBottom:16}}>
       <div className="section-title">
-        <div><h2>Pendências de meses anteriores</h2><div className="muted" style={{fontSize:12}}>Parcelas que continuam com saldo em aberto.</div></div>
+        <div><h2>Pendências de meses anteriores</h2><div className="muted text-sm">Parcelas que continuam com saldo em aberto.</div></div>
         <span className="badge red">{priorOverdue.length}</span>
       </div>
       <div className="list">
         {priorOverdue.map(i=><button type="button" className="list-row" key={`prior-${i.id}`} onClick={()=>openDay(i.due_date)} style={{width:"100%",textAlign:"left",cursor:"pointer",border:0}}>
           <div className="person"><div className="avatar">{i.client?.name?.[0]||"?"}</div><div><div className="person-name">{i.client?.name}</div><div className="person-meta">Venceu em {format(new Date(i.due_date+"T12:00:00"),"dd/MM/yyyy")} · {i.loan?.loan_code}</div></div></div>
-          <div style={{textAlign:"right"}}><strong className="money-positive">+ {money(i.remaining_amount)}</strong><div style={{marginTop:5}}><StatusBadge status={effectiveInstallmentStatus(i,todayKey)}/></div></div>
+          <div className="text-right"><strong className="money-positive">+ {money(i.remaining_amount)}</strong><div style={{marginTop:5}}><StatusBadge status={effectiveInstallmentStatus(i,todayKey)}/></div></div>
         </button>)}
       </div>
     </div>}
@@ -162,7 +162,7 @@ export function CalendarBoard({ installments, interestPayments=[] }: { installme
         <div>
           <div className="eyebrow">Visão mensal</div>
           <h2 style={{textTransform:"capitalize"}}>{format(month,"MMMM 'de' yyyy",{locale:ptBR})}</h2>
-          <div className="muted" style={{fontSize:12}}>Clique em qualquer dia para ver os recebimentos e ações disponíveis.</div>
+          <div className="muted text-sm">Clique em qualquer dia para ver os recebimentos e ações disponíveis.</div>
         </div>
         <div className="calendar-nav">
           <button className="btn secondary" onClick={()=>setMonth(new Date())}>Hoje</button>
@@ -209,7 +209,7 @@ export function CalendarBoard({ installments, interestPayments=[] }: { installme
     {selectedDate&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setSelectedDate(null)}}>
       <div className="modal financial-day-modal" style={{maxWidth:860}}>
         <div className="section-title">
-          <div><div className="eyebrow">Resumo do dia</div><h2 style={{textTransform:"capitalize"}}>{format(new Date(selectedDate+"T12:00:00"),"dd 'de' MMMM 'de' yyyy",{locale:ptBR})}</h2><div className="muted" style={{fontSize:12}}>{selectedRows.length} recebimento{selectedRows.length===1?"":"s"}.</div></div>
+          <div><div className="eyebrow">Resumo do dia</div><h2 style={{textTransform:"capitalize"}}>{format(new Date(selectedDate+"T12:00:00"),"dd 'de' MMMM 'de' yyyy",{locale:ptBR})}</h2><div className="muted text-sm">{selectedRows.length} recebimento{selectedRows.length===1?"":"s"}.</div></div>
           <button className="icon-btn" onClick={()=>setSelectedDate(null)}><X size={17}/></button>
         </div>
 
@@ -239,21 +239,21 @@ export function CalendarBoard({ installments, interestPayments=[] }: { installme
                   <StatusBadge status={status}/>
                 </div>
                 <div className="grid-equal installment-financial-grid" style={{marginTop:12}}>
-                  <div><div className="muted" style={{fontSize:11}}>Valor da parcela</div><strong>{money(i.amount)}</strong></div>
-                  <div><div className="muted" style={{fontSize:11}}>Já recebido</div><strong className="money-positive">{money(i.amount_paid)}</strong></div>
-                  <div><div className="muted" style={{fontSize:11}}>Saldo</div><strong>{money(i.remaining_amount)}</strong></div>
+                  <div><div className="muted text-xs">Valor da parcela</div><strong>{money(i.amount)}</strong></div>
+                  <div><div className="muted text-xs">Já recebido</div><strong className="money-positive">{money(i.amount_paid)}</strong></div>
+                  <div><div className="muted text-xs">Saldo</div><strong>{money(i.remaining_amount)}</strong></div>
                 </div>
                 {remaining>0&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}>
                   <WhatsAppButton phone={i.client?.whatsapp||i.client?.phone} message={chargeMessage(i)}/>
                   {canRenegotiate?<RenegotiateInstallment installment={i}/>:null}
                 </div>}
-                {remaining>0&&<form key={`payment-${i.id}-${i.remaining_amount}`} action={submitPayment} className="form-grid" style={{marginTop:14}}>
+                {remaining>0&&<form key={`payment-${i.id}-${i.remaining_amount}`} action={submitPayment} className="form-grid form-gap">
                   <input type="hidden" name="installment_id" value={i.id}/>
                   <div className="field"><label>Valor recebido</label><input className="input" name="amount" type="number" min="0.01" max={remaining} step="0.01" defaultValue={remaining.toFixed(2)} required/></div>
                   <div className="field"><label>Data do pagamento</label><input className="input" name="payment_date" type="date" defaultValue={todayKey} required/></div>
                   <div className="field"><label>Forma de pagamento</label><select className="select" name="payment_method" defaultValue="PIX"><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="TRANSFERENCIA">Transferência</option><option value="OUTRO">Outro</option></select></div>
                   <div className="field"><label>Observação</label><input className="input" name="notes" placeholder="Opcional"/></div>
-                  <div className="field full"><div className="muted" style={{fontSize:11}}>Para marcar como pago, deixe o valor igual ao saldo. Para parcial, informe um valor menor.</div></div>
+                  <div className="field full"><div className="muted text-xs">Para marcar como pago, deixe o valor igual ao saldo. Para parcial, informe um valor menor.</div></div>
                   <div className="field full" style={{display:"flex",flexDirection:"row",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap"}}>
                     {interestOnly&&<button type="submit" name="payment_mode" value="JUROS" className="btn secondary" disabled={pending}>Somente juros</button>}
                     <button className="btn" disabled={pending}><CreditCard size={16}/>{pending?"Salvando...":"Registrar pagamento"}</button>

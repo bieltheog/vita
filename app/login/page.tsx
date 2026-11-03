@@ -53,7 +53,7 @@ export default function LoginPage() {
           <h1>Seu dinheiro.<br />Seus clientes.<br />Tudo sob controle.</h1>
           <p>Clientes, empréstimos, parcelas, recebimentos e atrasos em uma única central.</p>
         </div>
-        <div className="muted" style={{ fontSize: 12 }}>
+        <div className="muted text-sm">
           Dados protegidos por autenticação e Row Level Security.
         </div>
       </section>
@@ -92,7 +92,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {error && <div className="alert" style={{ marginTop: 14 }}>{error}</div>}
+          {error && <div className="alert form-gap">{error}</div>}
 
           <button className="btn" style={{ width: "100%", marginTop: 18 }} disabled={loading}>
             {loading ? "Entrando..." : "Entrar"}

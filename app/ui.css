@@ -1,0 +1,75 @@
+/* Componentes e utilitários compartilhados da interface. */
+
+/* Utilitários (substituem estilos inline repetidos) */
+.text-right{text-align:right}
+.text-orange{color:var(--orange)}
+.section-gap{margin-top:16px}
+.list-top{margin-top:12px}
+.badge-gap{margin-top:4px}
+.page-actions{display:flex;gap:8px;flex-wrap:wrap}
+.list-row-tight{padding:8px 0}
+.list-more{display:block;padding:12px 0 2px;text-align:center;font-size:12px;font-weight:600;color:var(--primary-2)}
+
+/* Linha de indicadores secundários do dashboard */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+.kpi-row .kpi-mini{display:block;min-width:0;padding:13px 14px}
+.kpi-row .kpi-mini>span,.kpi-details summary>span{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.kpi-row .kpi-mini strong{font-size:16px;margin-top:6px;font-weight:650;font-variant-numeric:tabular-nums}
+.kpi-details{cursor:pointer}
+.kpi-details summary{list-style:none}
+.kpi-details summary::-webkit-details-marker{display:none}
+.kpi-details summary small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
+.kpi-details[open]{grid-column:1/-1}
+.kpi-details-body{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+
+/* Barra de progresso */
+.progress{height:8px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;margin:2px 0 14px}
+.progress>span{display:block;height:100%;border-radius:inherit;background:var(--green);transition:width .3s ease}
+.progress-sm{height:5px;margin:0}
+.loan-progress{display:flex;align-items:center;gap:8px;min-width:120px;margin-top:6px}
+.loan-progress .progress{flex:1}
+.loan-progress small{color:var(--muted);font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+td .loan-progress{margin-top:0}
+
+/* Resumo em três colunas (Previsto / Recebido / Falta) */
+.summary-trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.summary-trio>div{min-width:0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}
+.summary-trio span{display:block;color:var(--muted);font-size:12px}
+.summary-trio strong{display:block;margin-top:5px;font-size:17px;font-weight:650;font-variant-numeric:tabular-nums}
+
+/* Estado vazio com ação */
+.empty-state{display:flex;flex-direction:column;align-items:center;gap:8px;padding:32px 16px;text-align:center}
+.empty-state strong{font-size:14px;color:var(--text)}
+.empty-state span{max-width:340px;color:var(--muted);font-size:12px;line-height:1.5}
+.empty-state .btn{margin-top:6px}
+
+/* Menu lateral agrupado */
+.nav{gap:14px;overflow-y:auto}
+.nav-group{display:flex;flex-direction:column;gap:2px}
+.nav-group-title{padding:0 12px 4px;color:#626a78;font-size:11px;font-weight:600}
+.sidebar-footer .nav-link{margin-bottom:8px}
+
+/* Ações rápidas do botão + (celular) */
+.quick-backdrop{display:none}
+.fab{transition:transform .2s ease}
+.fab.fab-open{transform:rotate(45deg)}
+@media (max-width:780px){
+  .quick-backdrop{display:block;position:fixed;inset:0;z-index:48;background:rgba(0,0,0,.5)}
+  .quick-menu{position:fixed;right:14px;bottom:calc(140px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .quick-menu a{display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;border:1px solid var(--border);border-radius:999px;background:var(--panel);font-size:14px;font-weight:600;color:var(--text)}
+  .quick-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:var(--panel-2);color:var(--primary-2)}
+  .kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .kpi-row .kpi-mini strong{font-size:15px}
+  .summary-trio{gap:6px}
+  .summary-trio>div{padding:10px}
+  .summary-trio strong{font-size:14px}
+  .summary-trio span{font-size:11px}
+}
+
+/* Utilitários extraídos de estilos inline */
+.text-sm{font-size:12px}
+.text-xs{font-size:11px}
+.form-gap{margin-top:14px}
+.alert-gap-bottom{margin-bottom:12px}
+.form-actions{flex-direction:row!important;justify-content:flex-end;flex-wrap:wrap}
+.card-inset{background:var(--bg)}

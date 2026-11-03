@@ -10,6 +10,8 @@ import { DeleteLoanButton } from "@/components/forms/delete-loan-button";
 import { CancelLoanButton } from "@/components/forms/cancel-loan-button";
 import { FinalizeLoanButton } from "@/components/forms/finalize-loan-button";
 import type { Installment, Loan } from "@/lib/types";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoanProgress, loanPaidTotals } from "@/components/ui/loan-progress";
 
 function norm(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
 const labels:Record<string,string>={UNICO:"Único",DIARIO:"Diário",SEMANAL:"Semanal",QUINZENAL:"Quinzenal",MENSAL:"Mensal",DATAS_FIXAS:"Datas fixas",PERSONALIZADO:"Datas fixas"};
@@ -29,14 +31,15 @@ export function LoanList({loans,installments}:{loans:Loan[];installments:Install
   },[installments]);
   return <div className="card">
     <div className="section-title" style={{gap:10,flexWrap:"wrap"}}><div className="search-box" style={{maxWidth:380,flex:1}}><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Código ou cliente..."/></div><select className="select" value={status} onChange={e=>setStatus(e.target.value)} style={{maxWidth:150}}><option value="TODOS">Todos status</option><option value="ATIVO">Ativos</option><option value="FINALIZADO">Finalizados</option><option value="CANCELADO">Cancelados</option></select><select className="select" value={frequency} onChange={e=>setFrequency(e.target.value)} style={{maxWidth:175}}><option value="TODAS">Todas formas</option><option value="UNICO">Único</option><option value="DIARIO">Diário</option><option value="SEMANAL">Semanal</option><option value="QUINZENAL">Quinzenal</option><option value="MENSAL">Mensal</option><option value="DATAS_FIXAS">Datas fixas</option></select></div>
-    <div className="table-wrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Emprestado</th><th>Lucro</th><th>Total</th><th>Forma</th><th>Parcelas</th><th>Status</th><th>Ações</th></tr></thead><tbody>{rows.map(x=>{
+    <div className="table-wrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Emprestado</th><th>Lucro</th><th>Total</th><th>Forma</th><th>Parcelas</th><th>Pago</th><th>Status</th><th>Ações</th></tr></thead><tbody>{rows.map(x=>{
       const loanInstallments=installmentsByLoan.get(x.id)||emptyInstallments;
       const hasPayments=loanInstallments.some(row=>Number(row.amount_paid)>0||row.stored_status==="PAGO"||row.stored_status==="PARCIAL");
       const remainingBalance=loanInstallments
         .filter(row=>row.stored_status!=="CANCELADO")
         .reduce((sum,row)=>sum+Number(row.remaining_amount),0);
-      return <tr key={x.id}><td><strong>{x.loan_code}</strong></td><td>{x.client?.name}</td><td>{money(x.principal_amount)}</td><td>{money(x.expected_profit)}</td><td>{money(x.total_receivable)}</td><td>{labels[x.payment_frequency]||x.payment_frequency}</td><td>{x.installment_count}</td><td><span className={`badge ${x.status==='ATIVO'?'green':x.status==='CANCELADO'?'gray':'gray'}`}>{x.status}</span></td><td><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{x.status==="ATIVO"?<LoanTopupForm loan={x} installments={loanInstallments} compact/>:null}<EditLoanForm loan={x} installments={loanInstallments}/><Link className="icon-btn" href={`/emprestimos/${x.id}`} title="Histórico e parcelas"><History size={15}/></Link>{x.status==="ATIVO"?<FinalizeLoanButton loanId={x.id} loanCode={x.loan_code} remainingBalance={remainingBalance} compact/>:null}{x.status==="ATIVO"?<CancelLoanButton loanId={x.id} loanCode={x.loan_code}/>:null}<DeleteLoanButton loanId={x.id} loanCode={x.loan_code} clientName={x.client?.name} principal={x.principal_amount} hasPayments={hasPayments} compact/></div></td></tr>
+      const progress=loanPaidTotals(loanInstallments);
+      return <tr key={x.id}><td><strong>{x.loan_code}</strong></td><td>{x.client?.name}</td><td>{money(x.principal_amount)}</td><td>{money(x.expected_profit)}</td><td>{money(x.total_receivable)}</td><td>{labels[x.payment_frequency]||x.payment_frequency}</td><td>{x.installment_count}</td><td>{x.status==="CANCELADO"?<span className="muted">—</span>:<LoanProgress paid={progress.paid} total={progress.total}/>}</td><td><span className={`badge ${x.status==='ATIVO'?'green':x.status==='CANCELADO'?'gray':'gray'}`}>{x.status}</span></td><td><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{x.status==="ATIVO"?<LoanTopupForm loan={x} installments={loanInstallments} compact/>:null}<EditLoanForm loan={x} installments={loanInstallments}/><Link className="icon-btn" href={`/emprestimos/${x.id}`} title="Histórico e parcelas"><History size={15}/></Link>{x.status==="ATIVO"?<FinalizeLoanButton loanId={x.id} loanCode={x.loan_code} remainingBalance={remainingBalance} compact/>:null}{x.status==="ATIVO"?<CancelLoanButton loanId={x.id} loanCode={x.loan_code}/>:null}<DeleteLoanButton loanId={x.id} loanCode={x.loan_code} clientName={x.client?.name} principal={x.principal_amount} hasPayments={hasPayments} compact/></div></td></tr>
     })}</tbody></table></div>
-    {!rows.length&&<div className="empty">Nenhum empréstimo encontrado.</div>}
+    {!rows.length&&(loans.length?<div className="empty">Nenhum empréstimo encontrado com esses filtros.</div>:<EmptyState title="Nenhum empréstimo cadastrado" text="Cadastre o primeiro empréstimo para acompanhar parcelas e recebimentos." action={{href:"/emprestimos?novo=1",label:"Novo empréstimo"}}/>)}
   </div>
 }
