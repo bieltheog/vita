@@ -11,10 +11,10 @@
 .list-more{display:block;padding:12px 0 2px;text-align:center;font-size:12px;font-weight:600;color:var(--primary-2)}
 
 /* Linha de indicadores secundários do dashboard */
-.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-top:12px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
 .kpi-row .kpi-mini{display:block;min-width:0;padding:13px 14px}
 .kpi-row .kpi-mini>span,.kpi-details summary>span{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
-.kpi-row .kpi-mini strong{font-size:17px;margin-top:6px;font-weight:650;font-variant-numeric:tabular-nums}
+.kpi-row .kpi-mini strong{font-size:16px;margin-top:6px;font-weight:650;font-variant-numeric:tabular-nums}
 .kpi-details{cursor:pointer}
 .kpi-details summary{list-style:none}
 .kpi-details summary::-webkit-details-marker{display:none}
