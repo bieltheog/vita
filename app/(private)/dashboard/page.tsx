@@ -60,7 +60,7 @@ export default async function Dashboard(){
 
   return <>
     <div className="page-head">
-      <div><div className="eyebrow">Jureminha 2.0</div><h1>Olá, {profile?.full_name} 👋</h1><div className="muted">Resumo da carteira e atalhos para a rotina de cobrança.</div></div>
+      <div><h1>Olá, {profile?.full_name}</h1><div className="muted">Resumo da carteira e atalhos para a rotina de cobrança.</div></div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Link className="btn" href="/cobrancas-hoje"><CircleDollarSign size={16}/> Cobranças</Link><PaymentForm installments={i} demo={profile?.demo}/></div>
     </div>
 
@@ -123,7 +123,7 @@ export default async function Dashboard(){
 
     <div className="grid-equal" style={{marginTop:16}}>
       <div className="card"><div className="section-title"><h2>Próximos recebimentos</h2><Link href="/calendario" className="muted">Ver todos</Link></div><div className="list">{next.map(x=><div className="list-row" key={x.id}><div className="person"><div className="avatar">{x.client?.name?.[0]}</div><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.due_date} · {x.loan?.loan_code}</div></div></div><div style={{textAlign:"right"}}><strong>{money(x.remaining_amount)}</strong><div style={{marginTop:4}}><StatusBadge status={effectiveInstallmentStatus(x,today)}/></div></div></div>)}</div></div>
-      <div className="card"><div className="section-title"><h2>🚨 Requer atenção</h2><Link href="/cobrancas-hoje" className="muted">Abrir central</Link></div><div className="list">{late.length?late.map(x=><div className="list-row" key={x.id}><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.loan?.loan_code} · {daysOverdue(x.due_date,x.remaining_amount)} dias em atraso</div></div><strong style={{color:"var(--red)"}}>{money(x.remaining_amount)}</strong></div>):<div className="empty">Nenhuma cobrança atrasada 🎉</div>}</div></div>
+      <div className="card"><div className="section-title"><h2>Requer atenção</h2><Link href="/cobrancas-hoje" className="muted">Abrir central</Link></div><div className="list">{late.length?late.map(x=><div className="list-row" key={x.id}><div><div className="person-name">{x.client?.name}</div><div className="person-meta">{x.loan?.loan_code} · {daysOverdue(x.due_date,x.remaining_amount)} dias em atraso</div></div><strong style={{color:"var(--red)"}}>{money(x.remaining_amount)}</strong></div>):<div className="empty">Nenhuma cobrança atrasada 🎉</div>}</div></div>
     </div>
   </>;
 }
