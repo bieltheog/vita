@@ -76,9 +76,9 @@ export function PaymentForm({ installments, demo=false, compact=false }: { insta
   return <>
     <button className={compact?"btn secondary":"btn"} onClick={()=>setOpen(true)}><CreditCard size={16}/> Registrar pagamento</button>
     {open&&<div className="modal-backdrop"><div className="modal">
-      <div className="section-title"><div><h2>Registrar pagamento</h2><div className="muted" style={{fontSize:12}}>Pagamento menor que o saldo continua sendo registrado automaticamente como parcial.</div></div><button type="button" className="icon-btn" onClick={close}><X size={17}/></button></div>
+      <div className="section-title"><div><h2>Registrar pagamento</h2><div className="muted text-sm">Pagamento menor que o saldo continua sendo registrado automaticamente como parcial.</div></div><button type="button" className="icon-btn" onClick={close}><X size={17}/></button></div>
       {demo&&<div className="alert">Modo demonstração: configure o Supabase para registrar pagamentos.</div>}
-      <form action={submit} className="form-grid" style={{marginTop:14}}>
+      <form action={submit} className="form-grid form-gap">
         <div className="field full"><label>Tipo de pagamento</label><select className="select" value={mode} onChange={e=>changeMode(e.target.value as PaymentMode)}>
           <option value="NORMAL">Pagamento normal</option>
           <option value="JUROS">Somente juros</option>
@@ -97,7 +97,7 @@ export function PaymentForm({ installments, demo=false, compact=false }: { insta
         <div className="field full"><label>Observação</label><input className="input" name="notes"/></div>
 
         {error&&<div className="field full"><div className="alert">{error}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={close}>Cancelar</button><button className="btn" disabled={pending||demo||!selected}>{pending?"Confirmando...":mode==="JUROS"?"Confirmar somente juros":"Confirmar pagamento"}</button></div>
+        <div className="field full form-actions"><button type="button" className="btn secondary" onClick={close}>Cancelar</button><button className="btn" disabled={pending||demo||!selected}>{pending?"Confirmando...":mode==="JUROS"?"Confirmar somente juros":"Confirmar pagamento"}</button></div>
       </form>
     </div></div>}
   </>;

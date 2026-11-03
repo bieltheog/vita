@@ -23,7 +23,7 @@ export function ManualFixedInstallments({
   }
 
   return <div className="field full">
-    <div className="card" style={{background:"#090c11"}}>
+    <div className="card card-inset">
       <div className="section-title" style={{marginBottom:12}}>
         <div>
           <strong>Datas e valores das parcelas</strong>

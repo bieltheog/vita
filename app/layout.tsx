@@ -5,6 +5,7 @@ import "./mobile.css";
 import "./mobile-premium.css";
 import "./topup.css";
 import "./collections.css";
+import "./ui.css";
 import "./print.css";
 
 export const metadata: Metadata = {

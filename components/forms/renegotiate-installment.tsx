@@ -29,9 +29,9 @@ export function RenegotiateInstallment({ installment, compact=false }: { install
   return <>
     <button type="button" className={compact?"icon-btn":"btn secondary"} onClick={()=>setOpen(true)} title="Renegociar parcela"><CalendarClock size={16}/>{compact?null:"Renegociar"}</button>
     {open&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setOpen(false)}}><div className="modal" style={{maxWidth:590}}>
-      <div className="section-title"><div><div className="eyebrow">Renegociação</div><h2>Parcela {installment.installment_number}/{installment.loan?.installment_count}</h2><div className="muted" style={{fontSize:12}}>{installment.client?.name} · {installment.loan?.loan_code}</div></div><button type="button" className="icon-btn" onClick={()=>setOpen(false)}><X size={17}/></button></div>
-      <div className="card" style={{marginTop:14,background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Vencimento atual</div><strong>{formatDateBR(installment.due_date)}</strong></div><div><div className="muted" style={{fontSize:11}}>Valor atual</div><strong>{money(installment.amount)}</strong></div><div><div className="muted" style={{fontSize:11}}>Já recebido</div><strong>{money(installment.amount_paid)}</strong></div></div></div>
-      <form action={submit} className="form-grid" style={{marginTop:14}}>
+      <div className="section-title"><div><div className="eyebrow">Renegociação</div><h2>Parcela {installment.installment_number}/{installment.loan?.installment_count}</h2><div className="muted text-sm">{installment.client?.name} · {installment.loan?.loan_code}</div></div><button type="button" className="icon-btn" onClick={()=>setOpen(false)}><X size={17}/></button></div>
+      <div className="card" style={{marginTop:14,background:"#090c11"}}><div className="grid-equal"><div><div className="muted text-xs">Vencimento atual</div><strong>{formatDateBR(installment.due_date)}</strong></div><div><div className="muted text-xs">Valor atual</div><strong>{money(installment.amount)}</strong></div><div><div className="muted text-xs">Já recebido</div><strong>{money(installment.amount_paid)}</strong></div></div></div>
+      <form action={submit} className="form-grid form-gap">
         <input type="hidden" name="installment_id" value={installment.id}/>
         <div className="field"><label>Nova data *</label><input className="input" type="date" name="new_due_date" defaultValue={installment.due_date} required/></div>
         <div className="field"><label>Novo valor *</label><input className="input" type="number" name="new_amount" min={Number(installment.amount_paid)||0.01} step="0.01" defaultValue={Number(installment.amount).toFixed(2)} required/></div>
@@ -39,7 +39,7 @@ export function RenegotiateInstallment({ installment, compact=false }: { install
         <div className="field full"><div className="alert">A data original fica salva no histórico. Se o valor mudar, o sistema recalcula automaticamente o total a receber e o lucro previsto.</div></div>
         {error&&<div className="field full"><div className="alert">{error}</div></div>}
         {message&&<div className="field full"><div className="alert">{message}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end"}}><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending}>{pending?"Salvando...":"Salvar renegociação"}</button></div>
+        <div className="field full form-actions"><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending}>{pending?"Salvando...":"Salvar renegociação"}</button></div>
       </form>
     </div></div>}
   </>;

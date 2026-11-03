@@ -8,21 +8,32 @@ import type { PortfolioId } from "@/lib/portfolio";
 import {
   LayoutDashboard, Users, Landmark, CreditCard, CalendarDays, BarChart3,
   Calculator, Bell, Settings, Search, LogOut, MoreHorizontal, Plus,
-  CircleDollarSign, X, Wallet,
+  CircleDollarSign, X, Wallet, UserPlus,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/carteiras", label: "Caixa", icon: Wallet },
-  { href: "/cobrancas-hoje", label: "Cobranças", icon: CircleDollarSign },
-  { href: "/clientes", label: "Clientes", icon: Users },
-  { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
-  { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
-  { href: "/calendario", label: "Calendário", icon: CalendarDays },
-  { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
-  { href: "/simulador", label: "Simulador", icon: Calculator },
-  { href: "/configuracoes", label: "Configurações", icon: Settings },
+const navGroups = [
+  { title: "Dia a dia", items: [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/cobrancas-hoje", label: "Cobranças", icon: CircleDollarSign },
+    { href: "/carteiras", label: "Caixa", icon: Wallet },
+  ] },
+  { title: "Cadastros", items: [
+    { href: "/clientes", label: "Clientes", icon: Users },
+    { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
+    { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
+  ] },
+  { title: "Análise", items: [
+    { href: "/calendario", label: "Calendário", icon: CalendarDays },
+    { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
+    { href: "/simulador", label: "Simulador", icon: Calculator },
+  ] },
+];
+
+const quickActions = [
+  { href: "/cobrancas-hoje", label: "Receber pagamento", icon: CircleDollarSign },
+  { href: "/emprestimos?novo=1", label: "Novo empréstimo", icon: Landmark },
+  { href: "/clientes?novo=1", label: "Novo cliente", icon: UserPlus },
 ];
 
 const mobile = [
@@ -45,6 +56,7 @@ export function AppShell({ children, profile,portfolioId }: { children: React.Re
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen,setMoreOpen]=useState(false);
+  const [quickOpen,setQuickOpen]=useState(false);
   const [switching,startSwitch]=useTransition();
   const switchWallet=(value: string)=>startSwitch(async()=>{await switchPortfolioAction(value==="2"?2:1);router.refresh();});
   const active = (href: string) => pathname === href || pathname.startsWith(href + "/");
@@ -71,9 +83,13 @@ export function AppShell({ children, profile,portfolioId }: { children: React.Re
         <div><div className="brand-name">Jureminha 2.0</div><div className="brand-sub">Empréstimos e cobranças</div></div>
       </Link>
       <nav className="nav">
-        {nav.map(({href,label,icon:Icon}) => <Link key={href} href={href} className={`nav-link ${active(href) ? "active" : ""}`}><Icon size={17}/>{label}</Link>)}
+        {navGroups.map(group=><div className="nav-group" key={group.title}>
+          <div className="nav-group-title">{group.title}</div>
+          {group.items.map(({href,label,icon:Icon}) => <Link key={href} href={href} className={`nav-link ${active(href) ? "active" : ""}`}><Icon size={17}/>{label}</Link>)}
+        </div>)}
       </nav>
       <div className="sidebar-footer">
+        <Link href="/configuracoes" className={`nav-link ${active("/configuracoes") ? "active" : ""}`}><Settings size={17}/>Configurações</Link>
         <div className="person" style={{padding:"8px"}}>
           <div className="avatar">{(profile.full_name || "U")[0]?.toUpperCase()}</div>
           <div style={{minWidth:0,flex:1}}><div className="person-name">{profile.full_name || "Usuário"}</div><div className="person-meta">{profile.demo ? "Modo demonstração" : profile.email}</div></div>
@@ -95,7 +111,12 @@ export function AppShell({ children, profile,portfolioId }: { children: React.Re
       {children}
     </main>
 
-    <Link className="fab" href="/emprestimos?novo=1" aria-label="Novo empréstimo"><Plus size={24}/></Link>
+    <button type="button" className={`fab ${quickOpen?"fab-open":""}`} aria-label={quickOpen?"Fechar ações rápidas":"Ações rápidas"} aria-expanded={quickOpen} onClick={()=>setQuickOpen(v=>!v)}><Plus size={24}/></button>
+    {quickOpen&&<div className="quick-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setQuickOpen(false)}}>
+      <div className="quick-menu">
+        {quickActions.map(({href,label,icon:Icon})=><Link key={href} href={href} onClick={()=>setQuickOpen(false)}><span className="quick-icon"><Icon size={18}/></span>{label}</Link>)}
+      </div>
+    </div>}
     <nav className="mobile-nav">
       {mobile.map(({href,label,icon:Icon}) => <Link key={href} href={href} className={active(href) ? "active" : ""}><Icon size={19}/><span>{label}</span></Link>)}
       <button type="button" className={moreActive||moreOpen?"active":""} onClick={()=>setMoreOpen(true)}><MoreHorizontal size={19}/><span>Mais</span></button>

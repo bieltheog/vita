@@ -32,13 +32,13 @@ export default async function ReportsPage(){
       <div className="card"><div className="muted">Movimentações</div><div className="stat-value">{movements.length}</div></div>
     </div>
 
-    <div className="grid-equal" style={{marginTop:16}}>
+    <div className="grid-equal section-gap">
       <div className="card"><h2>Ranking de clientes por valor recebido</h2><div className="list">{ranking.length?ranking.map((x,k)=><div className="list-row" key={x.n}><div><strong>#{k+1} {x.n}</strong><div className="person-meta">Pagamentos efetivamente recebidos</div></div><strong>{money(x.p)}</strong></div>):<div className="empty">Nenhum pagamento registrado.</div>}</div></div>
-      <div className="card"><h2>Indicadores da carteira</h2><div className="list"><div className="list-row"><span>Clientes cadastrados</span><strong>{clients.length}</strong></div><div className="list-row"><span>Empréstimos não cancelados</span><strong>{validLoans.length}</strong></div><div className="list-row"><span>Parcelas não canceladas</span><strong>{installments.length}</strong></div><div className="list-row"><span>Pagamentos recebidos</span><strong>{payments.length}</strong></div></div><div className="alert" style={{marginTop:14}}>“Lucro realizado estimado” distribui proporcionalmente o lucro contratado sobre cada pagamento recebido; não é uma apuração contábil/fiscal.</div></div>
+      <div className="card"><h2>Indicadores da carteira</h2><div className="list"><div className="list-row"><span>Clientes cadastrados</span><strong>{clients.length}</strong></div><div className="list-row"><span>Empréstimos não cancelados</span><strong>{validLoans.length}</strong></div><div className="list-row"><span>Parcelas não canceladas</span><strong>{installments.length}</strong></div><div className="list-row"><span>Pagamentos recebidos</span><strong>{payments.length}</strong></div></div><div className="alert form-gap">“Lucro realizado estimado” distribui proporcionalmente o lucro contratado sobre cada pagamento recebido; não é uma apuração contábil/fiscal.</div></div>
     </div>
 
     <MonthlyFinanceReport/>
-    <div className="card" style={{marginTop:16}}>
+    <div className="card section-gap">
       <div className="section-title"><div><h2>Movimentações registradas</h2><div className="person-meta">Empréstimos não cancelados e todos os pagamentos efetivamente recebidos</div></div><span className="badge gray">{movements.length}</span></div>
       <div className="list">{movements.length?movements.map((x,k)=><div className="list-row" key={`${x.d}-${x.n}-${x.t}-${k}`}><div><strong>{x.n}</strong><div className="person-meta">{x.d} · {x.t}</div></div><strong style={{color:x.v>=0?'var(--green)':'var(--red)'}}>{x.v>=0?'+ ':'- '}{money(Math.abs(x.v))}</strong></div>):<div className="empty">Nenhuma movimentação registrada.</div>}</div>
     </div>

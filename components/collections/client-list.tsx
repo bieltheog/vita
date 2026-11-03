@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -21,6 +22,6 @@ export function ClientList({clients,loans,payments,installments,initialQuery=""}
   return <div className="card">
     <div className="section-title" style={{gap:12,flexWrap:"wrap"}}><div className="search-box" style={{maxWidth:430,flex:1}}><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Nome, CPF, telefone ou e-mail..."/></div><select className="select" value={filter} onChange={e=>setFilter(e.target.value)} style={{maxWidth:190}}><option value="TODOS">Todos</option><option value="ATIVOS">Com empréstimo ativo</option><option value="ATRASADOS">Com atraso</option><option value="QUITADOS">Quitados</option></select></div>
     <div className="table-wrap"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>Total emprestado</th><th>Total pago</th><th>Saldo</th><th>Atrasado</th><th>Empréstimos</th><th></th></tr></thead><tbody>{rows.map(({c,validLoans,cp,outstanding,overdue})=><tr key={c.id}><td><strong>{c.name}</strong><div className="person-meta">{c.cpf||"CPF não informado"}</div></td><td>{c.whatsapp||c.phone||"—"}</td><td>{money(validLoans.reduce((s,l)=>s+Number(l.principal_amount),0))}</td><td>{money(cp.reduce((s,p)=>s+Number(p.amount),0))}</td><td>{money(outstanding)}</td><td><span style={{color:overdue>0?"var(--red)":"inherit"}}>{money(overdue)}</span></td><td>{validLoans.length}</td><td><Link className="btn secondary" href={`/clientes/${c.id}`}>Ver perfil</Link></td></tr>)}</tbody></table></div>
-    {!rows.length&&<div className="empty">Nenhum cliente encontrado com esses filtros.</div>}
+    {!rows.length&&(clients.length?<div className="empty">Nenhum cliente encontrado com esses filtros.</div>:<EmptyState title="Nenhum cliente cadastrado" text="Comece cadastrando um cliente. Depois é só criar o empréstimo dele." action={{href:"/clientes?novo=1",label:"Novo cliente"}}/>)}
   </div>
 }

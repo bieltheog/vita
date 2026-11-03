@@ -100,11 +100,11 @@ export function LoanTopupForm({loan,installments=[],compact=false}:{loan:Loan;in
     {trigger}
     {open&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!pending)setOpen(false)}}><div className="modal" style={{maxWidth:850}}>
       <div className="section-title">
-        <div><div className="eyebrow">Adicional no mesmo contrato</div><h2>Adicionar valor ao empréstimo</h2><div className="muted" style={{fontSize:12}}>{loan.loan_code} · {loan.client?.name||"Cliente"}</div></div>
+        <div><div className="eyebrow">Adicional no mesmo contrato</div><h2>Adicionar valor ao empréstimo</h2><div className="muted text-sm">{loan.loan_code} · {loan.client?.name||"Cliente"}</div></div>
         <button className="icon-btn" type="button" disabled={pending} onClick={()=>setOpen(false)}><X size={17}/></button>
       </div>
 
-      <div className="alert" style={{marginTop:12}}><strong>Os pagamentos anteriores não serão alterados.</strong> O Jureminha soma o novo valor ao saldo que ainda falta receber e recria somente o calendário futuro. Parcelas que já tiveram pagamento continuam guardadas no histórico.</div>
+      <div className="alert list-top"><strong>Os pagamentos anteriores não serão alterados.</strong> O Jureminha soma o novo valor ao saldo que ainda falta receber e recria somente o calendário futuro. Parcelas que já tiveram pagamento continuam guardadas no histórico.</div>
 
       <form action={submit} className="form-grid" style={{marginTop:16}}>
         <input type="hidden" name="loan_id" value={loan.id}/>
@@ -125,10 +125,10 @@ export function LoanTopupForm({loan,installments=[],compact=false}:{loan:Loan;in
         {!fixed&&<div className="field"><label>Primeiro vencimento do novo calendário *</label><input className="input" name="first_due_date" type="date" value={firstDueDate} onChange={e=>setFirstDueDate(e.target.value)} required/></div>}
         {fixed&&<ManualFixedInstallments rows={buildFixedRows(fixedRows,count,newRemaining).map((row,index)=>fixedTouched?(fixedRows[index]||row):row)} total={newRemaining} onChange={rows=>{setFixedRows(rows);setFixedTouched(true)}} onSplitEqually={splitFixed}/>} 
 
-        {!fixed&&<div className="field full"><div className="card topup-preview"><div className="muted" style={{fontSize:11}}>Novo calendário</div><strong>{count}x de aproximadamente {money(futureValues[0]||0)}</strong><div className="stat-meta">Total futuro: {money(newRemaining)}. O valor exato da última parcela é ajustado automaticamente aos centavos.</div></div></div>}
+        {!fixed&&<div className="field full"><div className="card topup-preview"><div className="muted text-xs">Novo calendário</div><strong>{count}x de aproximadamente {money(futureValues[0]||0)}</strong><div className="stat-meta">Total futuro: {money(newRemaining)}. O valor exato da última parcela é ajustado automaticamente aos centavos.</div></div></div>}
         <div className="field full"><label>Observação</label><input className="input" name="notes" placeholder="Ex.: emprestei mais R$ 500 em 21/08"/></div>
         {error&&<div className="field full"><div className="alert" style={{borderColor:"rgba(255,98,109,.3)",color:"#ff9aa2"}}>{error}</div></div>}
-        <div className="field full" style={{flexDirection:"row",justifyContent:"flex-end",flexWrap:"wrap"}}><button type="button" className="btn secondary" disabled={pending} onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||additional<=0||!additionalInput.trim()||!returnInput.trim()||(frequency!=="UNICO"&&!countInput.trim())}><CirclePlus size={16}/>{pending?"Atualizando...":"Adicionar e refazer parcelas futuras"}</button></div>
+        <div className="field full form-actions"><button type="button" className="btn secondary" disabled={pending} onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending||additional<=0||!additionalInput.trim()||!returnInput.trim()||(frequency!=="UNICO"&&!countInput.trim())}><CirclePlus size={16}/>{pending?"Atualizando...":"Adicionar e refazer parcelas futuras"}</button></div>
       </form>
     </div></div>}
   </>;

@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CreditCard, Search, Undo2, Rows3, SlidersHorizontal } from "lucide-react";
@@ -186,8 +187,8 @@ export function TodayCollections({ items, dateKey }: { items: Installment[]; dat
       </button>
     </div>
 
-    {error&&<div className="alert" style={{marginBottom:12}}>{error}</div>}
-    {message&&<div className="alert" style={{marginBottom:12}}>{message}</div>}
+    {error&&<div className="alert alert-gap-bottom">{error}</div>}
+    {message&&<div className="alert alert-gap-bottom">{message}</div>}
 
     {compact?<>
       <div className="collections-print-note"><strong>Modo compacto:</strong> uma pessoa por cartão, somando todas as cobranças pendentes visíveis. Ideal para capturas de tela.</div>
@@ -203,10 +204,10 @@ export function TodayCollections({ items, dateKey }: { items: Installment[]; dat
           </div>;
         })}
       </div>
-      {!groups.length&&<div className="card empty">Nenhuma cobrança encontrada neste filtro.</div>}
+      {groups.length&&(items.length?<div className="card empty">Nenhuma cobrança encontrada neste filtro.</div>:<div className="card"><EmptyState title="Nada para cobrar hoje" text="Não há parcelas vencendo hoje nem em atraso." action={{href:"/calendario",label:"Ver calendário"}}/></div>)}
     </>:<div className="collection-operational-grid">
       {filtered.map(row=><Row key={row.id} row={row}/>) }
-      {!filtered.length&&<div className="card empty">Nenhuma cobrança encontrada neste filtro.</div>}
+      {filtered.length&&(items.length?<div className="card empty">Nenhuma cobrança encontrada neste filtro.</div>:<div className="card"><EmptyState title="Nada para cobrar hoje" text="Não há parcelas vencendo hoje nem em atraso." action={{href:"/calendario",label:"Ver calendário"}}/></div>)}
     </div>}
   </>;
 }
