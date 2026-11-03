@@ -1,3 +1,4 @@
+import { ReportTabs } from "@/components/reports/report-tabs";
 import { MonthlyFinanceReport } from "@/components/reports/monthly-financial-report";
 import {getDashboardSummary,getClients,getLoans,getPayments,getHistoricalInstallments} from '@/lib/data';
 import {money,realizedProfitForPayment} from '@/lib/finance';
@@ -16,6 +17,7 @@ export default async function ReportsPage(){
   ].sort((a,b)=>b.d.localeCompare(a.d));
 
   return <>
+    <ReportTabs active="/relatorios"/>
     <div className="page-head">
       <div><div className="eyebrow">Inteligência</div><h1>Relatórios</h1><div className="muted">Indicadores, movimentações, exportação e backup em um só lugar. Contratos cancelados ficam fora do saldo atual; pagamentos realmente recebidos continuam no histórico.</div></div>
       <ExportButtons clients={clients} loans={loans} installments={installments} payments={payments}/>

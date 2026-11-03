@@ -3,7 +3,7 @@
 import { EmptyState } from "@/components/ui/empty-state";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Search, Undo2, Rows3, SlidersHorizontal } from "lucide-react";
+import { CreditCard, Search, Undo2, Rows3, SlidersHorizontal, X } from "lucide-react";
 import { registerPaymentSafeAction, markInstallmentUnpaidSafeAction } from "@/app/operations-actions";
 import { effectiveInstallmentStatus, money } from "@/lib/finance";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
@@ -45,11 +45,15 @@ function statusClass(row:Installment,dateKey:string){
   return "blue";
 }
 
-export function TodayCollections({ items, dateKey }: { items: Installment[]; dateKey: string }) {
+export function TodayCollections({ items, dateKey, initialFilter="TODOS" }: { items: Installment[]; dateKey: string; initialFilter?: "TODOS"|"ATRASADOS" }) {
   const router=useRouter();
   const [query,setQuery]=useState("");
-  const [filter,setFilter]=useState<Filter>("TODOS");
-  const [compact,setCompact]=useState(true);
+  const [filter,setFilter]=useState<Filter>(initialFilter);
+  const [compact,setCompact]=useState(false);
+  const [payRow,setPayRow]=useState<Installment|null>(null);
+  const [payAmount,setPayAmount]=useState("");
+  const [payMethod,setPayMethod]=useState("PIX");
+  const [payDate,setPayDate]=useState(dateKey);
   const [pending,start]=useTransition();
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
@@ -100,14 +104,27 @@ export function TodayCollections({ items, dateKey }: { items: Installment[]; dat
     });
   },[filtered,dateKey]);
 
-  async function pay(row:Installment,amount:number){
+  function openPay(row:Installment){
+    setError("");setMessage("");
+    setPayRow(row);
+    setPayAmount(Number(row.remaining_amount).toFixed(2));
+    setPayMethod("PIX");
+    setPayDate(dateKey);
+  }
+
+  function confirmPay(){
+    if(!payRow)return;
+    const row=payRow;
+    const amount=Number(payAmount.replace(",","."));
     setError("");setMessage("");
     const fd=new FormData();
-    fd.set("installment_id",row.id);fd.set("amount",String(amount));fd.set("payment_date",dateKey);fd.set("payment_method","PIX");
+    fd.set("installment_id",row.id);fd.set("amount",String(amount));fd.set("payment_date",payDate);fd.set("payment_method",payMethod);
     start(async()=>{
       const result=await registerPaymentSafeAction(fd);
+      setPayRow(null);
       if(!result.ok){setError(result.error);return;}
-      setMessage(result.message||"Pagamento registrado.");router.refresh();
+      const partial=amount<Number(row.remaining_amount)-0.005;
+      setMessage(`${partial?"Pagamento parcial":"Pagamento"} de ${money(amount)} registrado para ${row.client?.name||"o cliente"}.`);router.refresh();
     });
   }
 
@@ -148,7 +165,7 @@ export function TodayCollections({ items, dateKey }: { items: Installment[]; dat
       </div>
       <div className="collection-actions">
         <WhatsAppButton compact phone={row.client?.whatsapp||row.client?.phone} message={messageFor(row)}/>
-        {t.remaining>0&&<button type="button" className="btn collection-pay-btn" disabled={pending} onClick={()=>pay(row,t.remaining)} title="Quitar saldo"><CreditCard size={15}/>Quitar</button>}
+        {t.remaining>0&&<button type="button" className="btn collection-pay-btn" disabled={pending} onClick={()=>openPay(row)} title="Registrar recebimento"><CreditCard size={15}/>Receber</button>}
         <RenegotiateInstallment installment={row} compact/>
         {t.paid&&<button type="button" className="icon-btn" disabled={pending} onClick={()=>undo(row)} title="Desfazer pagamento"><Undo2 size={15}/></button>}
       </div>
@@ -187,8 +204,26 @@ export function TodayCollections({ items, dateKey }: { items: Installment[]; dat
       </button>
     </div>
 
-    {error&&<div className="alert alert-gap-bottom">{error}</div>}
-    {message&&<div className="alert alert-gap-bottom">{message}</div>}
+    {error&&<div className="alert alert-error alert-gap-bottom">{error}</div>}
+    {message&&<div className="alert alert-success alert-gap-bottom">{message}</div>}
+
+    {payRow&&(()=>{
+      const remaining=Number(payRow.remaining_amount);
+      const amount=Number(payAmount.replace(",","."));
+      const invalid=!(amount>0)||amount>remaining+0.005||!payDate;
+      const partial=amount>0&&amount<remaining-0.005;
+      return <div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!pending)setPayRow(null)}}><div className="modal pay-confirm">
+        <div className="section-title"><div><h2>Receber de {payRow.client?.name||"cliente"}</h2><div className="muted text-sm">{payRow.loan?.loan_code} · parcela {payRow.installment_number}/{payRow.loan?.installment_count} · saldo {money(remaining)}</div></div><button type="button" className="icon-btn" title="Fechar" onClick={()=>setPayRow(null)} disabled={pending}><X size={17}/></button></div>
+        <div className="form-grid form-gap">
+          <div className="field full"><label htmlFor="pay-amount">Valor recebido</label><input id="pay-amount" className="input pay-amount" type="number" inputMode="decimal" min="0.01" step="0.01" max={remaining} value={payAmount} onChange={e=>setPayAmount(e.target.value)} autoFocus/>
+            <div className="pay-hint">{amount>remaining+0.005?<span className="money-negative">O valor passa do saldo da parcela.</span>:partial?<span className="text-orange">Pagamento parcial · ficam {money(remaining-amount)} em aberto</span>:<span className="muted">Quita a parcela</span>}{partial&&<button type="button" className="link-btn" onClick={()=>setPayAmount(remaining.toFixed(2))}>Usar valor total</button>}</div>
+          </div>
+          <div className="field"><label htmlFor="pay-method">Forma</label><select id="pay-method" className="select" value={payMethod} onChange={e=>setPayMethod(e.target.value)}><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="TRANSFERENCIA">Transferência</option><option value="OUTRO">Outro</option></select></div>
+          <div className="field"><label htmlFor="pay-date">Data</label><input id="pay-date" className="input" type="date" value={payDate} max={dateKey} onChange={e=>setPayDate(e.target.value)}/></div>
+          <div className="field full form-actions"><button type="button" className="btn secondary" onClick={()=>setPayRow(null)} disabled={pending}>Cancelar</button><button type="button" className="btn" onClick={confirmPay} disabled={pending||invalid}>{pending?"Registrando...":`Confirmar ${money(amount>0?amount:0)}`}</button></div>
+        </div>
+      </div></div>;
+    })()}
 
     {compact?<>
       <div className="collections-print-note"><strong>Modo compacto:</strong> uma pessoa por cartão, somando todas as cobranças pendentes visíveis. Ideal para capturas de tela.</div>

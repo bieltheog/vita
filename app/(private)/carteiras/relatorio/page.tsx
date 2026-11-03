@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ReportTabs } from "@/components/reports/report-tabs";
+import { FileText } from "lucide-react";
 import { getDashboardSummary, getLoans, getPayments, getLoanTopups } from "@/lib/data";
 import { getActivePortfolio } from "@/lib/portfolio";
 import { createClient } from "@/lib/supabase/server";
@@ -75,10 +75,10 @@ export default async function CashReportPage({
   const otherSpent = roundMoney(spent - disbursed);
 
   return <div className="cash-report-shell">
+    <div className="cash-report-screen-only"><ReportTabs active="/carteiras/relatorio"/></div>
     <div className="cash-report-toolbar cash-report-screen-only">
       <div>
-        <Link href="/carteiras" className="cash-inline-link"><ArrowLeft size={16}/> Voltar ao caixa</Link>
-        <h1 style={{marginTop:10,marginBottom:4}}>Relatório diário</h1>
+        <h1 style={{marginTop:0,marginBottom:4}}>Relatório diário</h1>
         <p className="muted" style={{margin:0}}>Resumo simples do dinheiro, dos recebimentos e dos atrasos.</p>
       </div>
       <form className="cash-report-period" action="/carteiras/relatorio" method="get">
