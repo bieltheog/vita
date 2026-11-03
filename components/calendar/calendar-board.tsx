@@ -6,7 +6,7 @@ import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMont
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, CreditCard, Undo2, X } from "lucide-react";
 import { effectiveInstallmentStatus, money } from "@/lib/finance";
-import { brazilDateKey } from "@/lib/date";
+import { brazilDateKey, formatDateBR } from "@/lib/date";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { registerPaymentSafeAction, markInstallmentUnpaidSafeAction } from "@/app/operations-actions";
 import { registerInterestOnlyAction, voidInterestOnlyAction } from "@/app/interest-only-actions";
@@ -123,7 +123,7 @@ export function CalendarBoard({ installments, interestPayments=[] }: { installme
   }
 
   function chargeMessage(i:Installment){
-    return `Olá, ${i.client?.name||""}! Sua parcela de ${money(i.remaining_amount)} do empréstimo ${i.loan?.loan_code||""} vence em ${i.due_date}. Se já pagou, desconsidere.`;
+    return `Olá, ${i.client?.name||""}! Sua parcela de ${money(i.remaining_amount)} do empréstimo ${i.loan?.loan_code||""} vence em ${formatDateBR(i.due_date)}. Se já pagou, desconsidere.`;
   }
 
   return <>

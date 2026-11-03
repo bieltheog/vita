@@ -3,7 +3,7 @@ import { getActivePortfolio } from "@/lib/portfolio";
 import { getLoans,getPayments,getInstallments,getLoanTopups,getDashboardSummary } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { money,realizedProfitForPayment } from "@/lib/finance";
-import { brazilDateKey } from "@/lib/date";
+import { brazilDateKey, formatDateBR } from "@/lib/date";
 import { registerPortfolioEntryAction,voidPortfolioEntryAction,registerOpeningBalanceAction } from "@/app/portfolio-entry-actions";
 import { buildCashLedger } from "@/lib/cash-ledger";
 import type { CashBaseline,PortfolioCashEntry } from "@/lib/cash-ledger";
@@ -98,7 +98,7 @@ export default async function WalletsPage(){
         <div className="card"><div className="muted">Disponível agora</div><div className="stat-value" style={{color:ledger.balance<0?"var(--red)":"var(--green)"}}>{portfolioId===1&&!baseline?"Não conciliado":money(ledger.balance)}</div></div>
       </div>
       {baseline
-        ? <div className="alert" style={{marginTop:12}}>Abertura registrada em {baseline.start_date}, com saldo de {money(baseline.opening_balance)} no início desse dia. Movimentos anteriores continuam no histórico, mas não entram no saldo atual.</div>
+        ? <div className="alert" style={{marginTop:12}}>Abertura registrada em {formatDateBR(baseline.start_date)}, com saldo de {money(baseline.opening_balance)} no início desse dia. Movimentos anteriores continuam no histórico, mas não entram no saldo atual.</div>
         : <div className="grid-equal" style={{marginTop:12}}>
             <div><h2>Definir caixa inicial</h2><p className="muted">Digite o dinheiro que havia disponível no <strong>início da data escolhida</strong>. Por exemplo, R$ 115.000,00, se já for o saldo após a quitação de dívidas antigas.</p>
               <form action={registerOpeningBalanceAction} className="form-grid">
@@ -135,7 +135,7 @@ export default async function WalletsPage(){
       <div className="card"><h2>Clientes inadimplentes</h2>
         <p className="muted">Atrasos atuais, ainda recuperáveis. Valores contratuais incluem juros, não apenas principal.</p>
         <div className="list">{delinquent.slice().sort((a,b)=>Number(b.remaining_amount)-Number(a.remaining_amount)).slice(0,25).map(i=><div className="list-row" key={i.id}>
-          <div><strong>{i.client?.name||"Cliente"}</strong><div className="person-meta">{i.loan?.loan_code} · vencimento {i.due_date}</div></div><strong>{money(i.remaining_amount)}</strong>
+          <div><strong>{i.client?.name||"Cliente"}</strong><div className="person-meta">{i.loan?.loan_code} · vencimento {formatDateBR(i.due_date)}</div></div><strong>{money(i.remaining_amount)}</strong>
         </div>)}</div>
         {!delinquent.length&&<div className="empty">Nenhuma parcela em atraso nesta carteira.</div>}
       </div>

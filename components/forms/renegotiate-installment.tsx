@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateBR } from "@/lib/date";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, X } from "lucide-react";
@@ -29,7 +30,7 @@ export function RenegotiateInstallment({ installment, compact=false }: { install
     <button type="button" className={compact?"icon-btn":"btn secondary"} onClick={()=>setOpen(true)} title="Renegociar parcela"><CalendarClock size={16}/>{compact?null:"Renegociar"}</button>
     {open&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setOpen(false)}}><div className="modal" style={{maxWidth:590}}>
       <div className="section-title"><div><div className="eyebrow">Renegociação</div><h2>Parcela {installment.installment_number}/{installment.loan?.installment_count}</h2><div className="muted" style={{fontSize:12}}>{installment.client?.name} · {installment.loan?.loan_code}</div></div><button type="button" className="icon-btn" onClick={()=>setOpen(false)}><X size={17}/></button></div>
-      <div className="card" style={{marginTop:14,background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Vencimento atual</div><strong>{installment.due_date}</strong></div><div><div className="muted" style={{fontSize:11}}>Valor atual</div><strong>{money(installment.amount)}</strong></div><div><div className="muted" style={{fontSize:11}}>Já recebido</div><strong>{money(installment.amount_paid)}</strong></div></div></div>
+      <div className="card" style={{marginTop:14,background:"#090c11"}}><div className="grid-equal"><div><div className="muted" style={{fontSize:11}}>Vencimento atual</div><strong>{formatDateBR(installment.due_date)}</strong></div><div><div className="muted" style={{fontSize:11}}>Valor atual</div><strong>{money(installment.amount)}</strong></div><div><div className="muted" style={{fontSize:11}}>Já recebido</div><strong>{money(installment.amount_paid)}</strong></div></div></div>
       <form action={submit} className="form-grid" style={{marginTop:14}}>
         <input type="hidden" name="installment_id" value={installment.id}/>
         <div className="field"><label>Nova data *</label><input className="input" type="date" name="new_due_date" defaultValue={installment.due_date} required/></div>
