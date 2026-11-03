@@ -38,7 +38,7 @@ export function RenegotiateInstallment({ installment, compact=false }: { install
         <div className="field full"><label>Motivo</label><input className="input" name="reason" placeholder="Ex.: cliente pediu mudança de vencimento"/></div>
         <div className="field full"><div className="alert">A data original fica salva no histórico. Se o valor mudar, o sistema recalcula automaticamente o total a receber e o lucro previsto.</div></div>
         {error&&<div className="field full"><div className="alert">{error}</div></div>}
-        {message&&<div className="field full"><div className="alert">{message}</div></div>}
+        {message&&<div className="field full"><div className="alert alert-success">{message}</div></div>}
         <div className="field full form-actions"><button type="button" className="btn secondary" onClick={()=>setOpen(false)}>Cancelar</button><button className="btn" disabled={pending}>{pending?"Salvando...":"Salvar renegociação"}</button></div>
       </form>
     </div></div>}

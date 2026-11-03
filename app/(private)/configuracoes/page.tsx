@@ -1,1 +1,25 @@
-export default function P(){return <><div className="page-head"><div><div className="eyebrow">Preferências</div><h1>Configurações</h1><div className="muted">Ajustes do sistema e do ambiente.</div></div></div><div className="grid-equal"><div className="card form-grid"><div className="field full"><label>Nome do sistema</label><input className="input" defaultValue="Jureminha 2.0"/></div><div className="field"><label>Moeda</label><select className="select"><option>Real brasileiro (R$)</option></select></div><div className="field"><label>Tema</label><select className="select"><option>Escuro</option><option>Claro</option><option>Sistema</option></select></div><button className="btn" type="button">Salvar preferências</button></div><div className="card"><h2>Segurança</h2><p className="muted">Autenticação via Supabase Auth, rotas protegidas via proxy e Row Level Security no banco.</p><div className="alert">Nunca coloque a service_role no frontend. Use apenas as chaves públicas permitidas e mantenha RLS ativo.</div></div></div></>}
+import { getCurrentProfile } from "@/lib/data";
+import { ChangePasswordForm, LogoutButton } from "@/components/forms/account-settings";
+
+export default async function SettingsPage() {
+  const profile = await getCurrentProfile();
+  const demo = Boolean(profile?.demo);
+  return <>
+    <div className="page-head"><div><h1>Configurações</h1><div className="muted">Sua conta e acesso.</div></div></div>
+    <div className="grid-equal">
+      <div className="card">
+        <div className="section-title"><h2>Conta</h2></div>
+        <div className="person">
+          <div className="avatar">{(profile?.full_name || "U")[0]?.toUpperCase()}</div>
+          <div><div className="person-name">{profile?.full_name || "Usuário"}</div><div className="person-meta">{demo ? "Modo demonstração" : profile?.email}</div></div>
+        </div>
+        <div className="divider" />
+        <LogoutButton demo={demo} />
+      </div>
+      <div className="card">
+        <div className="section-title"><div><h2>Alterar senha</h2><div className="muted text-sm">Use pelo menos 8 caracteres.</div></div></div>
+        <ChangePasswordForm demo={demo} />
+      </div>
+    </div>
+  </>;
+}

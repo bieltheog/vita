@@ -7,7 +7,7 @@ import { switchPortfolioAction } from "@/app/portfolio-actions";
 import type { PortfolioId } from "@/lib/portfolio";
 import {
   LayoutDashboard, Users, Landmark, CreditCard, CalendarDays, BarChart3,
-  Calculator, Bell, Settings, Search, LogOut, MoreHorizontal, Plus,
+  Bell, Settings, Search, LogOut, MoreHorizontal, Plus,
   CircleDollarSign, X, Wallet, UserPlus,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -26,7 +26,6 @@ const navGroups = [
   { title: "Análise", items: [
     { href: "/calendario", label: "Calendário", icon: CalendarDays },
     { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
-    { href: "/simulador", label: "Simulador", icon: Calculator },
   ] },
 ];
 
@@ -48,18 +47,23 @@ const mobileMore = [
   { href: "/emprestimos", label: "Empréstimos", icon: Landmark },
   { href: "/pagamentos", label: "Pagamentos", icon: CreditCard },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
-  { href: "/simulador", label: "Simulador", icon: Calculator },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
-export function AppShell({ children, profile,portfolioId }: { children: React.ReactNode; profile: { full_name?: string | null; email?: string | null; demo?: boolean }; portfolioId:PortfolioId }) {
+export function AppShell({ children, profile,portfolioId,overdueCount=0 }: { children: React.ReactNode; profile: { full_name?: string | null; email?: string | null; demo?: boolean }; portfolioId:PortfolioId; overdueCount?: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen,setMoreOpen]=useState(false);
   const [quickOpen,setQuickOpen]=useState(false);
   const [switching,startSwitch]=useTransition();
   const switchWallet=(value: string)=>startSwitch(async()=>{await switchPortfolioAction(value==="2"?2:1);router.refresh();});
-  const active = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  // Relatório do caixa e detalhes ficam na seção Relatórios, não em Caixa.
+  const reportPaths=["/carteiras/relatorio","/carteiras/detalhes"];
+  const active = (href: string) => {
+    if (href === "/carteiras") return pathname === "/carteiras";
+    if (href === "/relatorios") return pathname.startsWith("/relatorios") || reportPaths.some(p => pathname.startsWith(p));
+    return pathname === href || pathname.startsWith(href + "/");
+  };
   const moreActive=mobileMore.some(item=>active(item.href));
 
   async function logout() {
@@ -73,7 +77,10 @@ export function AppShell({ children, profile,portfolioId }: { children: React.Re
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const q=String(form.get("q")||"").trim();
-    if(q) router.push(`/clientes?q=${encodeURIComponent(q)}`);
+    if(!q) return;
+    // Códigos de empréstimo (ex.: EMP-0012, C2-0003 ou só o número) abrem a lista de empréstimos.
+    const looksLikeLoanCode=/^[a-z]{0,6}\d?[-\s]?\d+$/i.test(q)&&/\d/.test(q);
+    router.push(looksLikeLoanCode?`/emprestimos?q=${encodeURIComponent(q)}`:`/clientes?q=${encodeURIComponent(q)}`);
   }
 
   return <div className="shell">
@@ -100,11 +107,11 @@ export function AppShell({ children, profile,portfolioId }: { children: React.Re
 
     <main className="main">
       <header className="topbar">
-        <form className="search-box" onSubmit={search}><Search size={17}/><input name="q" aria-label="Busca global" placeholder="Buscar cliente..." /></form>
+        <form className="search-box" onSubmit={search}><Search size={17}/><input name="q" aria-label="Busca global" placeholder="Buscar cliente ou empréstimo..." /></form>
         <div className="top-actions">
           <select aria-label="Selecionar carteira" className="select" style={{maxWidth:154,fontSize:12}} value={portfolioId} disabled={switching} onChange={e=>switchWallet(e.target.value)}><option value={1}>Carteira 1 · Atual</option><option value={2}>Carteira 2 · Nova</option></select>
           {profile.demo && <span className="badge blue">Demo</span>}
-          <Link className="icon-btn" href="/notificacoes" title="Notificações"><Bell size={17}/></Link>
+          <Link className="icon-btn bell-btn" href={overdueCount>0?"/cobrancas-hoje?filtro=atrasados":"/cobrancas-hoje"} title={overdueCount>0?`${overdueCount} parcela${overdueCount===1?"":"s"} em atraso`:"Nenhuma parcela em atraso"} aria-label={overdueCount>0?`${overdueCount} parcelas em atraso`:"Cobranças"}><Bell size={17}/>{overdueCount>0&&<span className="bell-count">{overdueCount>99?"99+":overdueCount}</span>}</Link>
           <Link className="icon-btn desktop-settings" href="/configuracoes"><Settings size={17}/></Link>
         </div>
       </header>

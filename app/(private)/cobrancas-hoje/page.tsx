@@ -5,7 +5,8 @@ import { TodayCollections } from "@/components/collections/today-collections";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function TodayCollectionsPage() {
+export default async function TodayCollectionsPage({ searchParams }: { searchParams: Promise<{ filtro?: string }> }) {
+  const params = await searchParams;
   const todayKey = brazilDateKey();
   const installments = await getInstallments();
 
@@ -31,7 +32,7 @@ export default async function TodayCollectionsPage() {
           </div>
         </div>
       </div>
-      <TodayCollections items={collectible} dateKey={todayKey} />
+      <TodayCollections items={collectible} dateKey={todayKey} initialFilter={params.filtro === "atrasados" ? "ATRASADOS" : "TODOS"} />
     </>
   );
 }

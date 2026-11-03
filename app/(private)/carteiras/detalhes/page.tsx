@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ReportTabs } from "@/components/reports/report-tabs";
 import { getActivePortfolio } from "@/lib/portfolio";
 import { getLoans,getPayments,getInstallments,getLoanTopups,getDashboardSummary } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
@@ -76,8 +76,8 @@ export default async function WalletsPage(){
     return days>=x.a&&days<=x.b;
   })}));
   return <>
-    <div style={{marginBottom:16}}><Link className="btn secondary" href="/carteiras">← Voltar ao caixa simples</Link></div>
-    <div className="page-head"><div><div className="eyebrow">Controle financeiro · Carteira {portfolioId}</div><h1>Detalhes financeiros · Carteira {portfolioId}</h1>
+    <ReportTabs active="/carteiras/detalhes"/>
+    <div className="page-head"><div><div className="eyebrow">Carteira {portfolioId}</div><h1>Inadimplência e resultado</h1>
       <div className="muted">{portfolioId===1?"Operação antiga preservada; cadastros compartilhados com a Carteira 2.":"Operação nova, inicialmente zerada. Cada movimento real altera o saldo disponível."}</div></div></div>
     <div className="stats">
       <div className="card"><div className="muted">Capital próprio aportado</div><div className="stat-value">{money(funding)}</div></div>

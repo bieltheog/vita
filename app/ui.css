@@ -73,3 +73,40 @@ td .loan-progress{margin-top:0}
 .alert-gap-bottom{margin-bottom:12px}
 .form-actions{flex-direction:row!important;justify-content:flex-end;flex-wrap:wrap}
 .card-inset{background:var(--bg)}
+
+/* Botão com aparência de link */
+.link-btn{border:0;background:transparent;padding:0;color:var(--primary-2);font-size:12px;font-weight:600;cursor:pointer}
+.link-btn:hover{text-decoration:underline}
+.table-link:hover strong{color:var(--primary-2)}
+.btn-block{width:100%}
+
+/* Confirmação de recebimento */
+.pay-confirm{width:min(460px,100%)}
+.pay-amount{font-size:22px!important;font-weight:650;font-variant-numeric:tabular-nums}
+.pay-hint{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;margin-top:2px}
+
+/* Sino com contador de atrasados */
+.bell-btn{position:relative}
+.bell-count{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;line-height:1;border:2px solid var(--bg)}
+
+/* Abas de relatórios */
+.report-tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+.report-tabs::-webkit-scrollbar{display:none}
+.report-tab{flex:0 0 auto;padding:10px 12px;color:var(--muted);font-size:13px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.report-tab:hover{color:var(--text)}
+.report-tab.active{color:var(--text);border-bottom-color:var(--primary)}
+@media print{.report-tabs{display:none!important}}
+
+/* Login e redefinição de senha */
+.auth-page{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px 16px;background:var(--bg)}
+.auth-card{width:min(400px,100%);padding:28px;border:1px solid var(--border);border-radius:16px;background:var(--panel)}
+.auth-card h1{font-size:24px;margin:0 0 6px;letter-spacing:-.02em}
+.auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:26px}
+.auth-brand .brand-name{font-size:16px}
+.auth-sub{margin:0 0 20px;font-size:13px}
+.password-field{position:relative}
+.password-field .input{padding-right:50px}
+.password-field .icon-btn{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;background:transparent}
+.auth-forgot{display:block;margin:10px 0 0 auto}
+.auth-back{display:block;margin:14px auto 0}
+@media (max-width:780px){.auth-card{padding:22px 18px}.password-field .icon-btn{width:38px;height:38px;flex-basis:auto}}
